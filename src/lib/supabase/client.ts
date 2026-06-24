@@ -17,6 +17,3 @@ export function assertSupabaseEnv(env: NodeJS.ProcessEnv = process.env): void {
     throw new Error(`Missing Supabase environment variables: ${missingKeys.join(", ")}`);
   }
 }
-
-// @supabase/supabase-js is intentionally not installed yet.
-// Add the dependency and instantiate browser/server clients here when the Next.js layer needs it.

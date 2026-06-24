@@ -25,6 +25,19 @@ npm test
 npm run typecheck
 ```
 
+Test d'intégration Supabase local :
+
+```bash
+supabase start
+supabase db reset
+set -a; eval "$(supabase status -o env)"; set +a
+npm run test:integration
+```
+
+`set -a` exporte les variables retournées par `supabase status -o env` pour que
+`createServerSupabaseClient()` puisse lire `NEXT_PUBLIC_SUPABASE_URL` et
+`SUPABASE_SERVICE_ROLE_KEY` au moment de l'appel.
+
 ## Supabase
 
 Avec la CLI Supabase locale et Docker :
@@ -48,6 +61,12 @@ Avec Supabase Cloud, exécuter manuellement dans l'éditeur SQL :
 - `src/lib/pricing/pricing-rules.ts` : règles tarifaires isolées.
 - `src/lib/pricing/calculer-devis.ts` : calcul pur et déterministe.
 - `src/lib/pricing/calculer-devis.test.ts` : tests Vitest du pricing.
+- `src/lib/pricing/lookup-pricing-rules.ts` : lecture de la matrice active Supabase.
+- `src/lib/pricing/resolve-distance.ts` : résolution de distance depuis `route_pricing`.
+- `src/lib/quotes/quote-service.ts` : orchestration lead → devis sauvegardé.
+- `src/lib/quotes/quote-service.integration.test.ts` : test d'intégration Supabase local.
+- `src/lib/leads/lead-service.ts` : lecture lead et transitions de statuts.
+- `src/lib/audit/audit-service.ts` : écriture des logs d'audit.
 - `supabase/schema.sql` : tables minimales du MVP.
 - `supabase/migrations/` : migrations utilisées par la CLI Supabase locale.
 - `supabase/seed.sql` : matrice tarifaire v1 et routes de démonstration.

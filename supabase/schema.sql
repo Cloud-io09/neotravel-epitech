@@ -131,3 +131,12 @@ create trigger leads_set_updated_at
 before update on leads
 for each row
 execute function set_updated_at();
+
+grant usage on schema public to service_role;
+grant all on table clients to service_role;
+grant all on table leads to service_role;
+grant all on table pricing_matrices to service_role;
+grant all on table route_pricing to service_role;
+grant all on table quotes to service_role;
+grant all on table followups to service_role;
+grant all on table audit_logs to service_role;
