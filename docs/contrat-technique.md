@@ -90,7 +90,6 @@ Ne sont jamais inventées par l'IA ni fournies telles quelles par le prospect.
 | `quotes` | Devis : montants, breakdown, hash, statut, PDF |  | R3/R4 |
 | `followups` | Relances : type, échéance, statut | R4 (n8n) | dashboard |
 | `audit_logs` | Transitions importantes | tous | audit |
-| `model_runs` | Coût / latence / tokens IA par devis | R2 | KPI coût/devis |
 
 > `distance_cache` supprimée : doublon avec `route_pricing`. Une seule source de distance.
 
