@@ -41,12 +41,10 @@ describe("POST /api/chat", () => {
     expect(body).not.toHaveProperty("refusal");
   });
 
-  it("retourne une erreur claire si la clé Gemini manque", async () => {
-    const previousGeminiKey = process.env.GEMINI_API_KEY;
-    const previousGoogleKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  it("retourne une erreur claire si la clé AI manque", async () => {
+    const previousKey = process.env.AI_API_KEY;
 
-    delete process.env.GEMINI_API_KEY;
-    delete process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    delete process.env.AI_API_KEY;
 
     const response = await POST(
       new Request("http://localhost/api/chat", {
@@ -55,17 +53,7 @@ describe("POST /api/chat", () => {
       }),
     );
 
-    if (previousGeminiKey === undefined) {
-      delete process.env.GEMINI_API_KEY;
-    } else {
-      process.env.GEMINI_API_KEY = previousGeminiKey;
-    }
-
-    if (previousGoogleKey === undefined) {
-      delete process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-    } else {
-      process.env.GOOGLE_GENERATIVE_AI_API_KEY = previousGoogleKey;
-    }
+    if (previousKey !== undefined) process.env.AI_API_KEY = previousKey;
 
     expect(response.status).toBe(503);
 
@@ -73,7 +61,7 @@ describe("POST /api/chat", () => {
 
     expect(body).toMatchObject({
       status: "ERROR",
-      message: expect.stringContaining("GEMINI_API_KEY"),
+      message: expect.stringContaining("AI_API_KEY"),
     });
     expect(body).not.toHaveProperty("error");
   });
