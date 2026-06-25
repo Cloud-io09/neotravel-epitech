@@ -62,9 +62,9 @@ describe("calculateQuoteForLead", () => {
 
     expect(result).toMatchObject({ ok: true, quoteId, status: "QUOTE_READY" });
     expect((result as { quote: unknown }).quote).toMatchObject({
-      price_ht: expect.any(Number),
-      price_ttc: expect.any(Number),
-      distance_km: expect.any(Number),
+      priceHt: expect.any(Number),
+      priceTtc: expect.any(Number),
+      distanceKm: expect.any(Number),
     });
     expect(dependencies.resolveDistance).toHaveBeenCalledWith({
       departureCity: "Paris",
