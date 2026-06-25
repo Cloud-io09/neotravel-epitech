@@ -5,13 +5,57 @@ export type ChatApiStatus =
   | "QUALIFIED"
   | "ERROR";
 
+export type QuoteBreakdownData = {
+  distance?: {
+    distanceKm: number;
+    source?: string;
+    pricingMode: "forfait_grid" | "long_distance_formula";
+    gridCeilingKm?: number;
+    oneWayBaseEur: number;
+  };
+  trip?: {
+    type: string;
+    multiplier: 1 | 2;
+    baseAfterTripTypeEur: number;
+  };
+  coefficients?: {
+    seasonality: number;
+    leadTime: number;
+    capacity: number;
+    total: number;
+    amountEur: number;
+  };
+  options?: {
+    tollPackageEur: number;
+    totalEur: number;
+  };
+  margin?: {
+    rate: number;
+    amountEur: number;
+  };
+  vat?: {
+    rate: number;
+    amountEur: number;
+  };
+  totals?: {
+    beforeMarginEur: number;
+    priceHtEur: number;
+    priceTtcEur: number;
+  };
+};
+
 export type QuoteSummary = {
-  quote_number: string;
-  vehicle_code: string;
-  distance_km: number;
-  price_ht: number;
-  vat_amount: number;
-  price_ttc: number;
+  quoteNumber: string;
+  vehicleCode: string;
+  distanceKm: number;
+  priceHt: number;
+  vatAmount: number;
+  priceTtc: number;
+  departureCity?: string;
+  arrivalCity?: string;
+  departureDate?: string;
+  passengerCount?: number;
+  breakdown?: QuoteBreakdownData;
 };
 
 export type ChatApiResponse = {
