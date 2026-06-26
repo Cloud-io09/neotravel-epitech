@@ -10,6 +10,14 @@ import type { Lead } from "@/shared/types/lead";
 import styles from "./dashboard.module.css";
 import { CardList, DashboardHeader, DataTable, KpiGrid, Note, Panel } from "./DashboardPageKit";
 import { StatusBadge } from "./StatusBadge";
+import { getQuoteOutcome, isWon } from "../services/quoteOutcome";
+
+const QUOTE_OUTCOME_BADGE: Record<string, { label: string; status: string }> = {
+  won: { label: "Accepté", status: "WON" },
+  lost: { label: "Refusé", status: "LOST" },
+  sent: { label: "Envoyé", status: "QUOTE_SENT" },
+  ready: { label: "Prêt", status: "QUOTE_READY" },
+};
 
 function routeOf(lead: Lead) {
   return `${lead.departureCity ?? "?"} > ${lead.arrivalCity ?? "?"}`;
@@ -55,19 +63,22 @@ export async function CommercialLeadsPage() {
           <Note>Aucune demande pour l&apos;instant.</Note>
         ) : (
           <DataTable
-            columns={["Client", "Trajet", "Statut", "Priorité", "Prochaine relance", "Fiabilité"]}
-            columnsTemplate="1.2fr 1fr 1fr .8fr 1fr .6fr"
-            rows={leads.map((lead) => ({
-              cells: [
-                lead.organization ?? "Organisation manquante",
-                routeOf(lead),
-                <StatusBadge key="s" status={lead.status} />,
-                lead.status === "HUMAN_REVIEW" ? "Urgent" : "Normale",
-                nextFollowup(lead.id, followups),
-                `${Math.round((lead.confidence ?? 0) * 100)}%`
-              ],
-              href: `/dashboard/demandes/${lead.id}`
-            }))}
+            columns={["Client", "Trajet", "Statut", "Priorité", "Prochaine relance", "Complétude"]}
+            columnsTemplate="1.2fr 1fr 1fr .8fr 1fr .7fr"
+            rows={leads.map((lead) => {
+              const missingCount = lead.missingFields?.length ?? 0;
+              return {
+                cells: [
+                  lead.organization ?? "Organisation manquante",
+                  routeOf(lead),
+                  <StatusBadge key="s" status={lead.status} />,
+                  lead.status === "HUMAN_REVIEW" ? "Urgent" : "Normale",
+                  nextFollowup(lead.id, followups),
+                  missingCount === 0 ? "Complète" : `${missingCount} manquant${missingCount > 1 ? "s" : ""}`
+                ],
+                href: `/dashboard/demandes/${lead.id}`
+              };
+            })}
           />
         )}
       </Panel>
@@ -144,7 +155,7 @@ export async function QuotesDashboardPage() {
         kpis={[
           { label: "Devis", value: quotes.length, tone: "blue" },
           { label: "Envoyés", value: quotes.filter((quote) => quote.status === "QUOTE_SENT").length, tone: "gold" },
-          { label: "Acceptés", value: quotes.filter((quote) => quote.status === "ACCEPTED").length, tone: "green" },
+          { label: "Acceptés", value: quotes.filter((quote) => isWon(quote, leadById.get(quote.leadId))).length, tone: "green" },
           { label: "CA potentiel", value: euro(quoteTotal), tone: "blue" }
         ]}
       />
@@ -157,12 +168,13 @@ export async function QuotesDashboardPage() {
             columnsTemplate="1fr 1.2fr .9fr 1fr .8fr"
             rows={quotes.map((quote) => {
               const lead = leadById.get(quote.leadId);
+              const outcome = QUOTE_OUTCOME_BADGE[getQuoteOutcome(quote, lead)];
               return {
                 cells: [
                   quote.calculation.quoteNumber,
                   lead?.organization ?? quote.leadId,
                   euro(quote.calculation.priceTtc),
-                  <StatusBadge key="s" status={quote.status} />,
+                  <StatusBadge key="s" status={outcome.status} label={outcome.label} />,
                   "Ouvrir"
                 ],
                 href: `/devis/${quote.id}`
@@ -279,6 +291,8 @@ export async function AdminOverviewDashboardPage() {
   const supabase = getDataMode() === "supabase";
   const aiCost = runs.reduce((sum, run) => sum + (run.costEur ?? 0), 0);
   const toTreat = leads.filter((lead) => ["NEW", "INCOMPLETE", "HUMAN_REVIEW"].includes(lead.status)).length;
+  const leadById = new Map(leads.map((lead) => [lead.id, lead]));
+  const acceptedCount = quotes.filter((quote) => isWon(quote, leadById.get(quote.leadId))).length;
 
   return (
     <main className={styles.page}>
@@ -311,7 +325,7 @@ export async function AdminOverviewDashboardPage() {
                 { title: `${leads.length} demandes`, body: `${toTreat} à traiter actuellement.`, tone: "blue" },
                 {
                   title: `${quotes.length} devis`,
-                  body: `${quotes.filter((quote) => quote.status === "QUOTE_SENT").length} envoyés · ${quotes.filter((quote) => quote.status === "ACCEPTED").length} acceptés.`,
+                  body: `${quotes.filter((quote) => quote.status === "QUOTE_SENT").length} envoyés · ${acceptedCount} acceptés.`,
                   tone: "green"
                 },
                 {
@@ -539,11 +553,11 @@ export async function GrowthDashboardPage() {
   ];
   const qualified = leads.filter((lead) => qualifiedStatuses.includes(lead.status)).length;
   const quoted = quotes.length;
-  const accepted = quotes.filter((quote) => quote.status === "ACCEPTED").length;
+  const leadById = new Map(leads.map((lead) => [lead.id, lead]));
+  const wonQuotes = quotes.filter((quote) => isWon(quote, leadById.get(quote.leadId)));
+  const accepted = wonQuotes.length;
   const caPotentiel = quotes.reduce((sum, quote) => sum + quote.calculation.priceTtc, 0);
-  const caGagne = quotes
-    .filter((quote) => quote.status === "ACCEPTED")
-    .reduce((sum, quote) => sum + quote.calculation.priceTtc, 0);
+  const caGagne = wonQuotes.reduce((sum, quote) => sum + quote.calculation.priceTtc, 0);
   const convRate = quoted > 0 ? Math.round((accepted / quoted) * 100) : 0;
 
   const funnel = [

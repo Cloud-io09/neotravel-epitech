@@ -9,6 +9,7 @@ import { getLeadById, markHumanReview, markLeadIncomplete } from "../../../lib/l
 import { normalizeExtraction } from "../../../lib/ai/normalize-extraction";
 import { buildExistingQualification, mergeLead } from "../../../lib/ai/merge-existing";
 import { buildQualificationResponse } from "../../../lib/ai/qualification-response";
+import { generateAssistantReply, type ReplyTurn } from "../../../lib/ai/generate-reply";
 import { extractTurnFacts } from "../../../lib/ai/extract-turn-facts";
 import { detectIntermediateStops } from "../../../lib/ai/detect-intermediate-stops";
 import { validateLead } from "../../../lib/ai/validate-lead";
@@ -150,6 +151,26 @@ Message : ${latestUserText}`,
       }),
       qualificationTimeoutMs,
     );
+    // Conversational reply generator — a short, contextual second pass. Text only:
+    // it never decides status/price/distance. Falls back to deterministic templates.
+    const replyConversation: ReplyTurn[] = messages
+      .filter((m): m is ModelMessage & { role: "user" | "assistant" } =>
+        m.role === "user" || m.role === "assistant")
+      .map((m) => ({ role: m.role, content: getMessageText(m.content) }))
+      .filter((turn) => turn.content.trim().length > 0)
+      .slice(-6);
+    const generateReply = (prompt: string) =>
+      withTimeout(
+        generateText({
+          model: openrouter(modelId),
+          system: NEOTRAVEL_SYSTEM_PROMPT,
+          prompt,
+          temperature: 0.5,
+          abortSignal: AbortSignal.timeout(qualificationTimeoutMs),
+        }),
+        qualificationTimeoutMs,
+      ).then((result) => result.text);
+
     const parseResult = ExtractionDeltaSchema.safeParse(extractJsonFromText(textResult.text));
     const extractedDelta: ExtractionDelta = parseResult.success ? parseResult.data : {};
     const deterministicFacts = extractTurnFacts(latestUserText, existingQualification, today);
@@ -260,7 +281,19 @@ Message : ${latestUserText}`,
         await markLeadIncomplete(leadResult.leadId, missing.missing_fields);
       }
 
-      const conversationalMessage = buildQualificationResponse(warnings, missing.missing_fields);
+      const conversationalMessage = await generateAssistantReply(
+        {
+          status: "INCOMPLETE",
+          collected: extractedFields as unknown as Record<string, unknown>,
+          missingFields: missing.missing_fields,
+          warnings,
+          conversation: replyConversation,
+        },
+        {
+          generate: generateReply,
+          fallback: buildQualificationResponse(warnings, missing.missing_fields),
+        },
+      );
 
       logAgentEvent(
         requestId,
@@ -290,7 +323,17 @@ Message : ${latestUserText}`,
       .filter(Boolean)
       .join(", ");
 
-    const qualifiedMessage = `Parfait, j'ai toutes les informations pour votre trajet (${qualifiedSummary}). Cliquez sur "Recevoir mon devis" pour obtenir votre estimation.`;
+    const qualifiedFallback = `Parfait, j'ai toutes les informations pour votre trajet (${qualifiedSummary}). Cliquez sur "Recevoir mon devis" pour obtenir votre estimation.`;
+    const qualifiedMessage = await generateAssistantReply(
+      {
+        status: "QUALIFIED",
+        collected: extractedFields as unknown as Record<string, unknown>,
+        missingFields: [],
+        warnings,
+        conversation: replyConversation,
+      },
+      { generate: generateReply, fallback: qualifiedFallback },
+    );
 
     logAgentEvent(
       requestId,
