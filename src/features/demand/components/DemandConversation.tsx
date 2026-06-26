@@ -140,6 +140,60 @@ function loadLeaflet() {
   return window.neoTravelLeafletLoader;
 }
 
+const SESSION_CACHE_KEY = "neotravel:demand-session:v1";
+
+type ChatExtracted = {
+  departureCity: string | null;
+  arrivalCity: string | null;
+  departureDate: string | null;
+  returnDate: string | null;
+  passengerCount: number | null;
+  tripType: "one_way" | "round_trip" | null;
+};
+
+type DemandSessionCache = {
+  chatMessages: { role: "user" | "assistant"; content: string }[];
+  currentLeadId: string | null;
+  qualifiedLeadId: string | null;
+  chatHumanReview: boolean;
+  chatEmail: string | null;
+  chatExtracted: ChatExtracted;
+};
+
+// Session persistence: survives refresh and client-side navigation, clears when the tab
+// closes. Crucial for currentLeadId — without it a refresh orphans the Supabase lead and
+// the next message would spawn a duplicate instead of enriching the existing one.
+function readDemandSession(): DemandSessionCache | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(SESSION_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as DemandSessionCache;
+    if (!parsed || !Array.isArray(parsed.chatMessages) || !parsed.chatExtracted) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeDemandSession(cache: DemandSessionCache) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // storage disabled or full — the session just won't persist, no crash.
+  }
+}
+
+function clearDemandSession() {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(SESSION_CACHE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 export function DemandConversation({ initialDemand = {} }: { initialDemand?: InitialDemand }) {
   const router = useRouter();
   const hasInitialDemand = Boolean(
@@ -186,14 +240,44 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   const [chatHumanReview, setChatHumanReview] = useState(false);
   const [chatEmail, setChatEmail] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
-  const [chatExtracted, setChatExtracted] = useState<{
-    departureCity: string | null;
-    arrivalCity: string | null;
-    departureDate: string | null;
-    returnDate: string | null;
-    passengerCount: number | null;
-    tripType: "one_way" | "round_trip" | null;
-  }>({ departureCity: null, arrivalCity: null, departureDate: null, returnDate: null, passengerCount: null, tripType: null });
+  const [chatExtracted, setChatExtracted] = useState<ChatExtracted>({
+    departureCity: null,
+    arrivalCity: null,
+    departureDate: null,
+    returnDate: null,
+    passengerCount: null,
+    tripType: null,
+  });
+
+  // Hydrate a prior session on mount, then persist the meaningful slice on every change.
+  // hydratedRef prevents the persist effect from overwriting the cache with empty initial
+  // state before hydration runs (which would also avoid an SSR hydration mismatch).
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    const cached = readDemandSession();
+    if (cached) {
+      setChatMessages(cached.chatMessages);
+      setCurrentLeadId(cached.currentLeadId);
+      setQualifiedLeadId(cached.qualifiedLeadId);
+      setChatHumanReview(cached.chatHumanReview);
+      setChatEmail(cached.chatEmail);
+      setChatExtracted(cached.chatExtracted);
+    }
+    hydratedRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    if (chatMessages.length === 0 && !currentLeadId) return; // nothing worth persisting yet
+    writeDemandSession({
+      chatMessages,
+      currentLeadId,
+      qualifiedLeadId,
+      chatHumanReview,
+      chatEmail,
+      chatExtracted,
+    });
+  }, [chatMessages, currentLeadId, qualifiedLeadId, chatHumanReview, chatEmail, chatExtracted]);
 
   // activeDemand: fusionne URL params + ce que le chat a extrait + éditions manuelles
   const activeDemand = useMemo(() => ({
@@ -333,6 +417,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
       setChatMessages((prev) => [...prev, { role: "assistant", content: data.message }]);
 
       if (data.status === "QUOTE_READY" && data.quoteId) {
+        clearDemandSession();
         router.push(`/client/devis/${data.quoteId}`);
       }
     } catch {
@@ -389,6 +474,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
         });
         if (!quoteResponse.ok) throw new Error("QUOTE_GENERATION_FAILED");
         const quote = (await quoteResponse.json()) as { id: string };
+        clearDemandSession();
         router.push(`/client/devis/${quote.id}`);
       } catch {
         setWorkflowError("Generation du devis impossible. Contactez-nous via le formulaire.");
@@ -450,6 +536,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
 
       if (!quoteResponse.ok) throw new Error("QUOTE_GENERATION_FAILED");
       const quote = (await quoteResponse.json()) as { id: string };
+      clearDemandSession();
       router.push(`/client/devis/${quote.id}`);
     } catch {
       setWorkflowError("Generation du devis impossible. Reprise humaine possible via contact.");
