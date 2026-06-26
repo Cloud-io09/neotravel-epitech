@@ -1,5 +1,5 @@
 import { scheduleFollowups } from "@/features/followups/services/scheduleFollowups";
-import { listFollowups } from "@/shared/lib/data";
+import { getDashboardData } from "@/features/dashboard/services/getDashboardData";
 import { handleApiError, jsonOk } from "@/shared/lib/utils/apiResponse";
 import { z } from "zod";
 
@@ -13,7 +13,8 @@ const ScheduleSchema = z.object({
 });
 
 export async function GET() {
-  return Response.json(await listFollowups());
+  const { followups } = await getDashboardData();
+  return Response.json(followups);
 }
 
 export async function POST(request: Request) {

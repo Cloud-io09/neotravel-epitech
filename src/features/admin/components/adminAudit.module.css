@@ -1,0 +1,253 @@
+.page {
+  min-height: 100vh;
+  padding: 28px clamp(18px, 4vw, 48px) 48px;
+  background: #f8fafc;
+  color: #111827;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.header h1 {
+  margin: 0;
+  color: #071b40;
+  font-size: 32px;
+}
+
+.header p {
+  max-width: 780px;
+  margin: 8px 0 0;
+  color: #5b6473;
+  line-height: 1.6;
+}
+
+.badge,
+.status {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.badge {
+  border: 1px solid #d9e0ea;
+  color: #053f91;
+  background: #ffffff;
+}
+
+.status {
+  color: #053f91;
+  background: #eef5ff;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+  border: 1px solid #d9e0ea;
+  border-radius: 8px;
+  padding: 14px;
+  background: #ffffff;
+}
+
+.filters label {
+  display: grid;
+  gap: 6px;
+  color: #394150;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.filters input,
+.filters select {
+  min-height: 40px;
+  border: 1px solid #d9e0ea;
+  border-radius: 8px;
+  padding: 0 10px;
+  color: #111827;
+  background: #ffffff;
+  font: inherit;
+  font-weight: 500;
+}
+
+.filters button {
+  min-height: 40px;
+  align-self: end;
+  border: 1px solid #d71920;
+  border-radius: 8px;
+  color: #ffffff;
+  background: #d71920;
+  font-weight: 800;
+}
+
+.grid {
+  display: grid;
+  gap: 18px;
+}
+
+.panel {
+  overflow: hidden;
+  border: 1px solid #d9e0ea;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.panelHeader {
+  padding: 18px 20px;
+  border-bottom: 1px solid #d9e0ea;
+}
+
+.panelHeader h2 {
+  margin: 0;
+  color: #071b40;
+  font-size: 22px;
+}
+
+.panelHeader p {
+  margin: 6px 0 0;
+  color: #667085;
+  line-height: 1.5;
+}
+
+.empty {
+  margin: 0;
+  padding: 20px;
+  color: #667085;
+}
+
+.auditList {
+  display: grid;
+}
+
+.auditItem {
+  display: grid;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid #edf1f6;
+}
+
+.auditItem:first-child {
+  border-top: 0;
+}
+
+.auditMain {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.auditMain h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 18px;
+}
+
+.auditMain p,
+.runRow small {
+  display: block;
+  margin: 4px 0 0;
+  color: #667085;
+}
+
+.entityLink {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  border: 1px solid #d9e0ea;
+  border-radius: 8px;
+  padding: 0 12px;
+  color: #053f91;
+  font-weight: 800;
+}
+
+.hashGrid {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) 110px minmax(0, 1fr);
+  gap: 8px;
+  color: #5b6473;
+  font-size: 13px;
+}
+
+.hashGrid code,
+.runRow code,
+.details pre {
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #111827;
+}
+
+.hashGrid code,
+.runRow code {
+  padding: 4px 8px;
+  overflow-wrap: anywhere;
+}
+
+.details summary {
+  cursor: pointer;
+  color: #053f91;
+  font-weight: 800;
+}
+
+.details pre {
+  overflow-x: auto;
+  margin: 10px 0 0;
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.runTable {
+  display: grid;
+}
+
+.runHead,
+.runRow {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) 120px 110px minmax(140px, 1fr) 170px;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 20px;
+}
+
+.runHead {
+  color: #394150;
+  background: #f8fafc;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.runRow {
+  border-top: 1px solid #edf1f6;
+  color: #5b6473;
+}
+
+.runRow strong {
+  color: #111827;
+}
+
+@media (max-width: 900px) {
+  .header {
+    flex-direction: column;
+  }
+
+  .filters,
+  .runRow,
+  .hashGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .runHead {
+    display: none;
+  }
+}

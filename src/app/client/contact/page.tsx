@@ -14,8 +14,7 @@ export default function ContactPage() {
         <p className={styles.kicker}>Contact</p>
         <h1>Nous trouver et nous contacter</h1>
         <p>
-          Pour la demo NeoTravel, le point de contact est positionne sur le campus Epitech KB Paris,
-          au Kremlin-Bicetre.
+          Pour la demo NeoTravel, le point de contact est positionne sur le campus Epitech KB Paris, au Kremlin-Bicetre.
         </p>
       </section>
 

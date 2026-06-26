@@ -1,37 +1,72 @@
-import { createLead } from "@/features/demand/actions/createLead";
-import { qualifyDemand } from "@/features/demand/actions/qualifyDemand";
-import { demandSchema } from "@/features/demand/schemas/demand.schema";
-import { handleApiError, jsonOk } from "@/shared/lib/utils/apiResponse";
 import { z } from "zod";
 
-const LeadApiInputSchema = demandSchema.partial().extend({
-  qualify: z.boolean().optional()
-});
+import { LeadQualificationSchema } from "../../../lib/domain/schemas";
+import { createOrUpdateLead, detectMissingFields } from "../../../lib/ai/tools";
+import { markHumanReview, markLeadIncomplete } from "../../../lib/leads/lead-service";
+import { validateLead } from "../../../lib/ai/validate-lead";
 
 export const runtime = "nodejs";
 
-export async function POST(request: Request) {
+const LeadApiInputSchema = z.object({
+  rawMessage: z.string().optional(),
+  organization: z.string().trim().min(1).optional().nullable(),
+  email: z.string().email().optional().nullable(),
+  departureCity: z.string().trim().min(1).optional().nullable(),
+  arrivalCity: z.string().trim().min(1).optional().nullable(),
+  departureDate: z.string().trim().min(1).optional().nullable(),
+  returnDate: z.string().trim().min(1).optional().nullable(),
+  passengerCount: z.number().int().optional().nullable(),
+  tripType: z.enum(["one_way", "round_trip"]).optional().nullable(),
+  options: z.array(z.string()).optional(),
+  qualify: z.boolean().optional(),
+});
+
+export async function POST(request: Request): Promise<Response> {
+  const parsed = LeadApiInputSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return Response.json({ error: "Payload invalide." }, { status: 400 });
+  }
+
   try {
-    const body = LeadApiInputSchema.parse(await request.json());
-    const lead = await createLead(body);
-    if (body.qualify === true) {
-      const demand = demandSchema.parse({
-        rawMessage: lead.rawMessage,
-        organization: lead.organization,
-        email: lead.email,
-        departureCity: lead.departureCity,
-        arrivalCity: lead.arrivalCity,
-        departureDate: lead.departureDate,
-        returnDate: lead.returnDate,
-        passengerCount: lead.passengerCount,
-        tripType: lead.tripType,
-        options: lead.options
-      });
-      const qualification = await qualifyDemand({ ...demand, id: lead.id });
-      return jsonOk({ leadId: lead.id, lead, qualification }, { status: 201 });
+    const input = parsed.data;
+    const candidate = LeadQualificationSchema.parse({
+      organization: input.organization ?? undefined,
+      email: input.email ?? undefined,
+      departure_city: input.departureCity ?? undefined,
+      arrival_city: input.arrivalCity ?? undefined,
+      departure_date: input.departureDate ?? undefined,
+      return_date: input.returnDate ?? undefined,
+      passenger_count: input.passengerCount ?? undefined,
+      trip_type: input.tripType ?? undefined,
+      options: input.options ? Object.fromEntries(input.options.map((option) => [option, true])) : undefined,
+      free_message: input.rawMessage,
+    });
+    const { sanitized, warnings, review } = validateLead(candidate);
+    const lead = LeadQualificationSchema.parse(sanitized);
+    const missing = detectMissingFields(lead);
+    const result = await createOrUpdateLead({ lead });
+
+    if (review === "PAX_OVER_85") {
+      await markHumanReview(result.leadId, review);
+      return Response.json({
+        leadId: result.leadId,
+        qualification: { status: "HUMAN_REVIEW", humanReviewReason: review },
+      }, { status: 201 });
     }
-    return jsonOk({ leadId: lead.id, lead }, { status: 201 });
-  } catch (error) {
-    return handleApiError(error);
+
+    if (warnings.some((warning) => warning.blocking)) {
+      await markLeadIncomplete(result.leadId, missing.missing_fields);
+    }
+
+    return Response.json({
+      leadId: result.leadId,
+      qualification: {
+        status: result.status,
+        missingFields: missing.missing_fields,
+        humanReviewReason: null,
+      },
+    }, { status: 201 });
+  } catch {
+    return Response.json({ error: "Impossible de créer la demande." }, { status: 500 });
   }
 }

@@ -45,9 +45,6 @@ export default function HomePage() {
           <a href="#projets">Vos projets</a>
           <Link href="/client/partenaires">Partenaires</Link>
           <a href="#engagements">Engagements</a>
-          <Link className={styles.loginButton} href="/client/connexion">
-            Se connecter
-          </Link>
         </nav>
       </header>
 
@@ -127,7 +124,6 @@ export default function HomePage() {
         <Link href="/client/confidentialite">Confidentialite</Link>
         <Link href="/client/contact">Contact</Link>
         <Link href="/client/notre-equipe">Notre equipe</Link>
-        <Link href="/client/connexion">Se connecter</Link>
       </footer>
     </main>
   );

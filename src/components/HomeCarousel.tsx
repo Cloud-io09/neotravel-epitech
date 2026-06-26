@@ -8,37 +8,37 @@ const slides = [
   {
     title: "Voyages hiver",
     subtitle: "Autocar en conditions montagne",
-    image: "/images/landing-carousel/car-neige-premium.webp",
+    image: "/images/landing-carousel/car-neige-premium.webp"
   },
   {
     title: "Routes panoramiques",
     subtitle: "Trajets longue distance",
-    image: "/images/landing-carousel/car-route-cotiere.webp",
+    image: "/images/landing-carousel/car-route-cotiere.webp"
   },
   {
     title: "Transport premium",
     subtitle: "Autocar grand tourisme",
-    image: "/images/landing-carousel/car-montagne-premium.webp",
+    image: "/images/landing-carousel/car-montagne-premium.webp"
   },
   {
     title: "Sorties et loisirs",
     subtitle: "Groupes, parcs et sejours",
-    image: "/images/landing-carousel/car-paris-disney.webp",
+    image: "/images/landing-carousel/car-paris-disney.webp"
   },
   {
     title: "Confort a bord",
     subtitle: "Interieur autocar premium",
-    image: "/images/landing-carousel/bus-interieur-premium.webp",
-  },
+    image: "/images/landing-carousel/bus-interieur-premium.webp"
+  }
 ];
 
 export function HomeCarousel() {
   const [activeIndex, setActiveIndex] = useState(0);
-
   useEffect(() => {
     const timer = window.setInterval(() => {
       setActiveIndex((current) => (current + 1) % slides.length);
     }, 10000);
+
     return () => window.clearInterval(timer);
   }, []);
 
@@ -57,14 +57,13 @@ export function HomeCarousel() {
           />
         ))}
       </div>
+
       <div className={styles.carouselOverlay} />
+
       <div className={styles.carouselMeta} aria-live="polite">
         <div className={styles.carouselDots} aria-hidden="true">
           {slides.map((slide, index) => (
-            <span
-              key={slide.title}
-              className={index === activeIndex ? styles.activeDot : styles.dot}
-            />
+            <span key={slide.title} className={index === activeIndex ? styles.activeDot : styles.dot} />
           ))}
         </div>
       </div>

@@ -1,10 +1,29 @@
-import { Suspense } from "react";
-import { DemandConversation } from "../../../features/demand/components/DemandConversation";
+import { DemandConversation } from "@/features/demand/components/DemandConversation";
 
-export default function DemandePage() {
+type DemandPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function DemandPage({ searchParams }: DemandPageProps) {
+  const params = (await searchParams) ?? {};
+
   return (
-    <Suspense fallback={<div style={{ padding: 40, color: "#5e6b7e" }}>Chargement…</div>}>
-      <DemandConversation />
-    </Suspense>
+    <DemandConversation
+      initialDemand={{
+        departure: firstParam(params.departure),
+        arrival: firstParam(params.arrival),
+        departureDate: firstParam(params.departureDate),
+        returnDate: firstParam(params.returnDate),
+        passengers: firstParam(params.passengers),
+        tripType: firstParam(params.tripType),
+        options: firstParam(params.options),
+        intermediateStops: firstParam(params.intermediateStops),
+        callback: firstParam(params.callback)
+      }}
+    />
   );
 }

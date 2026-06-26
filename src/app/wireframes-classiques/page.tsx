@@ -191,7 +191,7 @@ export default function ClassicWireframesPage() {
       <section className={styles.notes}>
         <h2>Regles de lecture</h2>
         <ul>
-          <li>Le prix vient uniquement de calculerDevis.</li>
+          <li>Le prix vient uniquement de calculer_devis().</li>
           <li>La distance vient d&apos;une source auditable, jamais du LLM.</li>
           <li>Les cas incomplets bloquent le devis.</li>
           <li>Les cas complexes passent en HUMAN_REVIEW.</li>

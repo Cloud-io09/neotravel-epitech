@@ -2,10 +2,9 @@ import { PricingRulesEditor } from "@/features/admin/components/PricingRulesEdit
 import { RoutePricingTable } from "@/features/admin/components/RoutePricingTable";
 import styles from "@/features/admin/components/adminPricing.module.css";
 import { getPricingAdminData } from "@/features/admin/services/getPricingRules";
-import { PRICING_MATRIX_VERSION } from "@/shared/lib/pricing";
 
 export default async function PricingPage() {
-  const { pricingRules, routePricing } = await getPricingAdminData();
+  const { pricingRules, routePricing, pricingVersion } = await getPricingAdminData();
 
   return (
     <main className={styles.page}>
@@ -13,11 +12,11 @@ export default async function PricingPage() {
         <div>
           <h1>Admin pricing</h1>
           <p>
-            Consultation des matrices tarifaires. Le montant client reste calcule uniquement par calculerDevis(), jamais
+            Consultation des matrices tarifaires. Le montant client reste calculé uniquement par calculer_devis(), jamais
             par cette interface.
           </p>
         </div>
-        <span className={styles.badge}>Matrice {PRICING_MATRIX_VERSION}</span>
+        <span className={styles.badge}>Matrice {pricingVersion}</span>
       </header>
 
       <p className={styles.notice}>

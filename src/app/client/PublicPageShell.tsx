@@ -9,10 +9,9 @@ export function PublicPageHeader() {
         <Image src="/logo-neotravel-v12.svg" alt="" width={250} height={72} priority />
       </Link>
       <nav className={styles.nav} aria-label="Navigation publique">
-        <Link href="/client/partenaires">Partenaires</Link>
-        <Link href="/client/contact">Contact</Link>
-        <Link href="/client/notre-equipe">Notre equipe</Link>
-        <Link href="/client/connexion">Se connecter</Link>
+        <Link href="/partenaires">Partenaires</Link>
+        <Link href="/contact">Contact</Link>
+        <Link href="/notre-equipe">Notre equipe</Link>
       </nav>
     </header>
   );
@@ -21,11 +20,10 @@ export function PublicPageHeader() {
 export function PublicPageFooter() {
   return (
     <footer className={styles.footer}>
-      <Link href="/client/mentions-legales">Mentions legales</Link>
-      <Link href="/client/confidentialite">Confidentialite</Link>
-      <Link href="/client/contact">Contact</Link>
-      <Link href="/client/notre-equipe">Notre equipe</Link>
-      <Link href="/client/connexion">Se connecter</Link>
+      <Link href="/mentions-legales">Mentions legales</Link>
+      <Link href="/confidentialite">Confidentialite</Link>
+      <Link href="/contact">Contact</Link>
+      <Link href="/notre-equipe">Notre equipe</Link>
     </footer>
   );
 }

@@ -10,15 +10,15 @@ export default function NotreEquipePage() {
         <p className={styles.kicker}>Notre equipe</p>
         <h1>L&apos;equipe projet NeoTravel</h1>
         <p>
-          Une equipe projet IT chargee de concevoir un parcours clair, auditable et demonstrable
-          pour la soutenance Epitech 2026.
+          Une equipe projet IT chargee de concevoir un parcours clair, auditable et demonstrable pour la soutenance
+          Epitech 2026.
         </p>
       </section>
 
       <section className={styles.imageSection}>
         <Image
           className={styles.teamImage}
-          src="/images/landing-carousel/notre-equipe.jpg"
+          src="/images/equipe/neotravel-equipe.jpg"
           alt="Equipe projet NeoTravel"
           width={1600}
           height={900}
