@@ -363,6 +363,27 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
     container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
   }, [chatMessages, isSending]);
 
+  const hasActiveSession = chatMessages.length > 0 || Boolean(currentLeadId);
+
+  function resetSession() {
+    clearDemandSession();
+    setChatMessages([]);
+    setCurrentLeadId(null);
+    setQualifiedLeadId(null);
+    setChatHumanReview(false);
+    setChatEmail(null);
+    setChatExtracted({
+      departureCity: null,
+      arrivalCity: null,
+      departureDate: null,
+      returnDate: null,
+      passengerCount: null,
+      tripType: null,
+    });
+    setUserInput("");
+    setWorkflowError(null);
+  }
+
   async function sendMessage(e?: React.FormEvent) {
     e?.preventDefault();
     const text = userInput.trim();
@@ -708,9 +729,14 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
 
       <div className={styles.layout}>
         <section className={styles.chatCard} aria-labelledby="conversation-title">
-          <h2 id="conversation-title" className={styles.srOnly}>
-            Conversation
-          </h2>
+          <div className={styles.chatCardHeader}>
+            <h2 id="conversation-title">Conversation</h2>
+            {hasActiveSession ? (
+              <button type="button" className={styles.resetButton} onClick={resetSession}>
+                Nouvelle demande
+              </button>
+            ) : null}
+          </div>
           <div ref={chatMessagesRef} className={styles.chatMessages}>
             {hasInitialDemand ? (
               <>
