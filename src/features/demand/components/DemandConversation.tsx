@@ -184,6 +184,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   const [currentLeadId, setCurrentLeadId] = useState<string | null>(null);
   const [qualifiedLeadId, setQualifiedLeadId] = useState<string | null>(null);
   const [chatHumanReview, setChatHumanReview] = useState(false);
+  const [chatEmail, setChatEmail] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [chatExtracted, setChatExtracted] = useState<{
     departureCity: string | null;
@@ -310,6 +311,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
           returnDate: string | null;
           passengerCount: number | null;
           tripType: "one_way" | "round_trip" | null;
+          email: string | null;
         };
       };
 
@@ -318,6 +320,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
       if (data.status === "HUMAN_REVIEW") setChatHumanReview(true);
       const ef = data.extractedFields;
       if (ef) {
+        if (ef.email) setChatEmail(ef.email);
         setChatExtracted((prev) => ({
           departureCity: ef.departureCity ?? prev.departureCity,
           arrivalCity: ef.arrivalCity ?? prev.arrivalCity,
@@ -717,7 +720,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
               <button
                 className={styles.primaryButton}
                 type="button"
-                disabled={isGeneratingQuote || hasBlockingWarning || (!hasInitialDemand && !qualifiedLeadId)}
+                disabled={isGeneratingQuote || hasBlockingWarning || (!hasInitialDemand && !qualifiedLeadId) || (Boolean(qualifiedLeadId) && !chatEmail && !hasInitialDemand)}
                 onClick={() => void generateClientQuote()}
               >
                 {isGeneratingQuote
@@ -730,6 +733,8 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
           </div>
           {hasBlockingWarning ? (
             <p className={styles.workflowError}>{fieldWarnings.find((w) => w.blocking)?.message}</p>
+          ) : qualifiedLeadId && !chatEmail && !hasInitialDemand ? (
+            <p className={styles.workflowError}>Donnez votre email dans la conversation pour recevoir le devis.</p>
           ) : null}
           {workflowError ? <p className={styles.workflowError}>{workflowError}</p> : null}
         </section>
@@ -833,6 +838,18 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
                   <span>Options</span>
                   <strong>{activeDemand.options.join(", ") || "Aucune"}</strong>
                 </div>
+                <label className={qualifiedLeadId && !chatEmail && !hasInitialDemand ? styles.fieldInvalid : undefined}>
+                  <span>Email de contact {qualifiedLeadId && !hasInitialDemand ? <strong aria-hidden="true"> *</strong> : null}</span>
+                  <input
+                    type="email"
+                    placeholder="votre@email.fr"
+                    value={chatEmail ?? ""}
+                    onChange={(e) => setChatEmail(e.target.value.trim() || null)}
+                  />
+                  {qualifiedLeadId && !chatEmail && !hasInitialDemand ? (
+                    <small className={styles.fieldWarning}>Requis pour recevoir le devis.</small>
+                  ) : null}
+                </label>
               </div>
             </div>
           </aside>

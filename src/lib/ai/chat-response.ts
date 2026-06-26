@@ -65,6 +65,7 @@ export type ExtractedFields = {
   returnDate: string | null;
   passengerCount: number | null;
   tripType: "one_way" | "round_trip" | null;
+  email: string | null;
 };
 
 export type LeadWarningCode =

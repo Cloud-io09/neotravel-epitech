@@ -4,6 +4,7 @@ import { logAuditEvent } from "@/lib/audit/audit-service";
 import { markHumanReview, updateLeadStatus } from "@/lib/leads/lead-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { AppError } from "@/shared/lib/utils/errors";
+import { triggerSendQuote } from "@/shared/lib/n8n/triggerSendQuote";
 
 export const QuoteActionParamsSchema = z.object({
   quoteId: z.string().uuid(),
@@ -18,13 +19,15 @@ type StoredQuote = {
   id: string;
   lead_id: string | null;
   status: "QUOTE_READY" | "QUOTE_SENT" | "CLOSED";
+  quote_number?: string;
+  price_ttc?: number;
 };
 
 async function requireQuote(quoteId: string): Promise<StoredQuote> {
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase
     .from("quotes")
-    .select("id, lead_id, status")
+    .select("id, lead_id, status, quote_number, price_ttc")
     .eq("id", quoteId)
     .maybeSingle();
 
@@ -59,7 +62,23 @@ export async function acceptQuote(quoteId: string) {
     metadata: { leadId: quote.lead_id },
   });
 
-  return { id: quote.id, leadId: quote.lead_id, status: "CLOSED" };
+  // Load the lead's email for the n8n recap email
+  const supabase = createServerSupabaseClient();
+  const { data: leadData } = await supabase
+    .from("leads")
+    .select("email")
+    .eq("id", quote.lead_id!)
+    .maybeSingle();
+  const email = (leadData as { email?: string | null } | null)?.email ?? null;
+
+  if (email && quote.quote_number) {
+    const priceTtc = quote.price_ttc ?? 0;
+    const formatted = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(priceTtc);
+    const preview = `Devis NeoTravel N° ${quote.quote_number} — ${formatted} TTC`;
+    triggerSendQuote({ quote_id: quote.id, email, preview, scheduled_at: new Date().toISOString() }).catch(() => {});
+  }
+
+  return { id: quote.id, leadId: quote.lead_id, status: "CLOSED", email };
 }
 
 export async function refuseQuote(quoteId: string) {

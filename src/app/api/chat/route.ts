@@ -201,6 +201,7 @@ Message : ${latestUserText}`,
       returnDate: lead.return_date ?? null,
       passengerCount: lead.passenger_count ?? null,
       tripType: (lead.trip_type ?? null) as "one_way" | "round_trip" | null,
+      email: lead.email ?? null,
     };
 
     if (lead.has_intermediate_stop) {

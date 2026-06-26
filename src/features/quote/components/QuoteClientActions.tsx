@@ -3,7 +3,7 @@
 import { useState } from "react";
 import styles from "./quote-client.module.css";
 
-type ActionState = "idle" | "loading" | "done" | "error";
+type ActionState = "idle" | "loading" | "accepted" | "refused" | "error";
 
 async function postQuoteAction(quoteId: string, action: "accept" | "refuse") {
   const response = await fetch(`/api/quotes/${quoteId}/${action}`, { method: "POST" });
@@ -11,22 +11,64 @@ async function postQuoteAction(quoteId: string, action: "accept" | "refuse") {
   return response.json();
 }
 
-export function QuoteClientActions({ quoteId }: { quoteId: string }) {
-  const [state, setState] = useState<ActionState>("idle");
-  const [message, setMessage] = useState("Vous pouvez telecharger, accepter ou refuser ce devis.");
+export function QuoteClientActions({
+  quoteId,
+  initialStatus = "QUOTE_READY",
+}: {
+  quoteId: string;
+  initialStatus?: string;
+}) {
+  const alreadyClosed = initialStatus === "CLOSED";
+
+  const [state, setState] = useState<ActionState>(
+    alreadyClosed ? "accepted" : "idle",
+  );
+  const [email, setEmail] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   async function run(action: "accept" | "refuse") {
     setState("loading");
-    setMessage(action === "accept" ? "Acceptation en cours..." : "Refus en cours...");
+    setErrorMessage(null);
 
     try {
-      await postQuoteAction(quoteId, action);
-      setState("done");
-      setMessage(action === "accept" ? "Devis accepte, pipeline mis a jour." : "Devis refuse, trace conservee.");
+      const result = (await postQuoteAction(quoteId, action)) as { email?: string | null };
+      if (action === "accept") {
+        setEmail(result.email ?? null);
+        setState("accepted");
+      } else {
+        setState("refused");
+      }
     } catch {
       setState("error");
-      setMessage("Action non finalisee. Reprise humaine possible depuis le dashboard.");
+      setErrorMessage("Action non finalisee. Reessayez ou contactez notre equipe.");
     }
+  }
+
+  if (state === "accepted") {
+    return (
+      <div className={styles.actionPanel}>
+        <div className={styles.actions}>
+          <a className={styles.download} href={`/api/quotes/${quoteId}/pdf`}>
+            Telecharger PDF
+          </a>
+        </div>
+        <p className={styles.actionMessage}>
+          {alreadyClosed && state === "accepted" && !email
+            ? "Ce devis a deja ete finalise."
+            : email
+              ? `Devis accepte. Recapitulatif envoye a ${email}. Notre equipe vous contacte sous 48h.`
+              : "Devis accepte. Notre equipe vous contactera sous 48h."}
+        </p>
+      </div>
+    );
+  }
+
+  if (state === "refused") {
+    return (
+      <div className={styles.actionPanel}>
+        <p className={styles.actionMessage}>Devis refuse. Merci pour votre retour, notre equipe en prend note.</p>
+      </div>
+    );
   }
 
   return (
@@ -35,14 +77,31 @@ export function QuoteClientActions({ quoteId }: { quoteId: string }) {
         <a className={styles.download} href={`/api/quotes/${quoteId}/pdf`}>
           Telecharger
         </a>
-        <button className={styles.primary} type="button" disabled={state === "loading"} onClick={() => run("accept")}>
-          Accepter
+        <button
+          className={styles.primary}
+          type="button"
+          disabled={state === "loading"}
+          onClick={() => run("accept")}
+        >
+          {state === "loading" ? "En cours..." : "Accepter"}
         </button>
-        <button className={styles.danger} type="button" disabled={state === "loading"} onClick={() => run("refuse")}>
+        <button
+          className={styles.danger}
+          type="button"
+          disabled={state === "loading"}
+          onClick={() => run("refuse")}
+        >
           Refuser
         </button>
       </div>
-      <p className={state === "error" ? styles.errorMessage : styles.actionMessage}>{message}</p>
+      {state === "error" && errorMessage && (
+        <p className={styles.errorMessage}>{errorMessage}</p>
+      )}
+      {state === "idle" && (
+        <p className={styles.actionMessage}>
+          Vous pouvez telecharger, accepter ou refuser ce devis.
+        </p>
+      )}
     </div>
   );
 }

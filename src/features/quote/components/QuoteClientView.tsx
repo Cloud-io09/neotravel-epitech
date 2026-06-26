@@ -247,7 +247,7 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
             </div>
           </div>
 
-          <QuoteClientActions quoteId={quoteId} />
+          <QuoteClientActions quoteId={quoteId} initialStatus={storedQuote.status} />
         </article>
 
         <aside className={styles.sideFlow}>
