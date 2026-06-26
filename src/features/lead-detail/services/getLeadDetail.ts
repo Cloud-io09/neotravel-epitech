@@ -7,7 +7,7 @@ export async function getLeadDetail(leadId: string): Promise<Lead | null> {
   const { data, error } = await supabase
     .from("leads")
     .select(
-      "id, status, free_message, departure_city, arrival_city, departure_date, return_date, passenger_count, trip_type, options, missing_fields, human_review_reason, clients(organization, email)",
+      "id, status, free_message, departure_city, arrival_city, departure_date, return_date, passenger_count, trip_type, options, missing_fields, human_review_reason, human_review_notes, clients(organization, email)",
     )
     .eq("id", leadId)
     .maybeSingle();
@@ -32,6 +32,7 @@ export async function getLeadDetail(leadId: string): Promise<Lead | null> {
     options: formatOptions(data.options as QuoteOptions | null),
     missingFields: data.missing_fields ?? [],
     humanReviewReason: data.human_review_reason,
+    humanReviewNotes: (data as { human_review_notes?: string | null }).human_review_notes ?? null,
   };
 }
 

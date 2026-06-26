@@ -277,6 +277,75 @@
   font-weight: 900;
 }
 
+.humanReviewPanel {
+  margin-top: 24px;
+  border: 1px solid #f5c6cb;
+  border-radius: 14px;
+  padding: 20px;
+  background: #fff8f8;
+  display: grid;
+  gap: 14px;
+}
+
+.humanReviewLabel {
+  margin: 0;
+  color: #637188;
+  font-size: 13px;
+}
+
+.humanReviewLabel strong {
+  color: #d51b29;
+}
+
+.humanReviewNotesLabel {
+  display: grid;
+  gap: 6px;
+  color: #637188;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.humanReviewNotes {
+  width: 100%;
+  border: 1px solid #d9e2ed;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #17202e;
+  background: #ffffff;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.humanReviewButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.humanReviewNotify {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 4px;
+  border-top: 1px solid #f5c6cb;
+}
+
+.humanReviewError {
+  margin: 0;
+  color: #d51b29;
+  font-size: 13px;
+}
+
+.humanReviewSuccess {
+  margin: 0;
+  color: #0b8554;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 @media (max-width: 980px) {
   .header,
   .grid {
