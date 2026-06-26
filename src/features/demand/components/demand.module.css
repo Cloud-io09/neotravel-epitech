@@ -26,6 +26,13 @@
   height: auto;
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 18px;
+}
+
 .nav {
   display: flex;
   align-items: center;
@@ -114,6 +121,10 @@
   color: #637188;
   font-size: 12px;
   font-weight: 800;
+}
+
+.progress em {
+  font-style: normal;
 }
 
 .progress li:not(:last-child)::after {
@@ -776,9 +787,14 @@
 
 @media (max-width: 980px) {
   .topbar,
+  .headerActions,
   .hero {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .headerActions {
+    width: 100%;
   }
 
   .nav {

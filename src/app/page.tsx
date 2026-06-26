@@ -1,5 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
+import { AccessibilityWidget } from "@/shared/accessibility/AccessibilityWidget";
+import { LanguageSelector } from "@/shared/i18n/LanguageSelector";
 import { HomeCarousel } from "../components/HomeCarousel";
 import { LandingQuoteForm } from "../components/LandingQuoteForm";
 import styles from "./home.module.css";
@@ -40,12 +42,16 @@ export default function HomePage() {
           />
         </Link>
 
-        <nav className={styles.nav} aria-label="Navigation principale">
-          <a href="#estimation">Estimation</a>
-          <a href="#projets">Vos projets</a>
-          <Link href="/client/partenaires">Partenaires</Link>
-          <a href="#engagements">Engagements</a>
-        </nav>
+        <div className={styles.headerActions}>
+          <nav className={styles.nav} aria-label="Navigation principale">
+            <a href="#estimation">Estimation</a>
+            <a href="#projets">Vos projets</a>
+            <Link href="/client/partenaires">Partenaires</Link>
+            <a href="#engagements">Engagements</a>
+          </nav>
+          <LanguageSelector />
+          <AccessibilityWidget />
+        </div>
       </header>
 
       <section className={styles.hero} aria-labelledby="hero-title">

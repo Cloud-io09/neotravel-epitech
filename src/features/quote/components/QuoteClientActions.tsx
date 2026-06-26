@@ -48,7 +48,7 @@ export function QuoteClientActions({
     return (
       <div className={styles.actionPanel}>
         <div className={styles.actions}>
-          <a className={styles.download} href={`/api/quotes/${quoteId}/pdf`}>
+          <a className={styles.download} href={`/api/quotes/${quoteId}/pdf`} data-i18n-key="Telecharger">
             Telecharger PDF
           </a>
         </div>
@@ -74,7 +74,7 @@ export function QuoteClientActions({
   return (
     <div className={styles.actionPanel}>
       <div className={styles.actions}>
-        <a className={styles.download} href={`/api/quotes/${quoteId}/pdf`}>
+        <a className={styles.download} href={`/api/quotes/${quoteId}/pdf`} data-i18n-key="Telecharger">
           Telecharger
         </a>
         <button
@@ -82,6 +82,7 @@ export function QuoteClientActions({
           type="button"
           disabled={state === "loading"}
           onClick={() => run("accept")}
+          data-i18n-key="Accepter"
         >
           {state === "loading" ? "En cours..." : "Accepter"}
         </button>
@@ -90,6 +91,7 @@ export function QuoteClientActions({
           type="button"
           disabled={state === "loading"}
           onClick={() => run("refuse")}
+          data-i18n-key="Refuser"
         >
           Refuser
         </button>

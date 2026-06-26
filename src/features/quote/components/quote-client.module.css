@@ -43,16 +43,25 @@
 
 .topbar {
   display: flex;
+  min-height: 86px;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  min-height: 78px;
-  border-bottom: 1px solid #dbe3f0;
-  padding: 0 clamp(24px, 4vw, 42px);
-  background: #ffffff;
+  border-bottom: 1px solid #e6edf6;
+  padding: 0 clamp(22px, 4vw, 58px);
+  background: rgba(255, 255, 255, 0.96);
 }
 
-.logo,
+.logo {
+  display: inline-flex;
+  align-items: center;
+}
+
+.logo img {
+  width: 205px;
+  height: auto;
+}
+
 .pdfLogo {
   display: inline-flex;
   align-items: center;
@@ -93,33 +102,31 @@
   font-weight: 700;
 }
 
+.topActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 22px;
+}
+
 .nav {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 22px;
+  color: #455468;
+  font-size: 14px;
+  font-weight: 900;
 }
 
 .nav a,
 .nav span {
-  display: inline-flex;
-  min-height: 38px;
-  align-items: center;
-  justify-content: center;
-  min-width: 104px;
-  border: 1px solid #dbe3f0;
-  border-radius: 999px;
-  padding: 0 16px;
-  color: #5c6b82;
-  background: #ffffff;
-  font-size: 13px;
-  font-weight: 800;
+  color: inherit;
+  text-decoration: none;
 }
 
 .nav span {
-  color: #ffffff;
-  background: #0a3d8f;
-  border-color: #0a3d8f;
+  color: #c49a43;
 }
 
 .pageIntro {
@@ -152,8 +159,7 @@
 
 .documentLayout {
   display: grid;
-  grid-template-columns: minmax(0, 860px) 198px;
-  gap: 32px;
+  grid-template-columns: minmax(0, 860px);
   align-items: start;
   justify-content: center;
   padding: 0 clamp(20px, 4vw, 56px);
@@ -454,45 +460,6 @@
   line-height: 1.5;
 }
 
-.sideFlow {
-  margin-top: 206px;
-  border: 1px solid #dbe3f0;
-  border-radius: 16px;
-  padding: 22px;
-  background: #ffffff;
-  box-shadow: 0 12px 30px -12px rgba(10, 20, 41, 0.1);
-}
-
-.sideFlow h2 {
-  margin: 0 0 18px;
-  color: #091a35;
-  font-size: 17px;
-}
-
-.sideFlow ol {
-  display: grid;
-  gap: 10px;
-  margin: 0;
-  padding-left: 18px;
-  color: #141c2b;
-  font-size: 12px;
-  line-height: 1.35;
-}
-
-.sideFlow span {
-  display: inline-grid;
-  min-height: 34px;
-  place-items: center;
-  margin-top: 22px;
-  border: 1px solid #b8e5c7;
-  border-radius: 999px;
-  padding: 0 18px;
-  color: #058247;
-  background: #e5faed;
-  font-size: 10px;
-  font-weight: 900;
-}
-
 .actionPanel {
   display: grid;
   gap: 10px;
@@ -559,9 +526,14 @@
 
 @media (max-width: 980px) {
   .topbar,
+  .topActions,
   .pdfHeader {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .topActions {
+    width: 100%;
   }
 
   .documentLayout,
@@ -569,10 +541,6 @@
   .validationAndTotals,
   .signatureGrid {
     grid-template-columns: 1fr;
-  }
-
-  .sideFlow {
-    margin-top: 0;
   }
 }
 
@@ -598,7 +566,6 @@
 @media print {
   .topbar,
   .pageIntro,
-  .sideFlow,
   .actionPanel {
     display: none;
   }

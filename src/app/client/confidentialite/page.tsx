@@ -1,13 +1,6 @@
 import { PublicPageFooter, PublicPageHeader } from "../PublicPageShell";
 import styles from "../public-pages.module.css";
 
-const privacyItems = [
-  "Donnees de trajet : depart, arrivee, dates, passagers, options et contraintes.",
-  "Donnees de contact : email, reference de demande et informations utiles au suivi.",
-  "Donnees de suivi : statut du devis, relances, acceptation, refus ou reprise humaine.",
-  "Aucun recalcul de prix dans n8n : les notifications utilisent les donnees deja produites par NeoTravel."
-];
-
 export default function ConfidentialitePage() {
   return (
     <main className={styles.page}>
@@ -22,20 +15,37 @@ export default function ConfidentialitePage() {
       </section>
 
       <section className={styles.section}>
-        <h2>Donnees traitees</h2>
-        <ul>
-          {privacyItems.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
+        <h2 data-i18n-key="Données traitées">Données traitées</h2>
+        <p data-i18n-key="NeoTravel collecte et traite les données nécessaires à la gestion des demandes de transport, à l’établissement des devis, au suivi commercial et à la coordination avec les partenaires.">
+          NeoTravel collecte et traite les données nécessaires à la gestion des demandes de transport, à l’établissement
+          des devis, au suivi commercial et à la coordination avec les partenaires.
+        </p>
+        <p data-i18n-key="Ces données peuvent inclure les informations de trajet, les coordonnées de contact, les références de demande, les statuts de devis, les relances, les validations, les refus ainsi que les informations utiles à l’organisation du transport.">
+          Ces données peuvent inclure les informations de trajet, les coordonnées de contact, les références de demande,
+          les statuts de devis, les relances, les validations, les refus ainsi que les informations utiles à
+          l’organisation du transport.
+        </p>
+        <p data-i18n-key="Les données sont utilisées exclusivement pour assurer le traitement des demandes, améliorer le suivi client et garantir la bonne coordination des prestations.">
+          Les données sont utilisées exclusivement pour assurer le traitement des demandes, améliorer le suivi client et
+          garantir la bonne coordination des prestations.
+        </p>
       </section>
 
       <section className={styles.section}>
-        <h2>Droits utilisateur</h2>
-        <p>
-          Vous pouvez demander l&apos;acces, la rectification ou la suppression des informations liees a votre demande. En
-          mode demo, ces pages documentent le comportement attendu du MVP et ne remplacent pas une politique juridique
-          definitive.
+        <h2 data-i18n-key="Droits des utilisateurs">Droits des utilisateurs</h2>
+        <p data-i18n-key="Conformément à la réglementation applicable en matière de protection des données, vous disposez d’un droit d’accès, de rectification, d’opposition, de limitation et de suppression des données personnelles vous concernant.">
+          Conformément à la réglementation applicable en matière de protection des données, vous disposez d’un droit
+          d’accès, de rectification, d’opposition, de limitation et de suppression des données personnelles vous
+          concernant.
+        </p>
+        <p data-i18n-key="Vous pouvez exercer ces droits en contactant NeoTravel à l’adresse prévue à cet effet. Toute demande sera étudiée dans les meilleurs délais, sous réserve des obligations légales ou contractuelles pouvant imposer la conservation de certaines informations.">
+          Vous pouvez exercer ces droits en contactant NeoTravel à l’adresse prévue à cet effet. Toute demande sera
+          étudiée dans les meilleurs délais, sous réserve des obligations légales ou contractuelles pouvant imposer la
+          conservation de certaines informations.
+        </p>
+        <p data-i18n-key="NeoTravel s’engage à traiter les données personnelles de manière confidentielle, sécurisée et proportionnée aux finalités du service.">
+          NeoTravel s’engage à traiter les données personnelles de manière confidentielle, sécurisée et proportionnée aux
+          finalités du service.
         </p>
       </section>
       <PublicPageFooter />

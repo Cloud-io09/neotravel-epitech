@@ -1,6 +1,21 @@
 import { getLeadDetail } from "@/features/lead-detail/services/getLeadDetail";
 import { getQuoteById } from "./getQuoteById";
 
+const colors = {
+  blue: "0.039 0.239 0.561",
+  navy: "0.035 0.102 0.208",
+  red: "0.800 0.078 0.145",
+  gold: "0.890 0.620 0.161",
+  text: "0.078 0.110 0.169",
+  muted: "0.361 0.420 0.510",
+  border: "0.859 0.890 0.941",
+  paleBlue: "0.969 0.980 1.000",
+  chipBlue: "0.910 0.949 1.000",
+  green: "0.020 0.510 0.278",
+  paleGreen: "0.898 0.980 0.929",
+  white: "1 1 1"
+};
+
 function ascii(value: string) {
   return value
     .normalize("NFD")
@@ -10,11 +25,7 @@ function ascii(value: string) {
 }
 
 function euro(value: number) {
-  return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(value);
-}
-
-function line(text: string, x: number, y: number, size = 10, font = "F1") {
-  return `BT /${font} ${size} Tf ${x} ${y} Td (${ascii(text)}) Tj ET`;
+  return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(value)} EUR`;
 }
 
 function formatDate(value: string | null | undefined) {
@@ -32,8 +43,63 @@ function formatTripDates(departureDate: string | null | undefined, returnDate: s
   return `${departure} - retour ${formatDate(returnDate)}`;
 }
 
-function buildPdf(lines: string[]) {
-  const content = lines.join("\n");
+function formatTripType(value: string | null | undefined) {
+  if (value === "round_trip") return "Aller-retour";
+  if (value === "one_way") return "Aller simple";
+
+  return "A confirmer";
+}
+
+function formatTraceabilityDate(value: Date) {
+  const parts = new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false,
+    minute: "2-digit",
+    month: "2-digit",
+    timeZone: "Europe/Paris",
+    year: "numeric"
+  }).formatToParts(value);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "00";
+
+  return `${part("day")}/${part("month")}/${part("year")} a ${part("hour")}:${part("minute")}`;
+}
+
+function traceabilityReference(value: Date) {
+  const parts = new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false,
+    minute: "2-digit",
+    month: "2-digit",
+    timeZone: "Europe/Paris",
+    year: "numeric"
+  }).formatToParts(value);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "00";
+
+  return `NTV-${part("year")}${part("month")}${part("day")}-${part("hour")}${part("minute")}`;
+}
+
+function pricingEngineLabel(matrixVersion: string) {
+  const version = matrixVersion.match(/v\d+/i)?.[0] ?? matrixVersion;
+  return `NeoTravel Pricing Engine ${version}`;
+}
+
+function rect(x: number, y: number, width: number, height: number, fill: string, stroke?: string) {
+  if (!stroke) return `q ${fill} rg ${x} ${y} ${width} ${height} re f Q`;
+  return `q ${fill} rg ${stroke} RG 1 w ${x} ${y} ${width} ${height} re B Q`;
+}
+
+function text(value: string, x: number, y: number, size = 10, font = "F1", fill = colors.text) {
+  return `q ${fill} rg BT /${font} ${size} Tf ${x} ${y} Td (${ascii(value)}) Tj ET Q`;
+}
+
+function line(x1: number, y1: number, x2: number, y2: number, stroke = colors.border, width = 1) {
+  return `q ${stroke} RG ${width} w ${x1} ${y1} m ${x2} ${y2} l S Q`;
+}
+
+function buildPdf(commands: string[]) {
+  const content = commands.join("\n");
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
     "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
@@ -61,6 +127,11 @@ function buildPdf(lines: string[]) {
   return new Uint8Array(Buffer.from(chunks.join(""), "utf8"));
 }
 
+function field(commands: string[], label: string, value: string, x: number, y: number) {
+  commands.push(text(label, x, y, 7, "F2", colors.muted));
+  commands.push(text(value, x, y - 14, 9, "F2", colors.text));
+}
+
 export async function generateQuotePdf(quoteId: string) {
   const quote = await getQuoteById(quoteId);
   if (!quote) return null;
@@ -74,53 +145,110 @@ export async function generateQuotePdf(quoteId: string) {
   const clientName = lead?.organization ?? "Client / organisation";
   const clientEmail = lead?.email ?? "Email a confirmer";
   const passengerLabel = lead?.passengerCount ? `${lead.passengerCount} passagers` : "A confirmer";
-  const tripDates = formatTripDates(lead?.departureDate, lead?.returnDate);
-  const options = lead?.options.length ? lead.options.join(", ") : "Aucune option ajoutee";
-  const pdfLines = [
-    line("NeoTravel", 48, 794, 22, "F2"),
-    line("Transport de voyageurs - devis client", 48, 778, 9),
-    line("DEVIS", 468, 794, 26, "F2"),
-    line(`Reference: ${calculation.quoteNumber}`, 392, 774, 10, "F2"),
-    line(`Date emission: ${new Date().toLocaleDateString("fr-FR")}`, 48, 742, 10),
-    line("Validite offre: 7 jours", 220, 742, 10),
-    line("Statut: Regles metier validees", 370, 742, 10),
-    line("Emetteur", 48, 704, 12, "F2"),
-    line("NeoTravel SAS", 48, 686, 10),
-    line("contact@neotravel.fr", 48, 672, 10),
-    line("Client", 320, 704, 12, "F2"),
-    line(clientName, 320, 686, 10),
-    line(`Email: ${clientEmail}`, 320, 672, 10),
-    line(`Reference demande: ${quote.leadId}`, 320, 658, 10),
-    line("Prestation demandee", 48, 630, 14, "F2"),
-    line(`Trajet: ${routeLabel}`, 48, 608, 10),
-    line(`Date: ${tripDates}`, 48, 594, 10),
-    line(`Passagers: ${passengerLabel}`, 48, 580, 10),
-    line(`Options: ${options}`, 48, 566, 10),
-    line(`Distance controlee: ${calculation.distanceKm} km`, 48, 552, 10),
-    line(`Vehicule: ${calculation.breakdown.vehicleLabel}`, 48, 538, 10),
-    line("Detail estimatif", 48, 504, 14, "F2"),
-    line("Designation", 48, 482, 10, "F2"),
-    line("Montant", 470, 482, 10, "F2"),
-    ...calculation.lines.flatMap((item, index) => [
-      line(item.label, 48, 460 - index * 18, 10),
-      line(`${euro(item.amount)} EUR`, 456, 460 - index * 18, 10)
-    ]),
-    line("Total HT", 360, 356, 11, "F2"),
-    line(`${euro(calculation.priceHt)} EUR`, 456, 356, 11, "F2"),
-    line("TVA", 360, 338, 11, "F2"),
-    line(`${euro(calculation.vatAmount)} EUR`, 456, 338, 11, "F2"),
-    line("Total TTC", 360, 316, 14, "F2"),
-    line(`${euro(calculation.priceTtc)} EUR`, 456, 316, 14, "F2"),
-    line("Validation metier", 48, 278, 12, "F2"),
-    line(`Hash devis: ${calculation.deterministicHash.slice(0, 24)}...`, 48, 260, 9),
-    line(`Matrice: ${calculation.breakdown.matrixVersion}`, 48, 246, 9),
-    line("Ce document est un devis, pas une facture.", 48, 192, 10, "F2"),
-    line("Bon pour accord client", 48, 120, 11, "F2"),
-    line("Validation NeoTravel: genere apres regles metier.", 320, 120, 11, "F2")
+  const tripDates = `${formatTripDates(lead?.departureDate, lead?.returnDate)} - horaires a confirmer`;
+  const tripType = formatTripType(lead?.tripType);
+  const options = lead?.options.length ? lead.options : calculation.breakdown.options.map((option) => option.label);
+  const generatedAt = new Date();
+  const traceabilityDate = formatTraceabilityDate(generatedAt);
+  const traceabilityId = traceabilityReference(generatedAt);
+  const engineLabel = pricingEngineLabel(calculation.breakdown.matrixVersion);
+
+  const commands: string[] = [
+    rect(0, 0, 595, 842, colors.white),
+    rect(40, 796, 515, 10, colors.blue),
+    rect(40, 796, 132, 10, colors.red),
+    rect(172, 796, 72, 10, colors.gold),
+    rect(40, 80, 515, 716, colors.white, colors.border),
+    text("Neo", 74, 748, 18, "F2", colors.blue),
+    text("Travel", 116, 748, 18, "F2", colors.red),
+    text("Transport de voyageurs - devis client", 74, 734, 7, "F1", colors.muted),
+    rect(48, 733, 26, 26, colors.red),
+    text("N", 57, 742, 12, "F2", colors.white),
+    text("DEVIS", 456, 744, 30, "F2", colors.navy),
+    text(`No ${calculation.quoteNumber}`, 432, 724, 9, "F2", colors.muted),
+    rect(66, 655, 463, 46, colors.paleBlue, colors.border)
   ];
 
+  field(commands, "Date emission", generatedAt.toLocaleDateString("fr-FR"), 82, 682);
+  field(commands, "Validite offre", "7 jours", 210, 682);
+  field(commands, "Statut IA", "Regles metier validees", 328, 682);
+  field(commands, "Canal envoi", "Email", 448, 682);
+
+  commands.push(rect(66, 550, 220, 68, colors.white, colors.border));
+  commands.push(text("Emetteur", 80, 598, 12, "F2", colors.navy));
+  commands.push(text("NeoTravel SAS", 80, 581, 9));
+  commands.push(text("Transport de voyageurs", 80, 567, 9));
+  commands.push(text("contact@neotravel.fr", 80, 553, 9));
+
+  commands.push(rect(316, 550, 213, 68, colors.white, colors.border));
+  commands.push(text("Client", 330, 598, 12, "F2", colors.navy));
+  commands.push(text(clientName, 330, 581, 9));
+  commands.push(text(`Email : ${clientEmail}`, 330, 567, 9));
+  commands.push(text(`Reference demande : ${quote.leadId}`, 330, 553, 9));
+
+  commands.push(rect(66, 390, 463, 126, colors.paleBlue, colors.border));
+  commands.push(text("Prestation demandee", 80, 494, 13, "F2", colors.navy));
+  field(commands, "Trajet", routeLabel, 80, 470);
+  field(commands, "Date et horaires", tripDates, 250, 470);
+  field(commands, "Passagers", passengerLabel, 425, 470);
+  field(commands, "Type de trajet", tripType, 80, 438);
+  field(commands, "Vehicule", calculation.breakdown.vehicleLabel, 250, 438);
+  field(commands, "Distance", `${calculation.distanceKm} km`, 425, 438);
+
+  const optionLabel = options.length ? options.join("   ") : "Aucune option ajoutee";
+  commands.push(rect(80, 404, Math.min(180, 58 + optionLabel.length * 3.8), 18, colors.chipBlue, colors.border));
+  commands.push(text(optionLabel, 92, 410, 8, "F2", colors.blue));
+
+  commands.push(text("Detail estimatif", 66, 363, 13, "F2", colors.navy));
+  commands.push(rect(66, 335, 463, 22, colors.navy));
+  commands.push(text("Designation", 80, 343, 8, "F2", colors.white));
+  commands.push(text("Qte", 310, 343, 8, "F2", colors.white));
+  commands.push(text("Prix HT", 356, 343, 8, "F2", colors.white));
+  commands.push(text("TVA", 428, 343, 8, "F2", colors.white));
+  commands.push(text("Total TTC", 474, 343, 8, "F2", colors.white));
+
+  calculation.lines.slice(0, 5).forEach((item, index) => {
+    const y = 313 - index * 24;
+    commands.push(rect(66, y - 6, 463, 24, index % 2 === 0 ? colors.white : colors.paleBlue));
+    commands.push(line(66, y - 6, 529, y - 6));
+    commands.push(text(item.label, 80, y + 2, 8));
+    commands.push(text("1", 313, y + 2, 8));
+    commands.push(text(euro(item.amount), 354, y + 2, 8));
+    commands.push(text(`${Math.round(calculation.vatRate * 100)}%`, 428, y + 2, 8));
+    commands.push(text(euro(item.amount + item.amount * calculation.vatRate), 466, y + 2, 8, "F2"));
+  });
+
+  commands.push(rect(66, 122, 250, 90, colors.paleGreen, "0.722 0.898 0.780"));
+  commands.push(text("Tracabilite du devis", 80, 192, 11, "F2", colors.green));
+  commands.push(text(`Calcul realise le : ${traceabilityDate}`, 80, 174, 8));
+  commands.push(text(`Moteur : ${engineLabel}`, 80, 160, 8));
+  commands.push(text(`Reference : ${traceabilityId}`, 80, 146, 8));
+  commands.push(text("Devis genere automatiquement selon les regles metier", 80, 133, 7, "F1", colors.green));
+  commands.push(text("NeoTravel, sous reserve de validation operationnelle.", 80, 124, 7, "F1", colors.green));
+
+  commands.push(rect(340, 122, 189, 90, colors.paleBlue, colors.border));
+  commands.push(text("Total HT", 358, 190, 9, "F2", colors.muted));
+  commands.push(text(euro(calculation.priceHt), 450, 190, 9, "F2"));
+  commands.push(text("TVA estimee", 358, 170, 9, "F2", colors.muted));
+  commands.push(text(euro(calculation.vatAmount), 450, 170, 9, "F2"));
+  commands.push(text("Total TTC", 358, 146, 12, "F2", colors.navy));
+  commands.push(text(euro(calculation.priceTtc), 440, 146, 12, "F2", colors.navy));
+  commands.push(text("Montant a confirmer apres disponibilite finale", 358, 134, 7, "F1", colors.muted));
+
+  commands.push(text("Conditions et acceptation", 66, 106, 11, "F2", colors.navy));
+  commands.push(
+    text(
+      "Offre valable sous reserve de disponibilite partenaires et chauffeur. Ce document est un devis, pas une facture.",
+      66,
+      91,
+      7,
+      "F1",
+      colors.text
+    )
+  );
+
   return {
-    body: buildPdf(pdfLines),
+    body: buildPdf(commands),
     fileName: `${calculation.quoteNumber}.pdf`,
     mimeType: "application/pdf"
   };
