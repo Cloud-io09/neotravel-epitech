@@ -11,3 +11,5 @@ supabase/.branches/
 supabase/.temp/
 supabase/snippets/
 _app_original
+.claude/
+new-front-almostAll/

@@ -2,11 +2,12 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, NoObjectGeneratedError, RetryError, APICallError, type ModelMessage } from "ai";
 
 import { containsPromptInjectionAttempt, NEOTRAVEL_SYSTEM_PROMPT } from "../../../lib/ai/prompt";
-import { chatJson } from "../../../lib/ai/chat-response";
+import { chatJson, type ExtractedFields } from "../../../lib/ai/chat-response";
 import { LeadQualificationSchema, type LeadQualification } from "../../../lib/domain/schemas";
 import { calculateQuoteForLead } from "../../../lib/quotes/quote-service";
 import { createOrUpdateLead, detectMissingFields } from "../../../lib/ai/tools";
 import { getLeadById } from "../../../lib/leads/lead-service";
+import { normalizeExtraction } from "../../../lib/ai/normalize-extraction";
 
 export const runtime = "nodejs";
 const DEFAULT_QUALIFICATION_TIMEOUT_MS = 30_000;
@@ -75,13 +76,16 @@ export async function POST(request: Request): Promise<Response> {
     if (existingLeadId) {
       const existing = await getLeadById(existingLeadId);
       if (existing) {
+        // Use missing_fields to exclude DB fallback values ("À compléter", "2099-01-01", etc.)
+        // that were inserted for NOT NULL constraints but are not real user-provided data.
+        const trulyMissing = new Set(existing.missing_fields ?? []);
         existingQualification = {
-          departure_city: existing.departure_city ?? undefined,
-          arrival_city: existing.arrival_city ?? undefined,
-          departure_date: existing.departure_date ?? undefined,
+          departure_city: trulyMissing.has("departure_city") ? undefined : (existing.departure_city ?? undefined),
+          arrival_city: trulyMissing.has("arrival_city") ? undefined : (existing.arrival_city ?? undefined),
+          departure_date: trulyMissing.has("departure_date") ? undefined : (existing.departure_date ?? undefined),
           return_date: existing.return_date ?? undefined,
-          passenger_count: existing.passenger_count ?? undefined,
-          trip_type: existing.trip_type ?? undefined,
+          passenger_count: trulyMissing.has("passenger_count") ? undefined : (existing.passenger_count ?? undefined),
+          trip_type: trulyMissing.has("trip_type") ? undefined : (existing.trip_type ?? undefined),
           options: existing.options ?? undefined,
           free_message: existing.free_message ?? undefined,
         };
@@ -100,21 +104,53 @@ export async function POST(request: Request): Promise<Response> {
       { model: modelId, timeoutMs: qualificationTimeoutMs },
       startedAt,
     );
+    // Provide existing departure_date to the LLM so it can infer the year for return_date
+    const contextHint = existingQualification.departure_date
+      ? `\nContexte déjà collecté (pour inférence uniquement) : departure_date="${existingQualification.departure_date}"${existingQualification.departure_city ? `, departure_city="${existingQualification.departure_city}"` : ""}${existingQualification.arrival_city ? `, arrival_city="${existingQualification.arrival_city}"` : ""}.`
+      : "";
+
     const textResult = await withTimeout(
       generateText({
         model: openrouter(modelId),
         system: NEOTRAVEL_SYSTEM_PROMPT,
-        prompt: `Extrait uniquement les informations de demande transport présentes dans ce message.\nN'invente aucun prix, aucune distance et aucun champ absent.\nRetourne UNIQUEMENT un objet JSON valide avec ces champs exacts (tous optionnels) :\n{\n  "name": string,\n  "organization": string,\n  "email": string (email valide),\n  "departure_city": string,\n  "arrival_city": string,\n  "departure_date": string (YYYY-MM-DD),\n  "return_date": string (YYYY-MM-DD),\n  "passenger_count": number,\n  "trip_type": "one_way" | "round_trip",\n  "free_message": string\n}\nN'inclus que les champs présents dans le message. Pas de markdown, pas de texte autour.\n\nMessage:\n${latestUserText}`,
+        prompt: `Extrait les informations de transport NOUVELLEMENT fournies dans ce message utilisateur.${contextHint}
+
+NORMALISATION (obligatoire) :
+- "X passagers" / "X personnes" / "X pax" → passenger_count: X (entier)
+- "on reviendra" / "on va revenir" / "retour le" / "aller-retour" / "trajet retour" → trip_type: "round_trip"
+- "aller simple" / "sans retour" / "juste l'aller" → trip_type: "one_way"
+- "Je veux aller à VILLE" / "on va à VILLE" → arrival_city: "VILLE"
+- "on part de VILLE" / "depuis VILLE" / "départ VILLE" → departure_city: "VILLE"
+- Si return_date est mentionnée sans année ET departure_date connue, complète l'année : "le 12 juin" + 2027 → "2027-06-12"
+
+RÈGLES ABSOLUES :
+1. departure_city et arrival_city : noms de villes ÉCRITS TEXTUELLEMENT par l'utilisateur.
+   INTERDIT : inférer depuis "le sud", "la côte", "la plage", "la montagne".
+2. "je ne sais pas" / "pas encore" / "j'hésite" → ce champ est ABSENT.
+3. Message sans information de transport concrète → retourne {}.
+
+Retourne UNIQUEMENT un objet JSON valide (tous champs optionnels, aucun markdown) :
+{"name":string,"organization":string,"email":string,"departure_city":string,"arrival_city":string,"departure_date":"YYYY-MM-DD","return_date":"YYYY-MM-DD","passenger_count":number,"trip_type":"one_way"|"round_trip","free_message":string}
+
+Message : ${latestUserText}`,
         temperature: 0.1,
         abortSignal: AbortSignal.timeout(qualificationTimeoutMs),
       }),
       qualificationTimeoutMs,
     );
-    const rawObject = stripNulls(extractJsonFromText(textResult.text) as Record<string, unknown>);
+    const rawExtracted = stripNulls(extractJsonFromText(textResult.text) as Record<string, unknown>);
+    const normalizedDelta = normalizeExtraction(rawExtracted, existingQualification);
+    logAgentEvent(requestId, "extraction_debug", {
+      raw: rawExtracted,
+      normalized: normalizedDelta,
+      existingState: Object.fromEntries(
+        Object.entries(existingQualification).filter(([, v]) => v !== undefined),
+      ),
+    }, startedAt);
     const lead = LeadQualificationSchema.parse({
       ...existingQualification,
-      ...rawObject,
-      free_message: rawObject.free_message ?? latestUserText,
+      ...normalizedDelta,
+      free_message: (normalizedDelta.free_message as string | undefined) ?? latestUserText,
     });
     const missing = detectMissingFields(lead);
     logAgentEvent(
@@ -139,7 +175,50 @@ export async function POST(request: Request): Promise<Response> {
       startedAt,
     );
 
+    const extractedFields: ExtractedFields = {
+      departureCity: lead.departure_city ?? null,
+      arrivalCity: lead.arrival_city ?? null,
+      departureDate: lead.departure_date ?? null,
+      passengerCount: lead.passenger_count ?? null,
+      tripType: (lead.trip_type ?? null) as "one_way" | "round_trip" | null,
+    };
+
     if (missing.status === "INCOMPLETE") {
+      const known = (Object.entries(lead) as [string, unknown][])
+        .filter(([, v]) => v !== undefined && v !== null && v !== "")
+        .map(([k, v]) => `${k}: ${String(v)}`)
+        .join(", ");
+
+      let conversationalMessage: string;
+      try {
+        const replyResult = await withTimeout(
+          generateText({
+            model: openrouter(modelId),
+            system: `Tu es l'assistant NeoTravel — transport de groupe premium en France.
+Ton rôle : aider les prospects à qualifier leur demande. Tu ne calcules jamais prix ni distance.
+
+Informations déjà collectées : ${known || "aucune"}.
+Informations manquantes pour le devis : ${formatMissingFields(missing.missing_fields)}.
+
+Consignes :
+- Réponds en français, de façon chaleureuse et naturelle (2-4 phrases max).
+- Si l'utilisateur dit bonjour ou pose une question générale, réponds-y avant de guider vers le projet.
+- Si l'utilisateur demande des suggestions ou exemples, propose 2-3 trajets courants en France (Paris-Lyon, Bordeaux-Marseille, Nantes-Strasbourg) sans jamais mentionner de prix.
+- Pose UNE seule question pour obtenir une information manquante à la fois, de façon naturelle.
+- Reste dans le périmètre NeoTravel (transport groupe France). Refuse poliment toute demande hors contexte.`,
+            messages,
+            temperature: 0.65,
+            maxOutputTokens: 180,
+          }),
+          qualificationTimeoutMs,
+        );
+        conversationalMessage =
+          replyResult.text.trim() ||
+          `Pour votre devis, merci de préciser : ${formatMissingFields(missing.missing_fields)}.`;
+      } catch {
+        conversationalMessage = `Pour votre devis, merci de préciser : ${formatMissingFields(missing.missing_fields)}.`;
+      }
+
       logAgentEvent(
         requestId,
         "request_completed",
@@ -149,57 +228,56 @@ export async function POST(request: Request): Promise<Response> {
 
       return chatJson({
         status: "INCOMPLETE",
-        message: `Pour établir un devis, il manque : ${formatMissingFields(missing.missing_fields)}.`,
+        message: conversationalMessage,
         leadId: leadResult.leadId,
         missingFields: missing.missing_fields,
+        extractedFields,
       });
     }
 
-    logAgentEvent(
-      requestId,
-      "quote_calculation_started",
-      { leadId: leadResult.leadId },
-      startedAt,
-    );
-    const quoteResult = await calculateQuoteForLead(leadResult.leadId);
+    // All required fields collected — return QUALIFIED so the front-end enables the quote button.
+    // Quote calculation is intentionally left to the dedicated /api/quotes route (triggered by the user).
+    const qualifiedSummary = [
+      lead.departure_city && lead.arrival_city ? `${lead.departure_city} → ${lead.arrival_city}` : null,
+      lead.departure_date ? `le ${lead.departure_date}` : null,
+      lead.passenger_count ? `${lead.passenger_count} passagers` : null,
+      lead.trip_type === "round_trip" ? "aller-retour" : lead.trip_type === "one_way" ? "aller simple" : null,
+    ]
+      .filter(Boolean)
+      .join(", ");
 
-    if (!quoteResult.ok) {
-      logAgentEvent(
-        requestId,
-        "request_completed",
-        {
-          status: quoteResult.status,
-          leadId: leadResult.leadId,
-          reason: quoteResult.reason,
-        },
-        startedAt,
+    let qualifiedMessage: string;
+    try {
+      const replyResult = await withTimeout(
+        generateText({
+          model: openrouter(modelId),
+          system: `Tu es l'assistant NeoTravel — transport de groupe premium en France.
+Tu viens de collecter toutes les informations nécessaires pour un devis.
+Trajet qualifié : ${qualifiedSummary || "informations complètes"}.
+Génère un message court (2-3 phrases) confirmant ce que tu as compris et invitant l'utilisateur à cliquer sur "Recevoir mon devis". Ne mentionne aucun prix ni distance.`,
+          messages,
+          temperature: 0.5,
+          maxOutputTokens: 120,
+        }),
+        qualificationTimeoutMs,
       );
-
-      return chatJson({
-        status: quoteResult.status,
-        message: formatHumanReviewMessage(quoteResult.reason),
-        leadId: leadResult.leadId,
-        reviewReason: quoteResult.reason,
-      });
+      qualifiedMessage = replyResult.text.trim() || `Parfait, j'ai toutes les informations pour votre trajet (${qualifiedSummary}). Cliquez sur "Recevoir mon devis" pour obtenir votre estimation.`;
+    } catch {
+      qualifiedMessage = `Parfait, j'ai toutes les informations pour votre trajet (${qualifiedSummary}). Cliquez sur "Recevoir mon devis" pour obtenir votre estimation.`;
     }
 
     logAgentEvent(
       requestId,
       "request_completed",
-      {
-        status: "QUOTE_READY",
-        leadId: leadResult.leadId,
-        quoteId: quoteResult.quoteId,
-      },
+      { status: "QUALIFIED", leadId: leadResult.leadId },
       startedAt,
     );
 
     return chatJson({
-      status: "QUOTE_READY",
-      message: "Votre devis est prêt.",
+      status: "QUALIFIED",
+      message: qualifiedMessage,
       leadId: leadResult.leadId,
-      quoteId: quoteResult.quoteId,
-      quote: quoteResult.quote,
+      extractedFields,
     });
   } catch (error) {
     const isDirectApiError = error instanceof APICallError;

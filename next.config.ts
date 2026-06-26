@@ -13,11 +13,18 @@ const nextConfig: NextConfig = {
       "confidentialite",
     ];
 
-    return clientRoutes.map((route) => ({
-      source: `/${route}/:path*`,
-      destination: `/client/${route}/:path*`,
-      permanent: true,
-    }));
+    return [
+      ...clientRoutes.map((route) => ({
+        source: `/${route}`,
+        destination: `/client/${route}`,
+        permanent: false,
+      })),
+      ...clientRoutes.map((route) => ({
+        source: `/${route}/:path*`,
+        destination: `/client/${route}/:path*`,
+        permanent: false,
+      })),
+    ];
   },
 };
 

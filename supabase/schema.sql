@@ -11,12 +11,14 @@ create table if not exists clients (
 create table if not exists leads (
   id uuid primary key default gen_random_uuid(),
   client_id uuid references clients(id) on delete set null,
-  departure_city text not null,
-  arrival_city text not null,
-  departure_date date not null,
+  departure_city text,
+  arrival_city text,
+  departure_date date,
   return_date date,
-  passenger_count integer not null,
-  trip_type text not null,
+  passenger_count integer,
+  trip_type text,
+  has_intermediate_stop boolean not null default false,
+  intermediate_stops jsonb not null default '[]'::jsonb,
   options jsonb not null default '{}'::jsonb,
   free_message text,
   status text not null default 'NEW',
@@ -38,6 +40,16 @@ create table if not exists leads (
       'WON',
       'LOST',
       'CLOSED'
+    )
+  ),
+  constraint leads_required_fields_for_qualified_status check (
+    status not in ('QUALIFIED', 'QUOTE_READY', 'QUOTE_SENT', 'WON', 'LOST', 'CLOSED')
+    or (
+      departure_city is not null
+      and arrival_city is not null
+      and departure_date is not null
+      and passenger_count is not null
+      and trip_type is not null
     )
   )
 );

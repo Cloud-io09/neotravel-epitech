@@ -9,7 +9,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "test:integration": "RUN_SUPABASE_INTEGRATION=true vitest run src/lib/quotes/quote-service.integration.test.ts"
+    "test:integration": "set -a; eval \"$(supabase status -o env)\"; set +a; RUN_SUPABASE_INTEGRATION=true vitest run src/lib/quotes/quote-service.integration.test.ts src/lib/ai/create-or-update-lead.integration.test.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.4",
@@ -26,6 +26,7 @@
     "ai": "^6.0.209",
     "lucide-react": "^1.21.0",
     "next": "^16.2.9",
+    "openai": "^6.45.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "zod": "^4.4.3"

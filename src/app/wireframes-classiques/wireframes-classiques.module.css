@@ -1,0 +1,246 @@
+.page {
+  min-height: 100vh;
+  background: #f3f4f6;
+  color: #111827;
+  padding: 40px 40px 96px;
+}
+
+.intro {
+  max-width: 980px;
+  margin: 0 auto 28px;
+}
+
+.kicker {
+  margin: 0 0 8px;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.intro h1 {
+  margin: 0;
+  font-size: 42px;
+  line-height: 1.1;
+}
+
+.intro p {
+  max-width: 740px;
+  margin: 12px 0 0;
+  color: #4b5563;
+  font-size: 17px;
+  line-height: 1.55;
+}
+
+.flow {
+  max-width: 1180px;
+  margin: 0 auto 28px;
+  padding: 18px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.flowItem {
+  position: relative;
+  min-height: 90px;
+  padding: 12px 34px 12px 12px;
+  border: 1px solid #9ca3af;
+  background: #f9fafb;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.flowItem span {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.flowItem strong {
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.flowItem em {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  z-index: 2;
+  width: 18px;
+  height: 18px;
+  margin-top: -9px;
+  background: #ffffff;
+  border: 1px solid #9ca3af;
+  color: #374151;
+  font-style: normal;
+  font-weight: 700;
+  text-align: center;
+  line-height: 16px;
+  font-size: 11px;
+}
+
+.grid {
+  max-width: 1180px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.screen {
+  min-height: 508px;
+  background: #ffffff;
+  border: 1px solid #9ca3af;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.screenHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid #d1d5db;
+  padding-bottom: 14px;
+}
+
+.screenHeader h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.screenHeader p {
+  margin: 6px 0 0;
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.screenHeader span {
+  height: 24px;
+  padding: 5px 8px;
+  border: 1px solid #9ca3af;
+  color: #4b5563;
+  font-size: 11px;
+  line-height: 12px;
+}
+
+.status {
+  min-height: 34px;
+  border: 1px solid #6b7280;
+  background: #f3f4f6;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.heroBlock {
+  height: 92px;
+  border: 1px solid #9ca3af;
+  background:
+    linear-gradient(to top right, transparent 49.5%, #cbd5e1 50%, transparent 50.5%),
+    linear-gradient(to bottom right, transparent 49.5%, #cbd5e1 50%, transparent 50.5%),
+    #f9fafb;
+}
+
+.blockGrid {
+  display: grid;
+  gap: 10px;
+}
+
+.block {
+  min-height: 40px;
+  border: 1px solid #d1d5db;
+  padding: 9px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #374151;
+  font-size: 13px;
+}
+
+.blockIcon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: 1px solid #9ca3af;
+  background: #f3f4f6;
+}
+
+.actions {
+  margin-top: auto;
+  min-height: 54px;
+  padding-top: 14px;
+  border-top: 1px solid #d1d5db;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.actions button {
+  min-width: 96px;
+  min-height: 30px;
+  max-width: 168px;
+  border: 1px solid #9ca3af;
+  background: #f9fafb;
+  color: #111827;
+  font: inherit;
+  font-size: 10px;
+  line-height: 1.2;
+  padding: 6px 8px;
+  text-align: center;
+}
+
+.notes {
+  max-width: 1180px;
+  margin: 28px auto 0;
+  padding: 20px 20px 28px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+}
+
+.notes h2 {
+  margin: 0 0 12px;
+  font-size: 20px;
+}
+
+.notes ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #374151;
+  line-height: 1.7;
+}
+
+@media (max-width: 980px) {
+  .page {
+    padding: 24px;
+  }
+
+  .flow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .flowItem em {
+    display: none;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .notes ul {
+    columns: 1;
+  }
+}
