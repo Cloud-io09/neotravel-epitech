@@ -1,27 +1,25 @@
 import { scheduleFollowups } from "@/features/followups/services/scheduleFollowups";
-import { getDashboardData } from "@/features/dashboard/services/getDashboardData";
-import { handleApiError, jsonOk } from "@/shared/lib/utils/apiResponse";
 import { z } from "zod";
+import { isAdminAuthorized } from "@/shared/lib/auth/requireAdmin";
+import { handleApiError, jsonError, jsonOk } from "@/shared/lib/utils/apiResponse";
 
-export const runtime = "nodejs";
-
-const ScheduleSchema = z.object({
-  leadId: z.string().min(1),
-  quoteId: z.string().min(1).optional(),
-  isUrgent: z.boolean().optional(),
-  highValue: z.boolean().optional()
+const ScheduleFollowupsSchema = z.object({
+ leadId: z.string().min(1),
+ quoteId: z.string().min(1).optional(),
+ quoteStatus: z.literal("QUOTE_SENT").optional(),
+ isUrgent: z.boolean().optional(),
+ highValue: z.boolean().optional()
 });
 
-export async function GET() {
-  const { followups } = await getDashboardData();
-  return Response.json(followups);
-}
-
 export async function POST(request: Request) {
-  try {
-    const body = ScheduleSchema.parse(await request.json());
-    return jsonOk(await scheduleFollowups(body), { status: 201 });
-  } catch (error) {
-    return handleApiError(error);
+ try {
+  if (!(await isAdminAuthorized())) {
+   return jsonError("UNAUTHORIZED", "Connexion administrateur requise.", 401);
   }
+
+  const body = ScheduleFollowupsSchema.parse(await request.json());
+  return jsonOk(await scheduleFollowups(body), { status: 201 });
+ } catch (error) {
+  return handleApiError(error);
+ }
 }

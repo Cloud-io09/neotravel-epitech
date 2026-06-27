@@ -1,3 +1,3 @@
 export function ClientHeader() {
-  return <header>NeoTravel</header>;
+ return <header>NeoTravel</header>;
 }

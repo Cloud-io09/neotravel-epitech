@@ -4,11 +4,11 @@ import { mockLeads } from "@/data/mock-leads";
 import { mockQuotes } from "@/data/mock-quotes";
 import { mockFollowups } from "@/data/mock-followups";
 import {
-  getDemoScenario,
-  getScenarioAuditLogs,
-  getScenarioFollowups,
-  getScenarioLeads,
-  getScenarioQuotes
+ getDemoScenario,
+ getScenarioAuditLogs,
+ getScenarioFollowups,
+ getScenarioLeads,
+ getScenarioQuotes
 } from "@/data/demo-scenarios";
 import type { AuditLog } from "@/shared/types/audit-log";
 import type { Followup } from "@/shared/types/followup";
@@ -19,308 +19,343 @@ import type { Client, ClientInput } from "@/shared/types/client";
 import type { DistanceCacheEntry } from "@/shared/lib/distance/distanceSchemas";
 
 type RoutePricingRow = {
-  routeKey: string;
-  departureCity: string;
-  arrivalCity: string;
-  distanceKm: number;
-  basePriceEur: number;
-  active: boolean;
-  version: number;
+ routeKey: string;
+ departureCity: string;
+ arrivalCity: string;
+ distanceKm: number;
+ basePriceEur: number;
+ active: boolean;
+ version: number;
 };
 
 type PricingRuleRow = {
-  key: string;
-  ruleType: string;
-  label: string;
-  value: unknown;
-  unit: string;
-  active: boolean;
-  version: number;
-  metadata?: Record<string, unknown>;
+ key: string;
+ ruleType: string;
+ label: string;
+ value: unknown;
+ unit: string;
+ active: boolean;
+ version: number;
+ metadata?: Record<string, unknown>;
 };
 
 type DemoStoreState = {
-  clients: Client[];
-  leads: Lead[];
-  quotes: Quote[];
-  followups: Followup[];
-  auditLogs: AuditLog[];
-  modelRuns: ModelRun[];
-  distanceCache: DistanceCacheEntry[];
+ clients: Client[];
+ leads: Lead[];
+ quotes: Quote[];
+ followups: Followup[];
+ auditLogs: AuditLog[];
+ modelRuns: ModelRun[];
+ distanceCache: DistanceCacheEntry[];
 };
 
 declare global {
-  var __neoTravelDemoStore: DemoStoreState | undefined;
+ var __neoTravelDemoStore: DemoStoreState | undefined;
 }
 
 const demoPricingRules: PricingRuleRow[] = [
-  {
-    key: "vat_standard_transport",
-    ruleType: "vat",
-    label: "TVA transport voyageurs",
-    value: pricingRules.vatRate,
-    unit: "rate",
-    active: true,
-    version: 1,
-    metadata: { source: "kickoff" }
-  },
-  {
-    key: "margin_standard",
-    ruleType: "margin",
-    label: "Marge commerciale standard",
-    value: 0.15,
-    unit: "rate",
-    active: true,
-    version: 1,
-    metadata: { source: "kickoff" }
-  },
-  {
-    key: "option_guide",
-    ruleType: "option",
-    label: "Guide accompagnateur",
-    value: 80,
-    unit: "eur_per_day",
-    active: true,
-    version: 1,
-    metadata: { code: "guide", source: "kickoff" }
-  },
-  {
-    key: "option_driver_night",
-    ruleType: "option",
-    label: "Nuit chauffeur",
-    value: 120,
-    unit: "eur_per_night",
-    active: true,
-    version: 1,
-    metadata: { code: "nuit_chauffeur", source: "kickoff" }
-  },
-  {
-    key: "option_tolls",
-    ruleType: "option",
-    label: "Peages estimes",
-    value: 120,
-    unit: "eur",
-    active: true,
-    version: 1,
-    metadata: { code: "peages", source: "demo_fixture" }
-  }
+ {
+  key: "vat_standard_transport",
+  ruleType: "vat",
+  label: "TVA transport voyageurs",
+  value: pricingRules.vatRate,
+  unit: "rate",
+  active: true,
+  version: 1,
+  metadata: { source: "kickoff" }
+ },
+ {
+  key: "margin_standard",
+  ruleType: "margin",
+  label: "Marge commerciale standard",
+  value: 0.15,
+  unit: "rate",
+  active: true,
+  version: 1,
+  metadata: { source: "kickoff" }
+ },
+ {
+  key: "option_guide",
+  ruleType: "option",
+  label: "Guide accompagnateur",
+  value: 80,
+  unit: "eur_per_day",
+  active: true,
+  version: 1,
+  metadata: { code: "guide", source: "kickoff" }
+ },
+ {
+  key: "option_driver_night",
+  ruleType: "option",
+  label: "Nuit chauffeur",
+  value: 120,
+  unit: "eur_per_night",
+  active: true,
+  version: 1,
+  metadata: { code: "nuit_chauffeur", source: "kickoff" }
+ },
+ {
+  key: "option_tolls",
+  ruleType: "option",
+  label: "Peages estimes",
+  value: 120,
+  unit: "eur",
+  active: true,
+  version: 1,
+  metadata: { code: "peages", source: "demo_fixture" }
+ }
 ];
 
-function createInitialStore(): DemoStoreState {
-  return {
-    clients: [],
-    leads: [...mockLeads],
-    quotes: [...mockQuotes],
-    followups: [...mockFollowups],
-    auditLogs: [],
-    modelRuns: [],
-    distanceCache: []
-  };
-}
+// Base vierge : aucun client de démo.
+const demoSeedClients: Client[] = [];
 
-const store = globalThis.__neoTravelDemoStore ?? (globalThis.__neoTravelDemoStore = createInitialStore());
+// Singleton partagé via globalThis : sous Next/Turbopack, route handlers et
+// Server Components peuvent recevoir des instances de module séparées. Sans ça,
+// une modification faite par l'API ne serait pas visible dans les pages.
+const globalForDemo = globalThis as unknown as { __neotravelDemoStore?: DemoStoreState };
+
+const store: DemoStoreState =
+ globalForDemo.__neotravelDemoStore ??
+ (globalForDemo.__neotravelDemoStore = {
+  clients: [...demoSeedClients],
+  leads: [...mockLeads],
+  quotes: [...mockQuotes],
+  followups: [...mockFollowups],
+  auditLogs: [],
+  modelRuns: [],
+  distanceCache: []
+ });
 
 function nowIso() {
-  return new Date().toISOString();
+ return new Date().toISOString();
 }
 
 function routeKeyToCities(routeKey: string) {
-  const [departureCity, arrivalCity] = routeKey.split("__").map((part) => part.slice(0, 1).toUpperCase() + part.slice(1));
-  return { departureCity, arrivalCity };
+ const [departureCity, arrivalCity] = routeKey.split("__").map((part) => part.slice(0, 1).toUpperCase() + part.slice(1));
+ return { departureCity, arrivalCity };
 }
 
 export const demoStore = {
-  createClient(input: ClientInput) {
-    const client: Client = {
-      id: crypto.randomUUID(),
-      organization: input.organization,
-      contactName: input.contactName ?? null,
-      email: input.email,
-      phone: input.phone ?? null,
-      active: input.active ?? true,
-      createdAt: nowIso()
-    };
-    store.clients.push(client);
-    return client;
-  },
+ createClient(input: ClientInput) {
+  const client: Client = {
+   id: crypto.randomUUID(),
+   organization: input.organization,
+   contactName: input.contactName ?? null,
+   email: input.email,
+   phone: input.phone ?? null,
+   active: input.active ?? true,
+   createdAt: nowIso()
+  };
+  store.clients.unshift(client);
+  return client;
+ },
 
-  listClients() {
-    return store.clients;
-  },
+ updateClient(id: string, patch: Partial<Client>) {
+  const client = store.clients.find((item) => item.id === id);
+  if (!client) return null;
+  Object.assign(client, patch);
+  return client;
+ },
 
-  createLead(input: Partial<Lead>) {
-    const lead: Lead = {
-      id: input.id ?? crypto.randomUUID(),
-      status: (input.status ?? "NEW") as LeadStatus,
-      rawMessage: input.rawMessage,
-      organization: input.organization ?? null,
-      email: input.email ?? null,
-      departureCity: input.departureCity ?? null,
-      arrivalCity: input.arrivalCity ?? null,
-      departureDate: input.departureDate ?? null,
-      returnDate: input.returnDate ?? null,
-      passengerCount: input.passengerCount ?? null,
-      tripType: input.tripType ?? null,
-      options: input.options ?? [],
-      missingFields: input.missingFields ?? [],
-      confidence: input.confidence ?? null,
-      humanReviewReason: input.humanReviewReason ?? null,
-      aiSummary: input.aiSummary ?? null
-    };
-    store.leads.unshift(lead);
-    return lead;
-  },
+ deleteClient(id: string) {
+  const index = store.clients.findIndex((item) => item.id === id);
+  if (index < 0) return false;
+  store.clients.splice(index, 1);
+  return true;
+ },
 
-  updateLead(id: string, patch: Partial<Lead>) {
-    const lead = store.leads.find((item) => item.id === id);
-    if (!lead) return null;
-    Object.assign(lead, patch);
-    return lead;
-  },
+ getClientById(id: string) {
+  return store.clients.find((item) => item.id === id) ?? null;
+ },
 
-  getLeadById(id: string) {
-    return store.leads.find((lead) => lead.id === id) ?? null;
-  },
+ listClients() {
+  return store.clients;
+ },
 
-  listLeads() {
-    return store.leads;
-  },
+ createLead(input: Partial<Lead>) {
+  const lead: Lead = {
+   id: input.id ?? crypto.randomUUID(),
+   status: (input.status ?? "NEW") as LeadStatus,
+   rawMessage: input.rawMessage,
+   organization: input.organization ?? null,
+   email: input.email ?? null,
+   departureCity: input.departureCity ?? null,
+   arrivalCity: input.arrivalCity ?? null,
+   departureDate: input.departureDate ?? null,
+   returnDate: input.returnDate ?? null,
+   passengerCount: input.passengerCount ?? null,
+   tripType: input.tripType ?? null,
+   options: input.options ?? [],
+   missingFields: input.missingFields ?? [],
+   confidence: input.confidence ?? null,
+   humanReviewReason: input.humanReviewReason ?? null,
+   aiSummary: input.aiSummary ?? null,
+   source: input.source ?? null,
+   createdAt: input.createdAt ?? nowIso(),
+   updatedAt: input.updatedAt ?? null,
+   qualifiedAt: input.qualifiedAt ?? null,
+   quotedAt: input.quotedAt ?? null,
+   sentAt: input.sentAt ?? null,
+   acceptedAt: input.acceptedAt ?? null
+  };
+  store.leads.unshift(lead);
+  return lead;
+ },
 
-  createQuote(input: { leadId: string; calculation: QuoteCalculation; status?: Quote["status"] }) {
-    const quote: Quote = {
-      id: crypto.randomUUID(),
-      leadId: input.leadId,
-      status: input.status ?? "QUOTE_READY",
-      calculation: input.calculation
-    };
-    store.quotes.unshift(quote);
-    return quote;
-  },
+ updateLead(id: string, patch: Partial<Lead>) {
+  const lead = store.leads.find((item) => item.id === id);
+  if (!lead) return null;
+  Object.assign(lead, patch);
+  return lead;
+ },
 
-  getQuoteById(id: string) {
-    return store.quotes.find((quote) => quote.id === id) ?? null;
-  },
+ getLeadById(id: string) {
+  return store.leads.find((lead) => lead.id === id) ?? null;
+ },
 
-  listQuotes() {
-    return store.quotes;
-  },
+ listLeads() {
+  return store.leads;
+ },
 
-  createFollowup(input: Omit<Followup, "id" | "status"> & { status?: Followup["status"] }) {
-    const followup: Followup = {
-      id: crypto.randomUUID(),
-      status: input.status ?? "SCHEDULED",
-      leadId: input.leadId,
-      quoteId: input.quoteId,
-      channel: input.channel,
-      dueAt: input.dueAt
-    };
-    store.followups.unshift(followup);
-    return followup;
-  },
+ createQuote(input: { leadId: string; calculation: QuoteCalculation; status?: Quote["status"] }) {
+  const quote: Quote = {
+   id: crypto.randomUUID(),
+   leadId: input.leadId,
+   status: input.status ?? "QUOTE_READY",
+   calculation: input.calculation,
+   createdAt: nowIso(),
+   updatedAt: null
+  };
+  store.quotes.unshift(quote);
+  return quote;
+ },
 
-  listFollowups() {
-    return store.followups;
-  },
+ getQuoteById(id: string) {
+  return store.quotes.find((quote) => quote.id === id) ?? null;
+ },
 
-  createAuditLog(input: Omit<AuditLog, "id" | "createdAt">) {
-    const auditLog: AuditLog = {
-      id: crypto.randomUUID(),
-      createdAt: nowIso(),
-      ...input
-    };
-    store.auditLogs.unshift(auditLog);
-    return auditLog;
-  },
+ listQuotes() {
+  return store.quotes;
+ },
 
-  listAuditLogs() {
-    return store.auditLogs;
-  },
+ createFollowup(input: Omit<Followup, "id" | "status"> & { status?: Followup["status"] }) {
+  const followup: Followup = {
+   id: crypto.randomUUID(),
+   status: input.status ?? "SCHEDULED",
+   leadId: input.leadId,
+   quoteId: input.quoteId,
+   channel: input.channel,
+   dueAt: input.dueAt,
+   createdAt: nowIso(),
+   updatedAt: null
+  };
+  store.followups.unshift(followup);
+  return followup;
+ },
 
-  createModelRun(input: Omit<ModelRun, "id" | "createdAt">) {
-    const modelRun: ModelRun = {
-      id: crypto.randomUUID(),
-      createdAt: nowIso(),
-      ...input
-    };
-    store.modelRuns.unshift(modelRun);
-    return modelRun;
-  },
+ listFollowups() {
+  return store.followups;
+ },
 
-  listModelRuns() {
-    return store.modelRuns;
-  },
+ createAuditLog(input: Omit<AuditLog, "id" | "createdAt">) {
+  const auditLog: AuditLog = {
+   id: crypto.randomUUID(),
+   createdAt: nowIso(),
+   ...input
+  };
+  store.auditLogs.unshift(auditLog);
+  return auditLog;
+ },
 
-  listPricingRules(): PricingRuleRow[] {
-    return demoPricingRules;
-  },
+ listAuditLogs() {
+  return store.auditLogs;
+ },
 
-  listPricingMatrices(): PricingRuleRow[] {
-    return this.listPricingRules();
-  },
+ createModelRun(input: Omit<ModelRun, "id" | "createdAt">) {
+  const modelRun: ModelRun = {
+   id: crypto.randomUUID(),
+   createdAt: nowIso(),
+   ...input
+  };
+  store.modelRuns.unshift(modelRun);
+  return modelRun;
+ },
 
-  listRoutePricing(): RoutePricingRow[] {
-    return Object.entries(routePricing).map(([routeKey, route]) => ({
-      routeKey,
-      ...routeKeyToCities(routeKey),
-      distanceKm: route.distanceKm,
-      basePriceEur: route.demoBasePriceEur,
-      active: true,
-      version: 1
-    }));
-  },
+ listModelRuns() {
+  return store.modelRuns;
+ },
 
-  findDistanceCache(departureNormalized: string, arrivalNormalized: string) {
-    return (
-      store.distanceCache.find(
-        (entry) =>
-          (entry.departureNormalized === departureNormalized && entry.arrivalNormalized === arrivalNormalized) ||
-          (entry.departureNormalized === arrivalNormalized && entry.arrivalNormalized === departureNormalized)
-      ) ?? null
-    );
-  },
+ listPricingRules(): PricingRuleRow[] {
+  return demoPricingRules;
+ },
 
-  createDistanceCache(input: DistanceCacheEntry) {
-    const entry: DistanceCacheEntry = {
-      id: input.id ?? crypto.randomUUID(),
-      ...input
-    };
-    const existingIndex = store.distanceCache.findIndex(
-      (item) =>
-        item.departureNormalized === entry.departureNormalized && item.arrivalNormalized === entry.arrivalNormalized
-    );
-    if (existingIndex >= 0) store.distanceCache.splice(existingIndex, 1);
-    store.distanceCache.unshift(entry);
-    return entry;
-  },
+ listPricingMatrices(): PricingRuleRow[] {
+  return this.listPricingRules();
+ },
 
-  loadScenario(id: string) {
-    const scenario = getDemoScenario(id);
-    if (!scenario) return null;
+ listRoutePricing(): RoutePricingRow[] {
+  return Object.entries(routePricing).map(([routeKey, route]) => ({
+   routeKey,
+   ...routeKeyToCities(routeKey),
+   distanceKm: route.distanceKm,
+   basePriceEur: route.demoBasePriceEur,
+   active: true,
+   version: 1
+  }));
+ },
 
-    store.clients = [];
-    store.leads = getScenarioLeads(scenario);
-    store.quotes = getScenarioQuotes(scenario);
-    store.followups = getScenarioFollowups(scenario);
-    store.auditLogs = getScenarioAuditLogs(scenario);
-    store.modelRuns = [];
-    store.distanceCache = [];
+ findDistanceCache(departureNormalized: string, arrivalNormalized: string) {
+  return (
+   store.distanceCache.find(
+    (entry) =>
+     (entry.departureNormalized === departureNormalized && entry.arrivalNormalized === arrivalNormalized) ||
+     (entry.departureNormalized === arrivalNormalized && entry.arrivalNormalized === departureNormalized)
+   ) ?? null
+  );
+ },
 
-    return {
-      scenario,
-      leads: store.leads,
-      quotes: store.quotes,
-      followups: store.followups,
-      auditLogs: store.auditLogs
-    };
-  },
+ createDistanceCache(input: DistanceCacheEntry) {
+  const entry: DistanceCacheEntry = {
+   id: input.id ?? crypto.randomUUID(),
+   ...input
+  };
+  const existingIndex = store.distanceCache.findIndex(
+   (item) =>
+    item.departureNormalized === entry.departureNormalized && item.arrivalNormalized === entry.arrivalNormalized
+  );
+  if (existingIndex >= 0) store.distanceCache.splice(existingIndex, 1);
+  store.distanceCache.unshift(entry);
+  return entry;
+ },
 
-  reset() {
-    store.clients = [];
-    store.leads = [...mockLeads];
-    store.quotes = [...mockQuotes];
-    store.followups = [...mockFollowups];
-    store.auditLogs = [];
-    store.modelRuns = [];
-    store.distanceCache = [];
-  }
+ loadScenario(id: string) {
+  const scenario = getDemoScenario(id);
+  if (!scenario) return null;
+
+  store.clients = [];
+  store.leads = getScenarioLeads(scenario);
+  store.quotes = getScenarioQuotes(scenario);
+  store.followups = getScenarioFollowups(scenario);
+  store.auditLogs = getScenarioAuditLogs(scenario);
+  store.modelRuns = [];
+  store.distanceCache = [];
+
+  return {
+   scenario,
+   leads: store.leads,
+   quotes: store.quotes,
+   followups: store.followups,
+   auditLogs: store.auditLogs
+  };
+ },
+
+ reset() {
+  store.clients = [...demoSeedClients];
+  store.leads = [...mockLeads];
+  store.quotes = [...mockQuotes];
+  store.followups = [...mockFollowups];
+  store.auditLogs = [];
+  store.modelRuns = [];
+  store.distanceCache = [];
+ }
 };

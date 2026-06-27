@@ -1,5 +1,5 @@
-import type { ModelRun } from "@/shared/types/model-run";
+import { listModelRuns } from "@/shared/lib/data/modelRunRepository";
 
-export async function getModelRuns(): Promise<ModelRun[]> {
-  return [];
+export async function getModelRuns() {
+ return listModelRuns();
 }

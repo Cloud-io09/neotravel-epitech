@@ -8,10 +8,10 @@ export const ADMIN_LOGIN_PATH = "/admin-connexion";
 
 export type AdminSession = { email: string | null } | null;
 export type StaffSession = {
-  email: string | null;
-  name?: string;
-  role: StaffRole;
-  permissions: PermissionKey[];
+ email: string | null;
+ name?: string;
+ role: StaffRole;
+ permissions: PermissionKey[];
 };
 
 /**
@@ -21,22 +21,22 @@ export type StaffSession = {
  * - Démo pure -> session ouverte (admin, toutes permissions).
  */
 export async function getStaffSession(): Promise<StaffSession | null> {
-  if (isLocalAuthEnabled()) {
-    const staff = await getLocalStaff();
-    return staff
-      ? { email: staff.email, name: staff.name, role: staff.role, permissions: staff.permissions }
-      : null;
-  }
-  if (!isDemoMode()) {
-    const user = await getAdminUser();
-    return user ? { email: user.email ?? null, role: "admin", permissions: [...ALL_PERMISSION_KEYS] } : null;
-  }
-  return { email: null, role: "admin", permissions: [...ALL_PERMISSION_KEYS] };
+ if (isLocalAuthEnabled()) {
+  const staff = await getLocalStaff();
+  return staff
+   ? { email: staff.email, name: staff.name, role: staff.role, permissions: staff.permissions }
+   : null;
+ }
+ if (!isDemoMode()) {
+  const user = await getAdminUser();
+  return user ? { email: user.email ?? null, role: "admin", permissions: [...ALL_PERMISSION_KEYS] } : null;
+ }
+ return { email: null, role: "admin", permissions: [...ALL_PERMISSION_KEYS] };
 }
 
 /** Un admin a tout ; sinon on vérifie la liste de permissions. */
 export function sessionHasPermission(session: StaffSession, permission: PermissionKey): boolean {
-  return session.role === "admin" || session.permissions.includes(permission);
+ return session.role === "admin" || session.permissions.includes(permission);
 }
 
 /**
@@ -44,24 +44,24 @@ export function sessionHasPermission(session: StaffSession, permission: Permissi
  * Conserve la signature historique.
  */
 export async function requireAdmin(): Promise<AdminSession> {
-  const session = await getStaffSession();
-  if (!session) redirect(ADMIN_LOGIN_PATH);
-  return { email: session.email };
+ const session = await getStaffSession();
+ if (!session) redirect(ADMIN_LOGIN_PATH);
+ return { email: session.email };
 }
 
 /** Tout salarié connecté (admin OU commercial). Sinon -> page de connexion. */
 export async function requireStaff(): Promise<StaffSession> {
-  const session = await getStaffSession();
-  if (!session) redirect(ADMIN_LOGIN_PATH);
-  return session;
+ const session = await getStaffSession();
+ if (!session) redirect(ADMIN_LOGIN_PATH);
+ return session;
 }
 
 /** Réservé aux admins. Commercial -> renvoyé au dashboard. Non connecté -> login. */
 export async function requireAdminRole(): Promise<StaffSession> {
-  const session = await getStaffSession();
-  if (!session) redirect(ADMIN_LOGIN_PATH);
-  if (session.role !== "admin") redirect("/dashboard");
-  return session;
+ const session = await getStaffSession();
+ if (!session) redirect(ADMIN_LOGIN_PATH);
+ if (session.role !== "admin") redirect("/dashboard");
+ return session;
 }
 
 /**
@@ -69,10 +69,10 @@ export async function requireAdminRole(): Promise<StaffSession> {
  * Commercial sans la permission -> renvoyé au dashboard. Non connecté -> login.
  */
 export async function requirePermission(permission: PermissionKey): Promise<StaffSession> {
-  const session = await getStaffSession();
-  if (!session) redirect(ADMIN_LOGIN_PATH);
-  if (!sessionHasPermission(session, permission)) redirect("/dashboard");
-  return session;
+ const session = await getStaffSession();
+ if (!session) redirect(ADMIN_LOGIN_PATH);
+ if (!sessionHasPermission(session, permission)) redirect("/dashboard");
+ return session;
 }
 
 /**
@@ -80,13 +80,13 @@ export async function requirePermission(permission: PermissionKey): Promise<Staf
  * Protège les endpoints qui lisent/modifient des données (tout salarié).
  */
 export async function isAdminAuthorized(): Promise<boolean> {
-  if (isLocalAuthEnabled()) return Boolean(await getLocalAdminEmail());
-  if (!isDemoMode()) return Boolean(await getAdminUser());
-  return true;
+ if (isLocalAuthEnabled()) return Boolean(await getLocalAdminEmail());
+ if (!isDemoMode()) return Boolean(await getAdminUser());
+ return true;
 }
 
 /** Idem mais réservé au rôle admin (endpoints sensibles : comptes clients...). */
 export async function isAdminRoleAuthorized(): Promise<boolean> {
-  const session = await getStaffSession();
-  return session?.role === "admin";
+ const session = await getStaffSession();
+ return session?.role === "admin";
 }

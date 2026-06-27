@@ -1,19 +1,18 @@
-import { getDashboardData } from "@/features/dashboard/services/getDashboardData";
+import { isAdminAuthorized } from "@/shared/lib/auth/requireAdmin";
+import { getDashboardKpis } from "@/features/dashboard/services/getDashboardKpis";
+import { getPipelineLeads } from "@/features/dashboard/services/getPipelineLeads";
+import { listFollowups, listQuotes } from "@/shared/lib/data";
+import { jsonError } from "@/shared/lib/utils/apiResponse";
 
-export const runtime = "nodejs";
+export async function GET() {
+ if (!(await isAdminAuthorized())) {
+  return jsonError("UNAUTHORIZED", "Connexion administrateur requise.", 401);
+ }
 
-export async function GET(): Promise<Response> {
-  const { leads, quotes, followups } = await getDashboardData();
-
-  return Response.json({
-    kpis: {
-      newLeads: leads.filter((lead) => lead.status === "NEW").length,
-      quoteReady: quotes.filter((quote) => quote.status === "QUOTE_READY").length,
-      humanReview: leads.filter((lead) => lead.status === "HUMAN_REVIEW").length,
-      followupsScheduled: followups.filter((followup) => followup.status === "scheduled").length,
-    },
-    leads,
-    quotes,
-    followups,
-  });
+ return Response.json({
+  kpis: await getDashboardKpis(),
+  leads: await getPipelineLeads(),
+  quotes: await listQuotes(),
+  followups: await listFollowups()
+ });
 }

@@ -1,3 +1,3 @@
 export function Spinner() {
-  return <span aria-label="Chargement">...</span>;
+ return <span aria-label="Chargement">...</span>;
 }
