@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { GlobalTranslator } from "@/shared/i18n/GlobalTranslator";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -9,7 +10,13 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="fr">
-      <body>{children}</body>
+      <body>
+        <a className="skip-link" href="#main">
+          Aller au contenu principal
+        </a>
+        {children}
+        <GlobalTranslator />
+      </body>
     </html>
   );
 }

@@ -140,3 +140,104 @@ pre {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* --- Accessibility widget support (ported from fusion front) --- */
+html.text-size-normal {
+  font-size: 100%;
+}
+
+html.text-size-large {
+  font-size: 112.5%;
+}
+
+html.text-size-xlarge {
+  font-size: 125%;
+}
+
+:focus-visible {
+  outline: 3px solid #d5a536;
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: fixed;
+  left: 16px;
+  top: 16px;
+  z-index: 200;
+  transform: translateY(-160%);
+  border: 2px solid #d5a536;
+  border-radius: 999px;
+  padding: 12px 16px;
+  background: #071a3d;
+  color: #fff;
+  font-weight: 800;
+  box-shadow: 0 14px 34px rgba(6, 28, 62, 0.24);
+  transition: transform 160ms ease;
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+html.high-contrast {
+  --bg: #fff;
+  --text: #000;
+}
+
+html.high-contrast body {
+  background: #fff !important;
+  color: #000 !important;
+}
+
+html.high-contrast :where(main, section, article, aside, header, footer, nav, div) {
+  border-color: #000 !important;
+}
+
+html.high-contrast :where(h1, h2, h3, h4, p, li, dt, dd, label, span, strong, small, em) {
+  color: #000 !important;
+  text-shadow: none !important;
+}
+
+html.high-contrast :where([class*="hero"], [class*="Hero"], [class*="card"], [class*="Card"], [class*="panel"], [class*="Panel"], [class*="box"], [class*="Box"]) {
+  border-color: #000 !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+
+html.high-contrast :where(a[href]) {
+  color: #001f7a !important;
+  text-decoration: underline;
+}
+
+html.high-contrast :where(button, [role="button"], input, textarea, select) {
+  border-color: #000 !important;
+  background: #fff !important;
+  color: #000 !important;
+  box-shadow: none !important;
+}
+
+html.high-contrast :where(button:disabled) {
+  color: #555 !important;
+  opacity: 1 !important;
+}
+
+html.reading-mode body {
+  line-height: 1.65;
+}
+
+html.reading-mode :where(p, li, dd) {
+  line-height: 1.75 !important;
+}
+
+html.reading-mode :where(main, section, article) {
+  scroll-margin-top: 28px;
+}
+
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-duration: 0.001ms !important;
+}

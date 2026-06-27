@@ -27,7 +27,7 @@ export default function ContactPage() {
             {address}
           </p>
           <p>Email demo : contact@neotravel.fr</p>
-          <Link className={styles.button} href="/demande">
+          <Link className={styles.button} href="/client/demande">
             Faire une demande
           </Link>
         </article>

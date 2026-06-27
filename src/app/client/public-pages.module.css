@@ -220,3 +220,13 @@
     width: 100%;
   }
 }
+
+/* --- Header actions wrapper (ported from fusion front) --- */
+.headerActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 22px;
+  min-width: 0;
+}

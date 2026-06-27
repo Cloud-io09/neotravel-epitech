@@ -45,7 +45,7 @@ export default function PartenairesPage() {
           Cette page explique le fonctionnement partenaire sans ouvrir le dashboard interne. Les outils equipe restent
           separes de l&apos;espace client pour des raisons de securite et de lisibilite.
         </p>
-        <Link className={styles.button} href="/demande">
+        <Link className={styles.button} href="/client/demande">
           Demarrer une demande
         </Link>
       </section>
