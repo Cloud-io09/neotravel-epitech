@@ -5,23 +5,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  Bell,
-  Bus,
-  Calendar,
-  Cpu,
   FileText,
-  Gauge,
-  Inbox,
   LayoutDashboard,
+  ListChecks,
   Menu,
-  Plug,
-  ScrollText,
-  ShieldCheck,
-  Tag,
-  TrendingUp,
-  UserCog,
-  Users,
-  Workflow,
   X,
   type LucideIcon
 } from "lucide-react";
@@ -31,51 +18,15 @@ import styles from "./dashboard.module.css";
 
 type Item = { label: string; href: string; icon: LucideIcon; perm?: PermissionKey };
 
+// Reframed dashboard: one operational pipeline view + two focused sub-routes.
 const groups: { title: string; items: Item[] }[] = [
   {
-    title: "Activité",
+    title: "Pipeline",
     items: [
-      { label: "Vue générale", href: "/dashboard", icon: LayoutDashboard },
-      { label: "Comptes clients", href: "/dashboard/clients", icon: UserCog, perm: "clients" },
-      { label: "Leads", href: "/dashboard/demandes", icon: Inbox, perm: "leads" }
+      { label: "Vue pipeline", href: "/dashboard", icon: LayoutDashboard },
+      { label: "Files d'attente", href: "/dashboard/queues", icon: ListChecks },
+      { label: "Devis & traçabilité", href: "/dashboard/observability", icon: FileText }
     ]
-  },
-  {
-    title: "Traitement",
-    items: [
-      { label: "Validation humaine", href: "/dashboard/human-review", icon: ShieldCheck, perm: "human_review" },
-      { label: "Relances", href: "/dashboard/relances", icon: Bell, perm: "followups" },
-      { label: "Devis", href: "/dashboard/devis", icon: FileText, perm: "quotes" },
-      { label: "Agenda", href: "/dashboard/agenda-commerciaux", icon: Calendar, perm: "agenda" }
-    ]
-  },
-  {
-    title: "Partenaires & équipe",
-    items: [
-      { label: "Partenaires autocars", href: "/dashboard/partenaires", icon: Bus, perm: "partners" },
-      { label: "Équipe & rôles", href: "/dashboard/equipe-roles", icon: Users, perm: "team" }
-    ]
-  },
-  {
-    title: "Pilotage",
-    items: [
-      { label: "Vue admin", href: "/dashboard/admin", icon: Gauge, perm: "admin_view" },
-      { label: "Tarification", href: "/dashboard/pricing", icon: Tag, perm: "pricing" },
-      { label: "Automatisations", href: "/dashboard/automatisations", icon: Workflow, perm: "automations" },
-      { label: "Croissance", href: "/dashboard/croissance", icon: TrendingUp, perm: "growth" }
-    ]
-  },
-  {
-    title: "Coûts & conformité",
-    items: [
-      { label: "Coûts & logs", href: "/dashboard/couts-logs", icon: ScrollText, perm: "costs_logs" },
-      { label: "Coûts IA", href: "/dashboard/couts-ia-admin", icon: Cpu, perm: "costs_ai" },
-      { label: "Audit RGPD", href: "/dashboard/rgpd-audit", icon: ShieldCheck, perm: "compliance" }
-    ]
-  },
-  {
-    title: "Système",
-    items: [{ label: "Connexions", href: "/dashboard/connexions", icon: Plug, perm: "connections" }]
   }
 ];
 

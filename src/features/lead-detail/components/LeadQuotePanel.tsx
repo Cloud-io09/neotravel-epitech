@@ -30,8 +30,8 @@ export function LeadQuotePanel({ lead }: { lead: Lead }) {
         <Link className={styles.primary} href="/devis/demo-quote-alpha">
           Generer devis
         </Link>
-        <Link className={styles.secondary} href="/dashboard/human-review">
-          Human review
+        <Link className={styles.secondary} href="/dashboard/queues">
+          Files d&apos;attente
         </Link>
       </div>
     </section>
