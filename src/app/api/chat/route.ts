@@ -12,6 +12,7 @@ import { generateAssistantReply, type ReplyTurn } from "../../../lib/ai/generate
 import { extractTurnFacts } from "../../../lib/ai/extract-turn-facts";
 import { detectIntermediateStops } from "../../../lib/ai/detect-intermediate-stops";
 import { detectOptions } from "../../../lib/ai/detect-options";
+import { canonicalizeCity } from "../../../lib/ai/canonicalize-city";
 import { validateLead } from "../../../lib/ai/validate-lead";
 import { getChatModel } from "../../../lib/ai/provider";
 import { sanitizeExtractionDelta } from "../../../lib/ai/sanitize-extraction-delta";
@@ -198,6 +199,10 @@ Message : ${latestUserText}`,
       existingQualification,
     );
     const merged = mergeLead(existingQualification, normalizedDelta);
+    // Canonicalize the cities so the side panel shows "Paris", not the typed "Pari".
+    // Only unambiguous matches are corrected; an unknown town is left as typed.
+    merged.departure_city = canonicalizeCity(merged.departure_city) ?? merged.departure_city;
+    merged.arrival_city = canonicalizeCity(merged.arrival_city) ?? merged.arrival_city;
     // A known departure date with no return and no round-trip signal defaults to one-way.
     // Round-trip still wins whenever a return date or "aller-retour" is detected (now or in
     // a later turn — a real value always overrides this default via mergeLead).
