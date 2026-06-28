@@ -30,6 +30,19 @@ type RoutePreview = {
  bbox?: [number, number, number, number];
 };
 
+type ChatApiResponse = {
+ status?: "INCOMPLETE" | "QUALIFIED" | "HUMAN_REVIEW";
+ demand?: DemandDraft;
+ missingFields?: string[];
+ clarification?: { questions?: string[] };
+ humanReviewReasons?: string[];
+};
+
+type ChatTurn = {
+ role: "prospect" | "assistant";
+ content: string;
+};
+
 type LeafletLayer = {
  addTo: (target: LeafletMap) => LeafletLayer;
  remove: () => void;
@@ -110,6 +123,42 @@ function formatDuration(minutes: number | null | undefined) {
  return `${hours} h ${String(rest).padStart(2, "0")}`;
 }
 
+function viewFromDraft(draft: DemandDraft, fallback: ReturnType<typeof buildInitialDemandView>) {
+ return {
+  ...fallback,
+  departure: draft.departureCity ?? fallback.departure,
+  arrival: draft.arrivalCity ?? fallback.arrival,
+  departureDate: formatDate(draft.departureDate ?? undefined, fallback.departureDate),
+  returnDate: formatDate(draft.returnDate ?? undefined, fallback.returnDate),
+  passengers: draft.passengerCount ? String(draft.passengerCount) : fallback.passengers,
+  tripType:
+   draft.tripType === "one_way" ? "Aller simple" : draft.tripType === "round_trip" ? "Aller-retour" : fallback.tripType,
+  options: draft.options.length ? draft.options : fallback.options
+ };
+}
+
+function buildInitialDemandView(initialDemand: InitialDemand) {
+ const intermediateStops = splitValues(initialDemand.intermediateStops);
+ const options = splitValues(initialDemand.options);
+ const departure = clean(initialDemand.departure);
+ const arrival = clean(initialDemand.arrival);
+ const departureDate = formatDate(initialDemand.departureDate);
+ const returnDate = formatDate(initialDemand.returnDate);
+ const tripType = initialDemand.tripType === "one_way" ? "Aller simple" : "Aller-retour";
+
+ return {
+  departure,
+  arrival,
+  departureDate,
+  returnDate,
+  passengers: clean(initialDemand.passengers),
+  tripType,
+  options,
+  intermediateStops,
+  callbackWanted: initialDemand.callback === "no" ? "Non" : "Oui"
+ };
+}
+
 function loadLeaflet() {
  if (window.L) return Promise.resolve(window.L);
  if (window.neoTravelLeafletLoader) return window.neoTravelLeafletLoader;
@@ -144,42 +193,32 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
    initialDemand.options?.trim() ||
    initialDemand.intermediateStops?.trim()
  );
- const demand = useMemo(() => {
-  const intermediateStops = splitValues(initialDemand.intermediateStops);
-  const options = splitValues(initialDemand.options);
-  const departure = clean(initialDemand.departure);
-  const arrival = clean(initialDemand.arrival);
-  const departureDate = formatDate(initialDemand.departureDate);
-  const returnDate = formatDate(initialDemand.returnDate);
-  const tripType = initialDemand.tripType === "one_way" ? "Aller simple" : "Aller-retour";
-
-  return {
-   departure,
-   arrival,
-   departureDate,
-   returnDate,
-   passengers: clean(initialDemand.passengers),
-   tripType,
-   options,
-   intermediateStops,
-   callbackWanted: initialDemand.callback === "no" ? "Non" : "Oui"
-  };
- }, [initialDemand]);
- const demandDraft = useMemo<DemandDraft>(
+ const initialDemandView = useMemo(() => buildInitialDemandView(initialDemand), [initialDemand]);
+ const initialDemandDraft = useMemo<DemandDraft>(
   () => ({
    rawMessage: undefined,
    organization: null,
    email: null,
-   departureCity: demand.departure || null,
-   arrivalCity: demand.arrival || null,
+   departureCity: initialDemandView.departure || null,
+   arrivalCity: initialDemandView.arrival || null,
    departureDate: initialDemand.departureDate?.trim() || null,
    returnDate: initialDemand.returnDate?.trim() || null,
-   passengerCount: Number.isFinite(Number(demand.passengers)) ? Number(demand.passengers) : null,
+   passengerCount: Number.isFinite(Number(initialDemandView.passengers)) ? Number(initialDemandView.passengers) : null,
    tripType: hasInitialDemand ? (initialDemand.tripType === "one_way" ? "one_way" : "round_trip") : null,
-   options: demand.options
+   options: initialDemandView.options
   }),
-  [demand, hasInitialDemand, initialDemand.departureDate, initialDemand.returnDate, initialDemand.tripType]
+  [initialDemandView, hasInitialDemand, initialDemand.departureDate, initialDemand.returnDate, initialDemand.tripType]
  );
+ const [chatInput, setChatInput] = useState("");
+ const [chatTurns, setChatTurns] = useState<ChatTurn[]>([]);
+ const [chatDraft, setChatDraft] = useState<DemandDraft | null>(null);
+ const [isChatLoading, setIsChatLoading] = useState(false);
+ const demandDraft = chatDraft ?? initialDemandDraft;
+ const hasDemand = hasInitialDemand || Boolean(chatDraft);
+ const demand = useMemo(() => (chatDraft ? viewFromDraft(chatDraft, initialDemandView) : initialDemandView), [
+  chatDraft,
+  initialDemandView
+ ]);
  const missingFields = useMemo(
   () =>
    validateDemandCompleteness(demandDraft).missingFields.map(
@@ -190,6 +229,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
  const demoBlockingMissingFields = missingFields.filter(
   (field) => field !== missingFieldLabels.organization && field !== missingFieldLabels.email
  );
+ const hasQuoteReadyDemand = hasDemand && demoBlockingMissingFields.length === 0;
  const requiresHumanReview = hasInitialDemand && demoBlockingMissingFields.length > 0;
  const [routePreview, setRoutePreview] = useState<RoutePreview | null>(null);
  const [routeStatus, setRouteStatus] = useState<"idle" | "loading" | "ready" | "fallback">("idle");
@@ -205,18 +245,63 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   ["Depart", demand.departure || "En attente"],
   ["Arrivee", demand.arrival || "En attente"],
   ["Date", demand.departureDate || "En attente"],
-  ["Retour", hasInitialDemand && demand.tripType === "Aller-retour" ? demand.returnDate || "En attente" : "Non"],
+  ["Retour", hasDemand && demand.tripType === "Aller-retour" ? demand.returnDate || "En attente" : "Non"],
   ["Passagers", demand.passengers || "En attente"],
-  ["Type", hasInitialDemand ? demand.tripType : "En attente"],
+  ["Type", hasDemand ? demand.tripType : "En attente"],
   ["Options", demand.options.join(", ") || "Aucune"]
  ];
  const demoOrganization = "Alpha Conseil";
  const demoEmail = "client@neotravel.fr";
 
- async function generateClientQuote() {
+ async function submitChatMessage() {
+  const message = chatInput.trim();
+  if (!message || isChatLoading) return;
+
+  setWorkflowError(null);
+  setIsChatLoading(true);
+  setChatTurns((current) => [...current, { role: "prospect", content: message }]);
+
+  try {
+   const response = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message })
+   });
+
+   if (!response.ok) throw new Error("CHAT_FAILED");
+   const payload = (await response.json()) as ChatApiResponse;
+   const nextDraft = payload.demand;
+   if (nextDraft) setChatDraft(nextDraft);
+
+   const nextMissingFields = (payload.missingFields ?? [])
+    .map((field) => missingFieldLabels[field as keyof DemandDraft] ?? field)
+    .filter((field) => field !== missingFieldLabels.organization && field !== missingFieldLabels.email);
+   const questions = payload.clarification?.questions?.filter(Boolean) ?? [];
+   const routeHint = nextDraft?.departureCity && nextDraft.arrivalCity ? `${nextDraft.departureCity} - ${nextDraft.arrivalCity}` : null;
+   const assistantContent =
+    payload.status === "HUMAN_REVIEW"
+     ? `Merci. Cette demande doit etre reprise par un conseiller${payload.humanReviewReasons?.length ? ` : ${payload.humanReviewReasons.join(", ")}` : "."}`
+     : nextMissingFields.length
+      ? `J'ai ${routeHint ? `detecte ${routeHint}. ` : "commence la qualification. "}Il manque encore : ${nextMissingFields.join(", ")}.${questions.length ? ` ${questions.join(" ")}` : ""}`
+      : `Merci, les informations principales sont completes${routeHint ? ` pour ${routeHint}` : ""}. Vous pouvez recevoir le devis.`;
+
+   setChatTurns((current) => [...current, { role: "assistant", content: assistantContent }]);
+   setChatInput("");
+  } catch {
+   setWorkflowError("Le chat IA est indisponible pour le moment. Reessayez ou contactez un conseiller.");
+   setChatTurns((current) => [
+    ...current,
+    { role: "assistant", content: "Je n'ai pas pu analyser le message. Reessayez avec depart, arrivee, date et passagers." }
+   ]);
+  } finally {
+   setIsChatLoading(false);
+  }
+ }
+
+  async function generateClientQuote() {
   setWorkflowError(null);
 
-  if (!hasInitialDemand || demoBlockingMissingFields.length > 0) {
+  if (!hasQuoteReadyDemand) {
    setWorkflowError("Le chat doit d'abord qualifier le trajet avant de generer le devis.");
    return;
   }
@@ -232,16 +317,17 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-     rawMessage: `Demande client ${demoOrganization} ${demoEmail} : ${demand.departure} vers ${demand.arrival}`,
+     rawMessage:
+      demandDraft.rawMessage ?? `Demande client ${demoOrganization} ${demoEmail} : ${demand.departure} vers ${demand.arrival}`,
      organization: demoOrganization,
      email: demoEmail,
-     departureCity: demand.departure,
-     arrivalCity: demand.arrival,
-     departureDate: initialDemand.departureDate?.trim() || null,
-     returnDate: initialDemand.tripType === "one_way" ? null : initialDemand.returnDate?.trim() || null,
-     passengerCount: Number.isFinite(Number(demand.passengers)) ? Number(demand.passengers) : null,
-     tripType: initialDemand.tripType === "one_way" ? "one_way" : "round_trip",
-     options: demand.options,
+     departureCity: demandDraft.departureCity,
+     arrivalCity: demandDraft.arrivalCity,
+     departureDate: demandDraft.departureDate,
+     returnDate: demandDraft.tripType === "one_way" ? null : demandDraft.returnDate,
+     passengerCount: demandDraft.passengerCount,
+     tripType: demandDraft.tripType,
+     options: demandDraft.options,
      qualify: true
     })
    });
@@ -284,7 +370,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
  }
 
  useEffect(() => {
-  if (!hasInitialDemand || !demand.departure || !demand.arrival) {
+  if (!hasDemand || !demand.departure || !demand.arrival) {
    setRoutePreview(null);
    setRouteStatus("idle");
    return;
@@ -318,7 +404,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   loadRoutePreview();
 
   return () => controller.abort();
- }, [demand, hasInitialDemand]);
+ }, [demand, hasDemand]);
 
  useEffect(() => {
   if (!routePreview?.geometry.length || !mapContainerRef.current) return;
@@ -440,7 +526,19 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
       Conversation
      </h2>
      <div className={styles.chatMessages}>
-      {hasInitialDemand ? (
+      {chatTurns.length ? (
+       <>
+        {chatTurns.map((turn, index) => (
+         <div
+          key={`${turn.role}-${index}`}
+          className={`${styles.message} ${turn.role === "prospect" ? styles.prospect : styles.assistant}`}
+         >
+          <strong>{turn.role === "prospect" ? "Vous" : "NeoTravel IA"}</strong>
+          <p>{turn.content}</p>
+         </div>
+        ))}
+       </>
+      ) : hasDemand ? (
        <>
         <div className={`${styles.message} ${styles.prospect}`}>
          <strong>Vous</strong>
@@ -474,18 +572,28 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
       <div className={`${styles.message} ${styles.assistant}`}>
        <strong data-i18n-key="NeoTravel IA">NeoTravel IA</strong>
        <p>
-        {hasInitialDemand && missingFields.length
+        {hasDemand && missingFields.length
          ? requiresHumanReview
           ? `Merci. Il manque encore : ${demoBlockingMissingFields.join(", ")}. Le dossier passe en reprise humaine.`
-          : "Merci, les informations trajet sont suffisantes. Je vous demanderai les coordonnees client avant l'envoi."
-         : hasInitialDemand
+          : `Merci. Il manque encore : ${demoBlockingMissingFields.join(", ")}.`
+         : hasDemand
           ? "Merci, les informations principales sont completes pour preparer le devis."
           : "Indiquez simplement votre depart, votre arrivee, la date et le nombre de passagers."}
        </p>
       </div>
      </div>
 
-     <form className={styles.composer}>
+     <form
+      className={styles.composer}
+      onSubmit={(event) => {
+       event.preventDefault();
+       if (hasQuoteReadyDemand) {
+        void generateClientQuote();
+       } else {
+        void submitChatMessage();
+       }
+      }}
+     >
       <label className={styles.srOnly} htmlFor="demand-message">
        Preciser heure, organisation, commentaire
       </label>
@@ -493,6 +601,14 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
        id="demand-message"
        name="message"
        placeholder="Preciser heure, organisation, commentaire..."
+       value={chatInput}
+       onChange={(event) => setChatInput(event.target.value)}
+       onKeyDown={(event) => {
+        if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+         event.preventDefault();
+         void submitChatMessage();
+        }
+       }}
       />
      </form>
      <div className={styles.chatActions}>
@@ -504,14 +620,18 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
        <button
         className={styles.primaryButton}
         type="button"
-        disabled={isGeneratingQuote || !hasInitialDemand}
-        onClick={generateClientQuote}
+        disabled={isGeneratingQuote || isChatLoading || (!hasQuoteReadyDemand && !chatInput.trim())}
+        onClick={hasQuoteReadyDemand ? generateClientQuote : submitChatMessage}
        >
-        {isGeneratingQuote
+        {isChatLoading
+         ? "Analyse en cours..."
+         : isGeneratingQuote
          ? "Creation du devis..."
-         : hasInitialDemand
+         : hasQuoteReadyDemand
           ? "Recevoir mon devis"
-          : "Demarrer avec le chat"}
+          : hasDemand
+           ? "Completer avec le chat"
+           : "Demarrer avec le chat"}
        </button>
       )}
      </div>
@@ -523,7 +643,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
       <div className={styles.sidePanelHeader}>
        <h2>Trajet detaille et options</h2>
        <span className={requiresHumanReview ? styles.reviewStatus : styles.readyStatus}>
-        {requiresHumanReview ? "Reprise humaine" : hasInitialDemand ? "Automatique possible" : "En attente"}
+        {requiresHumanReview ? "Reprise humaine" : hasQuoteReadyDemand ? "Automatique possible" : "En attente"}
        </span>
       </div>
 
@@ -543,7 +663,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
        <div>
         <p data-i18n-key="Apercu trajet">Apercu trajet</p>
         <h2 id="route-preview-title">
-         {hasInitialDemand && demand.departure && demand.arrival
+         {hasDemand && demand.departure && demand.arrival
           ? `${demand.departure} vers ${demand.arrival}`
           : <span data-i18n-key="Trajet en attente">Trajet en attente</span>}
         </h2>
@@ -559,7 +679,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
        </span>
       </div>
 
-      {hasInitialDemand && demand.departure && demand.arrival ? (
+      {hasDemand && demand.departure && demand.arrival ? (
        <div className={isMapExpanded ? `${styles.mapBox} ${styles.mapBoxExpanded}` : styles.mapBox} aria-label="Carte du trajet calcule">
         <div className={styles.mapControls} aria-label="Controle carte">
          <button type="button" onClick={() => setMapZoom((current) => Math.min(3, current + 1))}>
@@ -602,7 +722,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
         <dt data-i18n-key="Arrivee">Arrivee</dt>
         <dd>
          {demand.arrival || <span data-i18n-key="En attente">En attente</span>}
-         {hasInitialDemand && demand.tripType === "Aller-retour" && demand.returnDate
+         {hasDemand && demand.tripType === "Aller-retour" && demand.returnDate
           ? ` - retour le ${demand.returnDate}`
           : ""}
         </dd>
