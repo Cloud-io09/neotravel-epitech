@@ -1,0 +1,238 @@
+.journey {
+  display: grid;
+  gap: 24px;
+}
+
+/* --- Stage progress --- */
+.stages {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  position: relative;
+  padding-top: 6px;
+  color: #8a94a6;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* connector line between stages */
+.stage::before {
+  content: "";
+  position: absolute;
+  top: 21px;
+  left: -50%;
+  width: 100%;
+  height: 3px;
+  background: #e2e8f2;
+  z-index: 0;
+}
+.stage:first-child::before {
+  display: none;
+}
+
+.stageDot {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 999px;
+  background: #e2e8f2;
+  color: #ffffff;
+  font-size: 14px;
+}
+
+.stage[data-state="done"] {
+  color: #0b7a4b;
+}
+.stage[data-state="done"] .stageDot,
+.stage[data-state="done"]::before {
+  background: #0b7a4b;
+}
+
+.stage[data-state="current"] {
+  color: #123885;
+}
+.stage[data-state="current"] .stageDot {
+  background: #123885;
+  box-shadow: 0 0 0 4px rgba(18, 56, 133, 0.16);
+}
+
+.stage[data-lost="true"] {
+  color: #b3261e;
+}
+.stage[data-lost="true"] .stageDot {
+  background: #b3261e;
+}
+
+.reviewBanner {
+  margin: 0;
+  border: 1px solid #f5c6cb;
+  border-radius: 12px;
+  padding: 12px 16px;
+  background: #fff8f8;
+  color: #b3261e;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* --- Two-column body --- */
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 20px;
+}
+
+.facts,
+.timeline {
+  border: 1px solid #d9e2ed;
+  border-radius: 16px;
+  padding: 22px;
+  background: #ffffff;
+}
+
+.facts h2,
+.timeline h2 {
+  margin: 0 0 16px;
+  color: #0d2040;
+  font-size: 18px;
+}
+
+.facts dl {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.facts dl > div {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 12px;
+  align-items: baseline;
+  border-bottom: 1px solid #eef2f7;
+  padding-bottom: 10px;
+}
+
+.facts dt {
+  color: #6b7686;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.facts dd {
+  margin: 0;
+  color: #17202e;
+  font-weight: 600;
+}
+
+.facts dd small {
+  display: block;
+  margin-top: 2px;
+  color: #6b7686;
+  font-weight: 500;
+}
+
+.facts dd a {
+  color: #123885;
+  font-weight: 800;
+}
+
+.warn {
+  color: #b3261e !important;
+}
+
+/* --- Timeline --- */
+.events {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.event {
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 12px;
+  padding-bottom: 18px;
+}
+
+.event::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 16px;
+  bottom: -2px;
+  width: 2px;
+  background: #e2e8f2;
+}
+.event:last-child::before {
+  display: none;
+}
+
+.eventDot {
+  margin-top: 4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 3px solid #123885;
+  background: #ffffff;
+  z-index: 1;
+}
+
+.event[data-entity="quote"] .eventDot {
+  border-color: #0b7a4b;
+}
+.event[data-entity="followup"] .eventDot {
+  border-color: #dba23e;
+}
+
+.eventBody {
+  display: grid;
+  gap: 2px;
+}
+
+.eventBody strong {
+  color: #0d2040;
+  font-size: 14px;
+}
+
+.eventDetail {
+  color: #46506180;
+  color: #465061;
+  font-size: 13px;
+}
+
+.eventTime {
+  color: #8a94a6;
+  font-size: 12px;
+}
+
+.empty {
+  margin: 0;
+  color: #6b7686;
+}
+
+@media (max-width: 900px) {
+  .columns {
+    grid-template-columns: 1fr;
+  }
+  .stageLabel {
+    font-size: 11px;
+  }
+}
