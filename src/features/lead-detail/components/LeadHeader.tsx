@@ -1,21 +1,33 @@
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+import { getLeadCommercialAction, leadDisplayName, leadRouteLabel } from "@/features/dashboard/services/leadPipelinePresentation";
+import type { Followup } from "@/shared/types/followup";
 import type { Lead } from "@/shared/types/lead";
+import type { Quote } from "@/shared/types/quote";
+import { StatusBadge } from "@/features/dashboard/components/StatusBadge";
 import styles from "./lead-detail.module.css";
 
-export function LeadHeader({ lead }: { lead: Lead }) {
+export function LeadHeader({ lead, quote, followup }: { lead: Lead; quote?: Quote; followup?: Followup }) {
+ const action = getLeadCommercialAction({ lead, quote, followup });
+
  return (
   <header className={styles.header}>
    <div>
     <p className={styles.eyebrow}>Parcours commercial</p>
-    <h1>Fiche de la demande</h1>
-    <p>
-     La demande qualifiée devient une fiche exploitable : trajet, capacité, informations détectées et contrôles
-     avant devis pour {lead.organization ?? "ce prospect"}.
-   </p>
+    <h1>{leadDisplayName(lead)}</h1>
+    <p>{leadRouteLabel(lead)}</p>
+    <div className={styles.headerMeta}>
+     <StatusBadge status={lead.status} />
+     <span>{quote ? `Devis ${quote.calculation.quoteNumber}` : "Aucun devis existant"}</span>
+    </div>
   </div>
-  <div className={styles.actions}>
-    <Link className={styles.primary} href="/dashboard/devis">
-     Voir devis
+  <div className={styles.nextActionCard} data-tone={action.tone}>
+    <span>Prochaine action</span>
+    <strong>{action.label}</strong>
+    <p>{action.detail}</p>
+    <Link className={styles.primary} href={action.href}>
+     {action.cta}
+     <ArrowRight aria-hidden="true" size={15} />
     </Link>
    </div>
   </header>

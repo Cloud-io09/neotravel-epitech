@@ -4,6 +4,16 @@ import { getPricingAdminData } from "@/features/admin/services/getPricingRules";
 import { getIntegrationsStatus } from "@/features/integrations/integrations";
 import { humanReviewReasonLabel } from "@/features/human-review/reasonLabels";
 import { listFollowups, listLeads, listQuotes } from "@/shared/lib/data";
+import { isWonQuote, quoteOutcomeDisplay } from "@/features/dashboard/services/quoteOutcome";
+import {
+ formatCommercialDate,
+ getLeadCommercialAction,
+ latestQuoteByLeadId,
+ leadDisplayName,
+ leadRouteLabel,
+ nextScheduledFollowup,
+ quoteLabel
+} from "@/features/dashboard/services/leadPipelinePresentation";
 import { getDataMode } from "@/shared/lib/demo/demoMode";
 import type { Followup } from "@/shared/types/followup";
 import type { Lead } from "@/shared/types/lead";
@@ -14,18 +24,8 @@ import { CardList, DashboardHeader, DataTable, KpiGrid, Note, Panel } from "./Da
 import { PricingSettingsEditor } from "./PricingSettingsEditor";
 import { StatusBadge } from "./StatusBadge";
 
-function routeOf(lead: Lead) {
- return `${lead.departureCity ?? "?"} > ${lead.arrivalCity ?? "?"}`;
-}
-
 function euro(value: number) {
  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value);
-}
-
-function nextFollowup(leadId: string, followups: Followup[]) {
- const followup = followups.find((item) => item.leadId === leadId && item.status === "SCHEDULED");
- if (!followup) return "—";
- return new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short" }).format(new Date(followup.dueAt));
 }
 
 const PRIORITY_STATUSES = new Set(["NEW", "INCOMPLETE", "HUMAN_REVIEW"]);
@@ -45,9 +45,9 @@ function filterLeadsByStatus(leads: Lead[], status?: string) {
  return leads;
 }
 
-function filterQuotesByStatus(quotes: Quote[], status?: string) {
+function filterQuotesByStatus(quotes: Quote[], leadById: Map<string, Lead>, status?: string) {
  if (status === "open") return quotes.filter((quote) => quote.status === "QUOTE_READY" || quote.status === "QUOTE_SENT");
- if (status === "accepted") return quotes.filter((quote) => quote.status === "ACCEPTED");
+ if (status === "accepted") return quotes.filter((quote) => isWonQuote(quote, leadById.get(quote.leadId)));
  return quotes;
 }
 
@@ -58,9 +58,10 @@ function filterFollowupsByStatus(followups: Followup[], status?: string) {
 }
 
 export async function CommercialLeadsPage({ status }: { status?: string }) {
- const [leads, followups] = await Promise.all([listLeads(), listFollowups()]);
+ const [leads, followups, quotes] = await Promise.all([listLeads(), listFollowups(), listQuotes()]);
  const visibleLeads = filterLeadsByStatus(leads, status);
  const toTreat = leads.filter((lead) => PRIORITY_STATUSES.has(lead.status)).length;
+ const quoteByLeadId = latestQuoteByLeadId(quotes);
 
  return (
   <main className={styles.page}>
@@ -80,25 +81,31 @@ export async function CommercialLeadsPage({ status }: { status?: string }) {
    />
    <Panel
     title="Toutes les demandes"
-    subtitle="Mettez une demande « À valider » : elle apparaît aussitôt dans Validation humaine et dans l'Agenda."
+    subtitle="Chaque ligne est un dossier commercial : statut, blocage éventuel, devis et prochaine action."
    >
     {visibleLeads.length === 0 ? (
      <Note>Aucune demande pour ce filtre.</Note>
     ) : (
      <DataTable
-      columns={["Client", "Trajet", "Statut", "Priorité", "Prochaine relance", "Fiabilité"]}
-      columnsTemplate="1.2fr 1fr 1fr .8fr 1fr .6fr"
-      rows={visibleLeads.map((lead) => ({
-       cells: [
-        lead.organization ?? "Organisation manquante",
-        routeOf(lead),
-        <StatusBadge key="s" status={lead.status} />,
-        lead.status === "HUMAN_REVIEW" ? "Urgent" : "Normale",
-        nextFollowup(lead.id, followups),
-        typeof lead.confidence === "number" ? `${Math.round(lead.confidence * 100)}%` : "A confirmer"
-       ],
-       href: `/dashboard/demandes/${lead.id}`
-      }))}
+      columns={["Dossier", "Trajet", "Statut", "Prochaine action", "Devis", "Relance"]}
+      columnsTemplate="1.15fr 1.1fr .85fr 1.35fr .9fr .8fr"
+      rows={visibleLeads.map((lead) => {
+       const quote = quoteByLeadId.get(lead.id);
+       const followup = nextScheduledFollowup(lead.id, followups);
+       const action = getLeadCommercialAction({ lead, quote, followup });
+       return {
+        cells: [
+         leadDisplayName(lead),
+         leadRouteLabel(lead),
+         <StatusBadge key="s" status={lead.status} />,
+         action.label,
+         quoteLabel(quote),
+         followup ? formatCommercialDate(followup.dueAt) : "Aucune"
+        ],
+        href: `/dashboard/demandes/${lead.id}`,
+        tone: action.tone === "critical" ? "review" : action.tone === "warning" ? "danger" : undefined
+       };
+      })}
      />
     )}
    </Panel>
@@ -141,17 +148,18 @@ export async function HumanReviewDashboardPage() {
      </Note>
     ) : (
      <DataTable
-      columns={["Client", "Trajet", "Raison", "Date de départ", "Action"]}
-      columnsTemplate="1.2fr 1fr 1.4fr 1fr .7fr"
-      rows={humanLeads.map((lead) => ({
+     columns={["Client", "Trajet", "Raison", "Date de départ", "Action"]}
+     columnsTemplate="1.2fr 1fr 1.4fr 1fr .7fr"
+     rows={humanLeads.map((lead) => ({
        cells: [
-        lead.organization ?? lead.email ?? lead.id,
-        routeOf(lead),
+        leadDisplayName(lead),
+        leadRouteLabel(lead),
         humanReviewReasonLabel(lead.humanReviewReason),
         lead.departureDate ? new Date(lead.departureDate).toLocaleDateString("fr-FR") : "À préciser",
-        "Ouvrir"
+        "Reprendre"
        ],
-       href: `/dashboard/demandes/${lead.id}`
+       href: `/dashboard/demandes/${lead.id}`,
+       tone: "review"
       }))}
      />
     )}
@@ -162,9 +170,10 @@ export async function HumanReviewDashboardPage() {
 
 export async function QuotesDashboardPage({ status }: { status?: string }) {
  const [quotes, leads] = await Promise.all([listQuotes(), listLeads()]);
- const visibleQuotes = filterQuotesByStatus(quotes, status);
  const leadById = new Map(leads.map((lead) => [lead.id, lead]));
+ const visibleQuotes = filterQuotesByStatus(quotes, leadById, status);
  const quoteTotal = quotes.reduce((sum, quote) => sum + quote.calculation.priceTtc, 0);
+ const acceptedCount = quotes.filter((quote) => isWonQuote(quote, leadById.get(quote.leadId))).length;
 
  return (
   <main className={styles.page}>
@@ -176,7 +185,7 @@ export async function QuotesDashboardPage({ status }: { status?: string }) {
     kpis={[
      { label: "Devis", value: quotes.length, tone: "blue" },
      { label: "Envoyés", value: quotes.filter((quote) => quote.status === "QUOTE_SENT").length, tone: "gold" },
-     { label: "Acceptés", value: quotes.filter((quote) => quote.status === "ACCEPTED").length, tone: "green" },
+     { label: "Acceptés", value: acceptedCount, tone: "green" },
      { label: "CA potentiel", value: euro(quoteTotal), tone: "blue" }
     ]}
    />
@@ -189,12 +198,13 @@ export async function QuotesDashboardPage({ status }: { status?: string }) {
       columnsTemplate="1fr 1.2fr .9fr 1fr .8fr"
       rows={visibleQuotes.map((quote) => {
        const lead = leadById.get(quote.leadId);
+       const outcome = quoteOutcomeDisplay(quote, lead);
        return {
         cells: [
          quote.calculation.quoteNumber,
-         lead?.organization ?? quote.leadId,
+         leadDisplayName(lead),
          euro(quote.calculation.priceTtc),
-         <StatusBadge key="s" status={quote.status} />,
+         <StatusBadge key="s" status={outcome.status} />,
          "Ouvrir"
         ],
         href: `/client/devis/${quote.id}`
@@ -229,18 +239,19 @@ export async function FollowupsDashboardPage({ status }: { status?: string }) {
      <Note>Aucune relance pour ce filtre.</Note>
     ) : (
      <DataTable
-      columns={["Client", "Devis", "Date", "Canal", "Statut"]}
+      columns={["Dossier", "Devis", "Date", "Canal", "Statut"]}
       columnsTemplate="1.2fr 1fr .9fr .8fr 1fr"
       rows={visibleFollowups.map((followup) => {
        const lead = leadById.get(followup.leadId);
        return {
         cells: [
-         lead?.organization ?? followup.leadId,
+         leadDisplayName(lead),
          followup.quoteId ?? "Devis",
          new Date(followup.dueAt).toLocaleDateString("fr-FR"),
          followup.channel,
          <StatusBadge key="s" status={followup.status} />
-        ]
+        ],
+        href: `/dashboard/demandes/${followup.leadId}`
        };
       })}
      />
@@ -312,6 +323,8 @@ export async function AdminOverviewDashboardPage() {
  const supabase = getDataMode() === "supabase";
  const aiCost = runs.reduce((sum, run) => sum + (run.costEur ?? 0), 0);
  const toTreat = leads.filter((lead) => ["NEW", "INCOMPLETE", "HUMAN_REVIEW"].includes(lead.status)).length;
+ const leadById = new Map(leads.map((lead) => [lead.id, lead]));
+ const acceptedCount = quotes.filter((quote) => isWonQuote(quote, leadById.get(quote.leadId))).length;
 
  return (
   <main className={styles.page}>
@@ -344,7 +357,7 @@ export async function AdminOverviewDashboardPage() {
         { title: `${leads.length} demandes`, body: `${toTreat} à traiter actuellement.`, tone: "blue" },
         {
          title: `${quotes.length} devis`,
-         body: `${quotes.filter((quote) => quote.status === "QUOTE_SENT").length} envoyés · ${quotes.filter((quote) => quote.status === "ACCEPTED").length} acceptés.`,
+         body: `${quotes.filter((quote) => quote.status === "QUOTE_SENT").length} envoyés · ${acceptedCount} acceptés.`,
          tone: "green"
         },
         {
@@ -537,11 +550,11 @@ export async function GrowthDashboardPage() {
  ];
  const qualified = leads.filter((lead) => qualifiedStatuses.includes(lead.status)).length;
  const quoted = quotes.length;
- const accepted = quotes.filter((quote) => quote.status === "ACCEPTED").length;
+ const leadById = new Map(leads.map((lead) => [lead.id, lead]));
+ const wonQuotes = quotes.filter((quote) => isWonQuote(quote, leadById.get(quote.leadId)));
+ const accepted = wonQuotes.length;
  const caPotentiel = quotes.reduce((sum, quote) => sum + quote.calculation.priceTtc, 0);
- const caGagne = quotes
-  .filter((quote) => quote.status === "ACCEPTED")
-  .reduce((sum, quote) => sum + quote.calculation.priceTtc, 0);
+ const caGagne = wonQuotes.reduce((sum, quote) => sum + quote.calculation.priceTtc, 0);
  const convRate = quoted > 0 ? Math.round((accepted / quoted) * 100) : 0;
 
  const funnel = [

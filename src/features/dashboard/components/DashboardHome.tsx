@@ -1,9 +1,18 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { currentDataMode, listAuditLogs, listFollowups, listLeads, listQuotes } from "@/shared/lib/data";
-import type { Followup } from "@/shared/types/followup";
 import type { Lead, LeadStatus } from "@/shared/types/lead";
 import type { Quote } from "@/shared/types/quote";
+import {
+ formatCommercialDate,
+ formatEuro,
+ getLeadCommercialAction,
+ latestQuoteByLeadId,
+ leadDisplayName,
+ leadRouteLabel,
+ nextScheduledFollowup,
+ quoteLabel
+} from "@/features/dashboard/services/leadPipelinePresentation";
 import { DashboardHeader, DataTable, Note, Panel } from "./DashboardPageKit";
 import { StatusBadge } from "./StatusBadge";
 import dashStyles from "./dashboard.module.css";
@@ -21,20 +30,6 @@ type NextAction = {
 
 const QUOTEABLE_STATUSES = new Set<LeadStatus>(["QUALIFIED", "HIGH_VALUE"]);
 
-function clientLabel(lead: Lead | undefined, fallback: string) {
- return lead?.organization ?? lead?.email ?? fallback;
-}
-
-function routeOf(lead: Lead | undefined) {
- if (!lead) return "Demande introuvable";
- return `${lead.departureCity ?? "Départ à préciser"} → ${lead.arrivalCity ?? "Arrivée à préciser"}`;
-}
-
-function formatDate(value: string | null | undefined) {
- if (!value) return "À préciser";
- return new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
-}
-
 function formatDateTime(value: string | null | undefined) {
  if (!value) return "—";
  return new Intl.DateTimeFormat("fr-FR", {
@@ -45,62 +40,41 @@ function formatDateTime(value: string | null | undefined) {
  }).format(new Date(value));
 }
 
-function euro(value: number) {
- return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value);
-}
-
 function quoteTotal(quote: Quote) {
  return quote.calculation.priceTtc ?? quote.calculation.totalAmount ?? 0;
 }
 
-function latestQuoteByLeadId(quotes: Quote[]) {
- const quoteByLeadId = new Map<string, Quote>();
-
- for (const quote of quotes) {
-  if (!quoteByLeadId.has(quote.leadId)) quoteByLeadId.set(quote.leadId, quote);
- }
-
- return quoteByLeadId;
-}
-
-function nextFollowupForLead(leadId: string, followups: Followup[]) {
- return followups
-  .filter((followup) => followup.leadId === leadId && followup.status === "SCHEDULED")
-  .sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime())[0];
-}
-
-function buildNextActions(leads: Lead[], quotes: Quote[], followups: Followup[]) {
+function buildNextActions(leads: Lead[], quotes: Quote[], followups: Parameters<typeof nextScheduledFollowup>[1]) {
  const actions: NextAction[] = [];
  const quoteByLeadId = latestQuoteByLeadId(quotes);
  const now = Date.now();
 
  for (const lead of leads) {
-  const client = clientLabel(lead, lead.id);
-  const href = `/dashboard/demandes/${lead.id}`;
   const quote = quoteByLeadId.get(lead.id);
-
-  if (lead.status === "HUMAN_REVIEW") {
-   actions.push({ id: lead.id, client, status: lead.status, what: "Reprendre la demande avec un commercial", cta: "Traiter", href, priority: 0 });
-  } else if (lead.status === "INCOMPLETE") {
-   actions.push({ id: lead.id, client, status: lead.status, what: "Compléter les informations manquantes", cta: "Compléter", href, priority: 1 });
-  } else if (lead.status === "NEW") {
-   actions.push({ id: lead.id, client, status: lead.status, what: "Qualifier la nouvelle demande", cta: "Ouvrir", href, priority: 2 });
-  } else if ((lead.status === "QUALIFIED" || lead.status === "HIGH_VALUE") && !quote) {
-   actions.push({ id: lead.id, client, status: lead.status, what: "Générer un devis depuis la fiche", cta: "Générer", href, priority: 3 });
-  } else if (lead.status === "QUOTE_READY") {
-   actions.push({ id: lead.id, client, status: lead.status, what: "Envoyer ou suivre le devis prêt", cta: "Ouvrir", href, priority: 4 });
-  }
+  const followup = nextScheduledFollowup(lead.id, followups);
+  const action = getLeadCommercialAction({ lead, quote, followup, now });
+  if (action.priority > 6) continue;
+  actions.push({
+   id: lead.id,
+   client: leadDisplayName(lead),
+   status: lead.status,
+   what: action.label,
+   cta: action.cta,
+   href: action.href,
+   priority: action.priority
+  });
  }
 
  for (const followup of followups) {
   if (followup.status !== "SCHEDULED") continue;
   const dueAt = new Date(followup.dueAt).getTime();
   const lead = leads.find((item) => item.id === followup.leadId);
+  if (lead) continue;
   actions.push({
    id: `followup-${followup.id}`,
-   client: clientLabel(lead, followup.leadId),
+   client: "Lead introuvable",
    status: "SCHEDULED",
-   what: dueAt < now ? "Relance en retard" : `Relance prévue le ${formatDate(followup.dueAt)}`,
+   what: dueAt < now ? "Relance en retard" : `Relance prévue le ${formatCommercialDate(followup.dueAt)}`,
    cta: "Relancer",
    href: `/dashboard/demandes/${followup.leadId}`,
    priority: dueAt < now ? 0 : 5
@@ -155,7 +129,7 @@ export async function DashboardHome() {
    label: "Devis prêts",
    value: quoteReadyCount,
    href: "/dashboard/devis?status=open",
-   hint: euro(quoteVolume)
+   hint: formatEuro(quoteVolume)
   }
  ];
 
@@ -231,23 +205,27 @@ export async function DashboardHome() {
    </nav>
 
    <Panel title="Pipeline centralisé" subtitle="Une seule lecture par demande : statut, devis, relance et prochaine action.">
-    {leads.length === 0 ? (
+   {leads.length === 0 ? (
      <Note>Aucune demande enregistrée pour l’instant.</Note>
     ) : (
      <DataTable
-      columns={["Client", "Trajet", "Statut", "Départ", "Devis", "Relance"]}
-      columnsTemplate="1.15fr 1.25fr .95fr .8fr .95fr .85fr"
+      columns={["Dossier", "Trajet", "Statut", "Prochaine action", "Devis", "Relance"]}
+      columnsTemplate="1.15fr 1.2fr .85fr 1.25fr .95fr .85fr"
       rows={leads.slice(0, 12).map((lead) => {
        const quote = quoteByLeadId.get(lead.id);
-       const followup = nextFollowupForLead(lead.id, followups);
+       const followup = nextScheduledFollowup(lead.id, followups);
+       const action = getLeadCommercialAction({ lead, quote, followup });
        return {
         cells: [
-         clientLabel(lead, "Client à préciser"),
-         routeOf(lead),
+         leadDisplayName(lead),
+         leadRouteLabel(lead),
          <StatusBadge key="status" status={lead.status} />,
-         formatDate(lead.departureDate),
-         quote ? `${quote.calculation.quoteNumber} · ${euro(quoteTotal(quote))}` : "Aucun devis",
-         followup ? formatDate(followup.dueAt) : "Aucune"
+         <span className={styles.nextAction} data-tone={action.tone} key="action">
+          <strong>{action.label}</strong>
+          <small>{action.detail}</small>
+         </span>,
+         quoteLabel(quote),
+         followup ? formatCommercialDate(followup.dueAt) : "Aucune"
         ],
         href: `/dashboard/demandes/${lead.id}`
        };

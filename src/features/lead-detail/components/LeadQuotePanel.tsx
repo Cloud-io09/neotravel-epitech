@@ -1,5 +1,12 @@
 import Link from "next/link";
+import {
+ formatCommercialDate,
+ getLeadCommercialAction,
+ quoteLabel
+} from "@/features/dashboard/services/leadPipelinePresentation";
+import type { Followup } from "@/shared/types/followup";
 import type { Lead } from "@/shared/types/lead";
+import type { Quote } from "@/shared/types/quote";
 import { LeadGenerateQuote } from "./LeadGenerateQuote";
 import styles from "./lead-detail.module.css";
 
@@ -11,7 +18,7 @@ const FIELD_LABELS: Record<string, string> = {
  trip_type: "type de trajet",
 };
 
-export function LeadQuotePanel({ lead }: { lead: Lead }) {
+export function LeadQuotePanel({ lead, quote, followup }: { lead: Lead; quote?: Quote; followup?: Followup }) {
  const tripTypeLabel =
   lead.tripType === "round_trip"
    ? "Aller-retour"
@@ -20,6 +27,7 @@ export function LeadQuotePanel({ lead }: { lead: Lead }) {
     : "À confirmer";
  const hasMissingFields = (lead.missingFields?.length ?? 0) > 0;
  const missingFields = lead.missingFields?.map((field) => FIELD_LABELS[field] ?? field).join(", ");
+ const action = getLeadCommercialAction({ lead, quote, followup });
 
  return (
   <section className={styles.sideCard} aria-labelledby="structured-data-title">
@@ -48,6 +56,12 @@ export function LeadQuotePanel({ lead }: { lead: Lead }) {
     <li>
      Passagers <strong>{lead.passengerCount ?? "À confirmer"}</strong>
     </li>
+    <li>
+     Devis <strong>{quoteLabel(quote)}</strong>
+    </li>
+    <li>
+     Relance <strong>{followup ? formatCommercialDate(followup.dueAt) : "Aucune"}</strong>
+    </li>
    </ul>
 
    <div className={styles.completionBox} data-state={hasMissingFields ? "missing" : lead.status === "HUMAN_REVIEW" ? "review" : "ready"}>
@@ -67,8 +81,20 @@ export function LeadQuotePanel({ lead }: { lead: Lead }) {
     </span>
    </div>
 
+   <div className={styles.commercialActionBox} data-tone={action.tone}>
+    <span>Action commerciale</span>
+    <strong>{action.label}</strong>
+    <small>{action.detail}</small>
+   </div>
+
    <div className={styles.cardActions}>
-    <LeadGenerateQuote leadId={lead.id} status={lead.status} />
+    {quote ? (
+     <Link className={styles.primary} href={`/client/devis/${quote.id}`}>
+      Ouvrir le devis
+     </Link>
+    ) : (
+     <LeadGenerateQuote leadId={lead.id} status={lead.status} />
+    )}
     {lead.status === "HUMAN_REVIEW" ? (
      <Link className={styles.secondary} href="/dashboard/human-review">
       Voir la file de validation

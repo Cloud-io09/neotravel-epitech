@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -88,13 +87,12 @@ export function DashboardSidebar({
   <>
    <div className={styles.mobileBar}>
     <Link className={styles.mobileBrand} href="/dashboard" aria-label="NeoTravel - tableau de bord">
-     <Image
+     <img
       className={styles.brandLogo}
-      src="/logo-neotravel.svg"
+      src="/logo-neotravel-v12.svg"
       alt="NeoTravel"
       width={250}
       height={72}
-      priority
      />
     </Link>
     <button
@@ -119,13 +117,12 @@ export function DashboardSidebar({
    >
     <div className={styles.navTop}>
      <Link className={styles.brand} href="/" aria-label="NeoTravel - retour accueil">
-      <Image
+      <img
        className={styles.brandLogo}
-       src="/logo-neotravel.svg"
+       src="/logo-neotravel-v12.svg"
        alt="NeoTravel"
        width={250}
        height={72}
-       priority
       />
      </Link>
      <button
@@ -162,7 +159,7 @@ export function DashboardSidebar({
     </div>
 
     <div className={styles.userCard}>
-     <span className={styles.userName}>{name ?? email ?? "Salarié"}</span>
+     <span className={styles.userName}>{name ?? email ?? "Session dashboard"}</span>
      <span className={styles.userRole} data-role={role}>
       {isAdmin ? "Administrateur" : "Commercial"}
      </span>
@@ -170,7 +167,7 @@ export function DashboardSidebar({
 
     <form action="/api/auth/signout" method="post" className={styles.logoutForm}>
      <button type="submit" className={styles.logoutButton}>
-      Se déconnecter
+      Déconnexion
      </button>
     </form>
    </nav>

@@ -180,6 +180,19 @@ const QUALIFIED_STATUSES = new Set(["QUALIFIED", "HIGH_VALUE", "QUOTE_READY", "Q
 const SENT_QUOTE_STATUSES = new Set(["QUOTE_SENT", "ACCEPTED", "REFUSED"]);
 const WON_QUOTE_STATUSES = new Set(["ACCEPTED"]);
 const LOST_QUOTE_STATUSES = new Set(["REFUSED"]);
+
+// Finalized quotes are stored as CLOSED; the won/lost truth lives on the lead (WON/LOST).
+// Reflect the lead outcome back onto the quote status so every metric below is correct
+// against real Supabase data (demo ACCEPTED/REFUSED fixtures pass through unchanged).
+function applyLeadOutcome(quotes: Quote[], leads: Lead[]): Quote[] {
+ const statusByLead = new Map(leads.map((lead) => [lead.id, lead.status]));
+ return quotes.map((quote) => {
+  const leadStatus = statusByLead.get(quote.leadId);
+  if (leadStatus === "WON") return { ...quote, status: "ACCEPTED" as const };
+  if (leadStatus === "LOST") return { ...quote, status: "REFUSED" as const };
+  return quote;
+ });
+}
 const GROWTH_METRICS: GrowthMetricKey[] = [
  "requests_received",
  "qualified_leads",
@@ -355,7 +368,8 @@ function isRecurringLead(lead: Lead, leads: Lead[]) {
 }
 
 async function getGrowthContext(filters: GrowthFilters = {}) {
- const [leads, quotes, followups] = await Promise.all([listLeads(), listQuotes(), listFollowups()]);
+ const [leads, rawQuotes, followups] = await Promise.all([listLeads(), listQuotes(), listFollowups()]);
+ const quotes = applyLeadOutcome(rawQuotes, leads);
  const period = parsePeriod(filters);
  const normalized = {
   period: period.key,
@@ -664,13 +678,14 @@ export async function getGrowthDetailsData(filters: GrowthDetailsFilters = {}): 
 }
 
 export async function getGrowthDashboardData(filters: GrowthFilters = {}): Promise<GrowthDashboardData> {
- const [leads, quotes, followups, auditLogs, modelRuns] = await Promise.all([
+ const [leads, rawQuotes, followups, auditLogs, modelRuns] = await Promise.all([
   listLeads(),
   listQuotes(),
   listFollowups(),
   getAuditLogs(),
   getModelRuns()
  ]);
+ const quotes = applyLeadOutcome(rawQuotes, leads);
 
  const period = parsePeriod(filters);
  const normalized = {

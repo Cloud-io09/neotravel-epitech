@@ -185,6 +185,37 @@
  box-shadow: 0 10px 20px -12px rgba(18, 56, 133, 0.8);
 }
 
+.nextAction {
+ display: grid;
+ gap: 2px;
+ min-width: 0;
+}
+
+.nextAction strong {
+ color: #0d2040;
+ font-size: 12px;
+}
+
+.nextAction small {
+ overflow: hidden;
+ color: #637188;
+ font-size: 11px;
+ text-overflow: ellipsis;
+ white-space: nowrap;
+}
+
+.nextAction[data-tone="critical"] strong {
+ color: #b3261e;
+}
+
+.nextAction[data-tone="warning"] strong {
+ color: #8a5a06;
+}
+
+.nextAction[data-tone="success"] strong {
+ color: #0b8554;
+}
+
 .empty {
  display: grid;
  gap: 6px;
