@@ -68,6 +68,7 @@ export type ExtractedFields = {
   email: string | null;
   options: string[];
   multiDestination: boolean;
+  stops: string[];
 };
 
 export type LeadWarningCode =

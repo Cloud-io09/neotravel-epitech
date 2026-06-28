@@ -76,6 +76,14 @@ declare global {
 }
 
 const steps = ["Trajet", "Vérification", "Devis"];
+
+// Options the prospect can request. Detection from the chat ticks the same boxes; the price
+// stays the engine's job (placeholder lines for guide/nuit chauffeur/péages — never free).
+const AVAILABLE_OPTIONS: { code: string; label: string; hint: string }[] = [
+  { code: "guide", label: "Guide / accompagnateur", hint: "à chiffrer" },
+  { code: "driver_overnight", label: "Nuit chauffeur", hint: "à confirmer" },
+  { code: "tolls", label: "Péages", hint: "inclus / à confirmer" },
+];
 const missingFieldLabels: Partial<Record<keyof DemandDraft, string>> = {
   organization: "Nom de l'organisation",
   email: "Email de contact",
@@ -286,8 +294,9 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   const [qualifiedLeadId, setQualifiedLeadId] = useState<string | null>(null);
   const [chatHumanReview, setChatHumanReview] = useState(false);
   const [chatEmail, setChatEmail] = useState<string | null>(null);
-  const [chatOptions, setChatOptions] = useState<string[]>([]);
+  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [multiDestination, setMultiDestination] = useState(false);
+  const [stops, setStops] = useState<string[]>([]);
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [chatExtracted, setChatExtracted] = useState<ChatExtracted>({
     departureCity: null,
@@ -442,8 +451,9 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
     setQualifiedLeadId(null);
     setChatHumanReview(false);
     setChatEmail(null);
-    setChatOptions([]);
+    setSelectedOptions([]);
     setMultiDestination(false);
+    setStops([]);
     setChatExtracted({
       departureCity: null,
       arrivalCity: null,
@@ -455,6 +465,12 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
     setUserInput("");
     setWorkflowError(null);
     setHumanReviewQueued(false);
+  }
+
+  function toggleOption(code: string) {
+    setSelectedOptions((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code],
+    );
   }
 
   async function sendMessage(e?: React.FormEvent) {
@@ -492,6 +508,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
           email: string | null;
           options?: string[];
           multiDestination?: boolean;
+          stops?: string[];
         };
       };
 
@@ -501,8 +518,9 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
       const ef = data.extractedFields;
       if (ef) {
         if (ef.email) setChatEmail(ef.email);
-        if (ef.options) setChatOptions(ef.options);
+        if (ef.options?.length) setSelectedOptions((prev) => [...new Set([...prev, ...ef.options!])]);
         if (ef.multiDestination) setMultiDestination(true);
+        if (ef.stops?.length) setStops(ef.stops);
         setChatExtracted((prev) => ({
           departureCity: ef.departureCity ?? prev.departureCity,
           arrivalCity: ef.arrivalCity ?? prev.arrivalCity,
@@ -562,7 +580,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
           returnDate: activeDemand.tripType === "round_trip" ? activeDemand.returnDate : null,
           passengerCount: activeDemand.passengerCount,
           tripType: activeDemand.tripType,
-          options: activeDemand.options,
+          options: selectedOptions,
           email: normalizeEmailForApi(chatEmail),
         }),
       });
@@ -1101,15 +1119,42 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
                     <small className={styles.fieldWarning}>{warningFor("passengerCount")!.message}</small>
                   ) : null}
                 </label>
-                <div className={styles.manualOptionsLine}>
-                  <span>Options détectées</span>
-                  <strong>
-                    {[...new Set([...chatOptions, ...activeDemand.options])].join(", ") || "Aucune"}
-                  </strong>
+                <div className={styles.optionsField}>
+                  <span className={styles.optionsLabel}>Options</span>
+                  <div className={styles.optionTags}>
+                    {AVAILABLE_OPTIONS.map((option) => {
+                      const active = selectedOptions.includes(option.code);
+                      return (
+                        <button
+                          type="button"
+                          key={option.code}
+                          className={active ? `${styles.optionTag} ${styles.optionTagOn}` : styles.optionTag}
+                          aria-pressed={active}
+                          onClick={() => toggleOption(option.code)}
+                        >
+                          {option.label}
+                          <small>{option.hint}</small>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
+
                 {multiDestination ? (
-                  <div className={styles.multiDestNote}>
-                    Multi-destination / étapes détectées — un conseiller vérifie le trajet avant devis.
+                  <div className={styles.stopsField}>
+                    <span className={styles.stopsLabel}>Étapes intermédiaires</span>
+                    {stops.length ? (
+                      <div className={styles.stopTags}>
+                        {stops.map((stop) => (
+                          <span className={styles.stopTag} key={stop}>
+                            {stop}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    <small className={styles.stopsNote}>
+                      Trajet multi-destination — un conseiller vérifie l&apos;itinéraire avant le devis.
+                    </small>
                   </div>
                 ) : null}
                 <label className={qualifiedLeadId && !chatEmail && !hasInitialDemand ? styles.fieldInvalid : undefined}>
