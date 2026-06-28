@@ -67,43 +67,56 @@ export async function POST(request: Request) {
  try {
   const input = RoutePreviewSchema.parse(await request.json());
   const config = getDistanceConfig();
-  if (!config.openRouteServiceApiKey) throw new AppError("Cle OpenRouteService manquante.", "ROUTE_PROVIDER_NOT_CONFIGURED");
-
   const labels = [input.departure, ...input.intermediateStops, input.arrival];
-  const coordinates = await Promise.all(
-   labels.map((label) => geocode(label, config.openRouteServiceApiKey, config.timeoutMs))
-  );
 
-  const geojson = await fetchJson<GeoJsonFeatureCollection>(
-   "https://api.openrouteservice.org/v2/directions/driving-car/geojson",
-   {
-    method: "POST",
-    headers: {
-     Authorization: config.openRouteServiceApiKey,
-     "Content-Type": "application/json"
+  try {
+   if (!config.openRouteServiceApiKey) throw new AppError("Cle OpenRouteService manquante.", "ROUTE_PROVIDER_NOT_CONFIGURED");
+
+   const coordinates = await Promise.all(
+    labels.map((label) => geocode(label, config.openRouteServiceApiKey, config.timeoutMs))
+   );
+
+   const geojson = await fetchJson<GeoJsonFeatureCollection>(
+    "https://api.openrouteservice.org/v2/directions/driving-car/geojson",
+    {
+     method: "POST",
+     headers: {
+      Authorization: config.openRouteServiceApiKey,
+      "Content-Type": "application/json"
+     },
+     body: JSON.stringify({
+      coordinates,
+      instructions: false
+     })
     },
-    body: JSON.stringify({
-     coordinates,
-     instructions: false
-    })
-   },
-   config.timeoutMs
-  );
+    config.timeoutMs
+   );
 
-  const route = geojson.features?.[0];
-  const summary = route?.properties?.summary;
-  const routeCoordinates = route?.geometry?.coordinates ?? [];
-  if (!summary?.distance || !summary.duration || routeCoordinates.length < 2) {
-   throw new AppError("Trajet non calcule.", "ROUTE_PROVIDER_NO_ROUTE");
-  }
+   const route = geojson.features?.[0];
+   const summary = route?.properties?.summary;
+   const routeCoordinates = route?.geometry?.coordinates ?? [];
+   if (!summary?.distance || !summary.duration || routeCoordinates.length < 2) {
+    throw new AppError("Trajet non calcule.", "ROUTE_PROVIDER_NO_ROUTE");
+   }
 
-  return jsonOk({
-   distanceKm: Math.round((summary.distance / 1000) * 10) / 10,
-   durationMinutes: Math.round(summary.duration / 60),
+   return jsonOk({
+    status: "ready",
+    distanceKm: Math.round((summary.distance / 1000) * 10) / 10,
+    durationMinutes: Math.round(summary.duration / 60),
+    labels,
+    geometry: routeCoordinates,
+    bbox: geojson.bbox
+   });
+  } catch (error) {
+   console.error("[NeoTravel] route preview fallback", error);
+   return jsonOk({
+    status: "fallback",
+    distanceKm: null,
+    durationMinutes: null,
    labels,
-   geometry: routeCoordinates,
-   bbox: geojson.bbox
+    geometry: []
   });
+  }
  } catch (error) {
   return handleApiError(error);
  }

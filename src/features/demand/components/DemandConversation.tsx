@@ -23,8 +23,9 @@ type InitialDemand = {
 };
 
 type RoutePreview = {
- distanceKm: number;
- durationMinutes: number;
+ status?: "ready" | "fallback";
+ distanceKm: number | null;
+ durationMinutes: number | null;
  labels: string[];
  geometry: [number, number][];
  bbox?: [number, number, number, number];
@@ -436,7 +437,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
     if (!response.ok) throw new Error("ROUTE_PREVIEW_FAILED");
     const payload = (await response.json()) as RoutePreview;
     setRoutePreview(payload);
-    setRouteStatus("ready");
+    setRouteStatus(payload.status === "fallback" ? "fallback" : "ready");
    } catch {
     if (!controller.signal.aborted) setRouteStatus("fallback");
    }
