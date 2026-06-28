@@ -85,7 +85,7 @@
   gap: 24px;
   align-items: center;
   min-height: 74px;
-  margin: 0 clamp(24px, 4vw, 60px);
+  margin: 0 clamp(24px, 4vw, 60px) 24px;
   border: 1px solid #d9e2ed;
   border-radius: 16px;
   padding: 12px 24px;
@@ -99,7 +99,7 @@
 
 .progress {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin: 0;
   padding: 0;
@@ -344,6 +344,7 @@
 
 .chatActions {
   display: grid;
+  gap: 10px;
 }
 
 .primaryButton {
@@ -364,6 +365,7 @@
 
 .humanReviewButton {
   display: inline-flex;
+  border: 0;
   min-height: 48px;
   align-items: center;
   justify-content: center;
@@ -373,6 +375,11 @@
   background: #123885;
   font-size: 13px;
   font-weight: 900;
+}
+
+.humanReviewButton:disabled {
+  cursor: wait;
+  opacity: 0.72;
 }
 
 .chatActions .primaryButton {
@@ -685,9 +692,11 @@
     #eef4fb;
 }
 
-.routeEmptyState {
+.routeEmptyOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
   display: grid;
-  min-height: 230px;
   place-items: center;
   border: 1px dashed #d9e2ed;
   border-radius: 18px;
@@ -831,7 +840,7 @@
   }
 
   .progressCard {
-    margin: 0 16px;
+    margin: 0 16px 20px;
   }
 
   .progress {
