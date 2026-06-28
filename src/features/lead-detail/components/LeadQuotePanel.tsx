@@ -8,6 +8,7 @@ import type { Followup } from "@/shared/types/followup";
 import type { Lead } from "@/shared/types/lead";
 import type { Quote } from "@/shared/types/quote";
 import { LeadGenerateQuote } from "./LeadGenerateQuote";
+import { LeadSendQuoteEmail } from "./LeadSendQuoteEmail";
 import styles from "./lead-detail.module.css";
 
 const FIELD_LABELS: Record<string, string> = {
@@ -89,9 +90,12 @@ export function LeadQuotePanel({ lead, quote, followup }: { lead: Lead; quote?: 
 
    <div className={styles.cardActions}>
     {quote ? (
-     <Link className={styles.primary} href={`/client/devis/${quote.id}`}>
-      Ouvrir le devis
-     </Link>
+     <>
+      <Link className={styles.secondary} href={`/client/devis/${quote.id}`}>
+       Ouvrir le devis
+      </Link>
+      <LeadSendQuoteEmail quoteId={quote.id} status={quote.status} />
+     </>
     ) : (
      <LeadGenerateQuote leadId={lead.id} status={lead.status} />
     )}

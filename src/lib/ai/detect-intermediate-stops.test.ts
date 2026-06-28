@@ -19,4 +19,34 @@ describe("detectIntermediateStops", () => {
   it("does not flag an explicit direct route without a stop", () => {
     expect(detectIntermediateStops("Paris Lyon sans arrêt.")).toEqual({});
   });
+
+  it("flags a 'puis' chain and extracts the middle stop", () => {
+    expect(detectIntermediateStops("Je veux faire Paris puis Lyon puis Marseille.")).toEqual({
+      has_intermediate_stop: true,
+      intermediate_stops: ["Lyon"],
+    });
+  });
+
+  it("flags an arrow chain and extracts the middle stop", () => {
+    expect(detectIntermediateStops("Paris → Lyon → Marseille")).toEqual({
+      has_intermediate_stop: true,
+      intermediate_stops: ["Lyon"],
+    });
+  });
+
+  it("flags 'plusieurs étapes' without inventing stops", () => {
+    expect(detectIntermediateStops("On a plusieurs étapes à prévoir.")).toEqual({
+      has_intermediate_stop: true,
+    });
+  });
+
+  it("flags 'on passe par Dijon'", () => {
+    expect(detectIntermediateStops("On passe par Dijon en chemin.")).toMatchObject({
+      has_intermediate_stop: true,
+    });
+  });
+
+  it("does not flag a normal single-arrow A→B route", () => {
+    expect(detectIntermediateStops("Paris → Lyon")).toEqual({});
+  });
 });

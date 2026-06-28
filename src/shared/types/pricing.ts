@@ -2,6 +2,8 @@ export type PricingOption = {
   code: string;
   label?: string;
   amountEur?: number;
+  note?: string;
+  pricingStatus?: "PRICED" | "TO_CONFIRM" | "INCLUDED";
 };
 
 export type PricingInput = {

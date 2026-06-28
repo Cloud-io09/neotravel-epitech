@@ -32,6 +32,10 @@ const REASON_LABELS: Record<string, string> = {
   PRICING_MATRICES_UNAVAILABLE: "Grille tarifaire indisponible. Prévenez l'administrateur.",
 
   // --- Trajet / qualification ---
+  INTERMEDIATE_STOP_REQUIRES_MANUAL_ROUTE:
+    "Multi-destination / étapes intermédiaires : un conseiller vérifie le trajet avant devis.",
+  PAX_OVER_85: "Groupe au-delà de la capacité standard (85 passagers) : reprise commerciale.",
+  UNKNOWN_ROUTE_NO_DISTANCE: "Trajet non localisé : distance à vérifier avant devis.",
   UNKNOWN_ROUTE_WITHOUT_CONTROLLED_DISTANCE: "Trajet inconnu sans distance vérifiée : à contrôler avant devis.",
   LOW_AI_CONFIDENCE: "Demande peu claire : à vérifier manuellement avant devis.",
   INCOHERENT_DEMAND: "Demande incohérente : à clarifier avec le client.",

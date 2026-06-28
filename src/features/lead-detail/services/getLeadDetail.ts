@@ -40,12 +40,14 @@ export async function getLeadDetail(leadId: string): Promise<Lead | null> {
   };
 }
 
-function formatOptions(options: QuoteOptions | null): string[] {
+function formatOptions(options: (QuoteOptions & Record<string, unknown>) | null): string[] {
   if (!options) return [];
 
   return [
-    options.guideDays ? `${options.guideDays} jour(s) de guide` : null,
-    options.driverNights ? `${options.driverNights} nuit(s) chauffeur` : null,
-    options.tollsIncluded ? "Péages inclus" : null,
+    options.guide || options.guideDays ? "Guide / accompagnateur (à confirmer)" : null,
+    options.driverOvernight || options.driver_overnight || options.driverNights
+      ? "Nuit chauffeur (à confirmer)"
+      : null,
+    options.tolls || options.tollsIncluded || options.tollPackageEur ? "Péages (à confirmer)" : null,
   ].filter((option): option is string => option !== null);
 }

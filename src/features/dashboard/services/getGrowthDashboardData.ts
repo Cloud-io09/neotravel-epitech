@@ -447,18 +447,18 @@ function leadStatusLabel(status: string) {
 
 function quoteStatusLabel(status: string) {
  const labels: Record<string, string> = {
-  QUOTE_READY: "Pret",
-  QUOTE_SENT: "Envoye",
-  ACCEPTED: "Accepte",
-  REFUSED: "Refuse"
+  QUOTE_READY: "Prêt",
+  QUOTE_SENT: "Envoyé",
+  ACCEPTED: "Accepté",
+  REFUSED: "Refusé"
  };
  return labels[status] ?? status;
 }
 
 function followupStatusLabel(status: string) {
  const labels: Record<string, string> = {
-  SCHEDULED: "Planifiee",
-  SENT: "Envoyee",
+  SCHEDULED: "Planifiée",
+  SENT: "Envoyée",
   OPENED: "Ouverte",
   REPLIED: "Repondue"
  };
@@ -466,7 +466,7 @@ function followupStatusLabel(status: string) {
 }
 
 function clientTypeLabel(lead?: Lead, leads: Lead[] = []) {
- if (!lead) return "Non renseigne";
+ if (!lead) return "Non renseigné";
  return isRecurringLead(lead, leads) ? "Client recurrent" : "Client nouveau";
 }
 
@@ -478,7 +478,7 @@ function chartGroupLabel(
  leads: Lead[]
 ) {
  if (["day", "week", "month"].includes(groupBy)) return date ? chartTimeLabel(date, groupBy) : "Sans date";
- if (groupBy === "source") return lead ? leadSource(lead) : "Non renseigne";
+ if (groupBy === "source") return lead ? leadSource(lead) : "Non renseigné";
  if (groupBy === "client_type") return clientTypeLabel(lead, leads);
  return status;
 }

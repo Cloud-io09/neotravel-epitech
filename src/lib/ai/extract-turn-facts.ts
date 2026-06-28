@@ -62,9 +62,18 @@ export function extractTurnFacts(
     if (departureDate) facts.departure_date = departureDate;
   }
 
-  if (!existing.passenger_count && existing.departure_date) {
-    const passengerCount = parsePassengerCount(message);
-    if (passengerCount) facts.passenger_count = passengerCount;
+  if (!existing.passenger_count) {
+    // A unit-qualified count ("45 personnes") is unambiguous and safe to read at any point
+    // in the conversation. A bare number ("45") is only trusted once a date already exists
+    // or the assistant just asked for the count — otherwise we'd mistake a date's digits
+    // (e.g. "le 12 juillet") for a passenger count.
+    const withUnit = parsePassengerCountWithUnit(message);
+    if (withUnit) {
+      facts.passenger_count = withUnit;
+    } else if (existing.departure_date || asksForPassengers(lastAssistantText)) {
+      const bare = parsePassengerCount(message);
+      if (bare) facts.passenger_count = bare;
+    }
   }
 
   if (!existing.trip_type) {
@@ -191,6 +200,24 @@ function parsePassengerCount(message: string): number | undefined {
 
   const passengerCount = Number(match[1]);
   return passengerCount > 0 ? passengerCount : undefined;
+}
+
+/** A passenger count whose unit is explicit ("45 personnes", "50 places") — unambiguous,
+ *  so it can be read from any message regardless of whether a date is known yet. */
+function parsePassengerCountWithUnit(message: string): number | undefined {
+  const match = /(\d{1,3})\s*(?:passagers?|personnes?|pers\.?|pax|places?|voyageurs?)\b/iu.exec(
+    normalizeUserText(message),
+  );
+  if (!match) return undefined;
+
+  const passengerCount = Number(match[1]);
+  return passengerCount > 0 ? passengerCount : undefined;
+}
+
+function asksForPassengers(message: string) {
+  return /combien\s+de\s+(?:passagers?|personnes?|voyageurs?)|nombre\s+de\s+(?:passagers?|personnes?)|passagers?\s+(?:serez|seront|à\s+bord)/iu.test(
+    message,
+  );
 }
 
 function normalizeUserText(value: string) {

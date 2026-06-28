@@ -104,6 +104,67 @@ describe("calculer_devis", () => {
     expect(result).toMatchObject({ ok: false, review: "UNKNOWN_ROUTE_NO_DISTANCE" });
   });
 
+  it("ne crée aucune ligne d'option et ne change pas le total sans option", () => {
+    const quote = expectQuote(calculer_devis(validInput()));
+
+    expect(quote.breakdown.options.items).toEqual([]);
+    expect(quote.breakdown.options.totalEur).toBe(0);
+  });
+
+  it("option nuit chauffeur : ligne placeholder, total inchangé, aucun prix inventé", () => {
+    const base = expectQuote(calculer_devis(validInput()));
+    const quote = expectQuote(calculer_devis(validInput({ options: { driverOvernight: true } })));
+
+    const line = quote.breakdown.options.items?.find((item) => item.code === "driver_overnight");
+    expect(line?.label).toBe("Nuit chauffeur");
+    expect(line?.pricingStatus).toBe("TO_CONFIRM");
+    expect(line?.amountEur).toBe(0);
+    expect(quote.breakdown.options.totalEur).toBe(0);
+    expect(quote.price_ttc).toBe(base.price_ttc);
+  });
+
+  it("option guide : ligne placeholder, total inchangé", () => {
+    const base = expectQuote(calculer_devis(validInput()));
+    const quote = expectQuote(calculer_devis(validInput({ options: { guide: true } })));
+
+    const line = quote.breakdown.options.items?.find((item) => item.code === "guide");
+    expect(line?.label).toBe("Guide / accompagnateur");
+    expect(line?.pricingStatus).toBe("TO_CONFIRM");
+    expect(line?.amountEur).toBe(0);
+    expect(quote.price_ttc).toBe(base.price_ttc);
+  });
+
+  it("option péages sans montant contrôlé : placeholder 'inclus/à confirmer', total inchangé", () => {
+    const base = expectQuote(calculer_devis(validInput()));
+    const quote = expectQuote(calculer_devis(validInput({ options: { tolls: true } })));
+
+    const line = quote.breakdown.options.items?.find((item) => item.code === "tolls");
+    expect(line?.label).toBe("Péages");
+    expect(line?.pricingStatus).toBe("INCLUDED");
+    expect(line?.amountEur).toBe(0);
+    expect(line?.note).toMatch(/confirmer/i);
+    expect(quote.price_ttc).toBe(base.price_ttc);
+  });
+
+  it("option péages avec forfait contrôlé : ligne PRICED ajoutée au total", () => {
+    const base = expectQuote(calculer_devis(validInput()));
+    const quote = expectQuote(calculer_devis(validInput({ options: { tollPackageEur: 120 } })));
+
+    const line = quote.breakdown.options.items?.find((item) => item.code === "tolls");
+    expect(line?.pricingStatus).toBe("PRICED");
+    expect(line?.amountEur).toBe(120);
+    expect(quote.breakdown.options.totalEur).toBe(120);
+    expect(quote.price_ttc).toBeGreaterThan(base.price_ttc);
+  });
+
+  it("TVA reste calculée par le moteur et visible dans le breakdown", () => {
+    const quote = expectQuote(calculer_devis(validInput()));
+
+    expect(quote.vat_rate).toBe(DEFAULT_PRICING_RULES.vatRate);
+    expect(quote.breakdown.vat.rate).toBe(DEFAULT_PRICING_RULES.vatRate);
+    expect(quote.vat_amount).toBeCloseTo(quote.price_ht * DEFAULT_PRICING_RULES.vatRate, 2);
+  });
+
   it("retourne le même deterministic_hash pour le même input", () => {
     const input = validInput({
       options: {

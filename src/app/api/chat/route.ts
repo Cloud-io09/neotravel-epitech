@@ -11,9 +11,12 @@ import { buildQualificationResponse } from "../../../lib/ai/qualification-respon
 import { generateAssistantReply, type ReplyTurn } from "../../../lib/ai/generate-reply";
 import { extractTurnFacts } from "../../../lib/ai/extract-turn-facts";
 import { detectIntermediateStops } from "../../../lib/ai/detect-intermediate-stops";
+import { detectOptions } from "../../../lib/ai/detect-options";
+import { canonicalizeCity } from "../../../lib/ai/canonicalize-city";
 import { validateLead } from "../../../lib/ai/validate-lead";
 import { getChatModel } from "../../../lib/ai/provider";
 import { sanitizeExtractionDelta } from "../../../lib/ai/sanitize-extraction-delta";
+import { sendLeadStatusEmail } from "../../../features/emails/services/customerEmailService";
 
 export const runtime = "nodejs";
 const DEFAULT_QUALIFICATION_TIMEOUT_MS = 30_000;
@@ -174,6 +177,10 @@ Message : ${latestUserText}`,
     const rawExtractedDelta: ExtractionDelta = parseResult.success ? parseResult.data : {};
     const deterministicFacts = extractTurnFacts(latestUserText, existingQualification, today, lastAssistantText);
     const deterministicStops = detectIntermediateStops(latestUserText);
+    // Options are detected deterministically and unioned with what's already on the lead so
+    // earlier-turn options are never dropped. The LLM never touches options or their price.
+    const detectedOptions = detectOptions(latestUserText);
+    const mergedOptions = { ...(existingQualification.options ?? {}), ...detectedOptions };
     const extractedDelta = sanitizeExtractionDelta(
       rawExtractedDelta,
       deterministicFacts,
@@ -183,6 +190,7 @@ Message : ${latestUserText}`,
       ...extractedDelta,
       ...deterministicFacts,
       ...deterministicStops,
+      ...(Object.keys(mergedOptions).length > 0 ? { options: mergedOptions } : {}),
       departure_city: extractedDelta.departure_city ?? deterministicFacts.departure_city,
       arrival_city: extractedDelta.arrival_city ?? deterministicFacts.arrival_city,
     };
@@ -190,8 +198,19 @@ Message : ${latestUserText}`,
       combinedDelta,
       existingQualification,
     );
+    const merged = mergeLead(existingQualification, normalizedDelta);
+    // Canonicalize the cities so the side panel shows "Paris", not the typed "Pari".
+    // Only unambiguous matches are corrected; an unknown town is left as typed.
+    merged.departure_city = canonicalizeCity(merged.departure_city) ?? merged.departure_city;
+    merged.arrival_city = canonicalizeCity(merged.arrival_city) ?? merged.arrival_city;
+    // A known departure date with no return and no round-trip signal defaults to one-way.
+    // Round-trip still wins whenever a return date or "aller-retour" is detected (now or in
+    // a later turn — a real value always overrides this default via mergeLead).
+    if (!merged.trip_type && merged.departure_date && !merged.return_date) {
+      merged.trip_type = "one_way";
+    }
     const mergedLead = LeadQualificationSchema.parse({
-      ...mergeLead(existingQualification, normalizedDelta),
+      ...merged,
       free_message: latestUserText,
     });
 
@@ -248,10 +267,17 @@ Message : ${latestUserText}`,
       passengerCount: lead.passenger_count ?? null,
       tripType: (lead.trip_type ?? null) as "one_way" | "round_trip" | null,
       email: lead.email ?? null,
+      options: detectedOptionCodes(lead.options),
+      multiDestination: Boolean(lead.has_intermediate_stop),
+      stops: lead.intermediate_stops ?? [],
     };
 
     if (lead.has_intermediate_stop) {
       const reason = "INTERMEDIATE_STOP_REQUIRES_MANUAL_ROUTE";
+      void sendLeadStatusEmail({
+        leadId: leadResult.leadId,
+        scenario: "DEMAND_IN_PROGRESS",
+      }).catch(() => {});
       logAgentEvent(
         requestId,
         "request_completed",
@@ -272,6 +298,10 @@ Message : ${latestUserText}`,
     // HUMAN_REVIEW so the quote endpoint refuses it.
     if (review === "PAX_OVER_85") {
       await markHumanReview(leadResult.leadId, "PAX_OVER_85");
+      void sendLeadStatusEmail({
+        leadId: leadResult.leadId,
+        scenario: "DEMAND_IN_PROGRESS",
+      }).catch(() => {});
       logAgentEvent(
         requestId,
         "request_completed",
@@ -317,6 +347,10 @@ Message : ${latestUserText}`,
         { status: "INCOMPLETE", blocking, leadId: leadResult.leadId },
         startedAt,
       );
+      void sendLeadStatusEmail({
+        leadId: leadResult.leadId,
+        scenario: "DEMAND_INCOMPLETE",
+      }).catch(() => {});
 
       return chatJson({
         status: "INCOMPLETE",
@@ -459,6 +493,15 @@ function isSingleMessageBody(body: unknown): body is SingleMessageBody {
     body !== null &&
     typeof (body as { message?: unknown }).message === "string"
   );
+}
+
+function detectedOptionCodes(options: Record<string, unknown> | undefined | null): string[] {
+  if (!options) return [];
+  const codes: string[] = [];
+  if (options.guide || options.guideDays) codes.push("guide");
+  if (options.driverOvernight || options.driver_overnight || options.driverNights) codes.push("driver_overnight");
+  if (options.tolls || options.tollsIncluded || options.tollPackageEur) codes.push("tolls");
+  return codes;
 }
 
 function getMessageText(content: unknown): string {

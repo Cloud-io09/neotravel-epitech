@@ -76,6 +76,21 @@ declare global {
 }
 
 const steps = ["Trajet", "Vérification", "Devis"];
+
+// Options the prospect can request. Detection from the chat ticks the same boxes; the price
+// stays the engine's job (placeholder lines for guide/nuit chauffeur/péages — never free).
+const AVAILABLE_OPTIONS: { code: string; label: string; hint: string }[] = [
+  { code: "guide", label: "Guide / accompagnateur", hint: "à chiffrer" },
+  { code: "driver_overnight", label: "Nuit chauffeur", hint: "à confirmer" },
+  { code: "tolls", label: "Péages", hint: "inclus / à confirmer" },
+];
+
+const OPTION_ALIASES = new Map(
+  AVAILABLE_OPTIONS.flatMap((option) => [
+    [option.code, option.code],
+    [option.label.toLocaleLowerCase("fr-FR"), option.code],
+  ])
+);
 const missingFieldLabels: Partial<Record<keyof DemandDraft, string>> = {
   organization: "Nom de l'organisation",
   email: "Email de contact",
@@ -104,6 +119,22 @@ function splitValues(value: string | undefined) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function normalizeOptionCodes(values: string[]) {
+  return [
+    ...new Set(
+      values
+        .map((value) => OPTION_ALIASES.get(value.trim().toLocaleLowerCase("fr-FR")) ?? value.trim())
+        .filter((value) => AVAILABLE_OPTIONS.some((option) => option.code === value))
+    ),
+  ];
+}
+
+function optionLabels(codes: string[]) {
+  return codes
+    .map((code) => AVAILABLE_OPTIONS.find((option) => option.code === code)?.label)
+    .filter((label): label is string => Boolean(label));
 }
 
 function formatDate(value: string | undefined, fallback = "") {
@@ -167,6 +198,9 @@ type DemandSessionCache = {
   chatHumanReview: boolean;
   chatEmail: string | null;
   chatExtracted: ChatExtracted;
+  selectedOptions?: string[];
+  multiDestination?: boolean;
+  stops?: string[];
 };
 
 function useDebouncedValue<T>(value: T, delayMs: number) {
@@ -251,7 +285,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   );
   const demand = useMemo(() => {
     const intermediateStops = splitValues(initialDemand.intermediateStops);
-    const options = splitValues(initialDemand.options);
+    const options = normalizeOptionCodes(splitValues(initialDemand.options));
     const departure = clean(initialDemand.departure);
     const arrival = clean(initialDemand.arrival);
     const departureDate = formatDate(initialDemand.departureDate);
@@ -286,6 +320,9 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   const [qualifiedLeadId, setQualifiedLeadId] = useState<string | null>(null);
   const [chatHumanReview, setChatHumanReview] = useState(false);
   const [chatEmail, setChatEmail] = useState<string | null>(null);
+  const [selectedOptions, setSelectedOptions] = useState<string[]>(() => demand.options);
+  const [multiDestination, setMultiDestination] = useState(() => demand.intermediateStops.length > 0);
+  const [stops, setStops] = useState<string[]>(() => demand.intermediateStops);
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [chatExtracted, setChatExtracted] = useState<ChatExtracted>({
     departureCity: null,
@@ -309,6 +346,9 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
       setChatHumanReview(cached.chatHumanReview);
       setChatEmail(cached.chatEmail);
       setChatExtracted(cached.chatExtracted);
+      setSelectedOptions(normalizeOptionCodes(cached.selectedOptions ?? []));
+      setMultiDestination(Boolean(cached.multiDestination));
+      setStops(cached.stops ?? []);
     }
     hydratedRef.current = true;
   }, []);
@@ -323,8 +363,11 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
       chatHumanReview,
       chatEmail,
       chatExtracted,
+      selectedOptions,
+      multiDestination,
+      stops,
     });
-  }, [chatMessages, currentLeadId, qualifiedLeadId, chatHumanReview, chatEmail, chatExtracted]);
+  }, [chatMessages, currentLeadId, qualifiedLeadId, chatHumanReview, chatEmail, chatExtracted, selectedOptions, multiDestination, stops]);
 
   // activeDemand: fusionne URL params + ce que le chat a extrait + éditions manuelles
   const activeDemand = useMemo(() => ({
@@ -338,8 +381,8 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
         ? Number(demand.passengers)
         : null),
     tripType: chatExtracted.tripType ?? (initialDemand.tripType === "one_way" ? "one_way" as const : initialDemand.tripType ? "round_trip" as const : null),
-    options: demand.options,
-  }), [chatExtracted, demand, initialDemand]);
+    options: selectedOptions,
+  }), [chatExtracted, demand, initialDemand, selectedOptions]);
 
   // Client-side validation mirrors the server (same shared validators) for instant
   // feedback on manual edits. The quote button is gated on these.
@@ -422,9 +465,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   const mapRef = useRef<LeafletMap | null>(null);
   const routeLayersRef = useRef<LeafletLayer[]>([]);
   const chatMessagesRef = useRef<HTMLDivElement | null>(null);
-  const mainStop = demand.intermediateStops[0];
-  const demoOrganization = "Alpha Conseil";
-  const demoEmail = "client@neotravel.fr";
+  const mainStop = stops[0];
 
   useEffect(() => {
     const container = chatMessagesRef.current;
@@ -442,6 +483,9 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
     setQualifiedLeadId(null);
     setChatHumanReview(false);
     setChatEmail(null);
+    setSelectedOptions([]);
+    setMultiDestination(false);
+    setStops([]);
     setChatExtracted({
       departureCity: null,
       arrivalCity: null,
@@ -453,6 +497,12 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
     setUserInput("");
     setWorkflowError(null);
     setHumanReviewQueued(false);
+  }
+
+  function toggleOption(code: string) {
+    setSelectedOptions((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code],
+    );
   }
 
   async function sendMessage(e?: React.FormEvent) {
@@ -488,6 +538,9 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
           passengerCount: number | null;
           tripType: "one_way" | "round_trip" | null;
           email: string | null;
+          options?: string[];
+          multiDestination?: boolean;
+          stops?: string[];
         };
       };
 
@@ -497,6 +550,9 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
       const ef = data.extractedFields;
       if (ef) {
         if (ef.email) setChatEmail(ef.email);
+        if (ef.options?.length) setSelectedOptions((prev) => normalizeOptionCodes([...prev, ...ef.options!]));
+        if (ef.multiDestination) setMultiDestination(true);
+        if (ef.stops?.length) setStops(ef.stops);
         setChatExtracted((prev) => ({
           departureCity: ef.departureCity ?? prev.departureCity,
           arrivalCity: ef.arrivalCity ?? prev.arrivalCity,
@@ -539,104 +595,43 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
       return;
     }
 
-    // Chat / manual-edit path: persist the current (possibly corrected) state to the
-    // lead, let the server re-validate, then quote only if it comes back QUALIFIED.
-    if (currentLeadId) {
-      setIsGeneratingQuote(true);
-      try {
-        const syncResponse = await fetch("/api/leads/sync", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            leadId: currentLeadId,
-            departureCity: activeDemand.departureCity,
-            arrivalCity: activeDemand.arrivalCity,
-            departureDate: activeDemand.departureDate,
-            returnDate: activeDemand.tripType === "round_trip" ? activeDemand.returnDate : null,
-            passengerCount: activeDemand.passengerCount,
-            tripType: activeDemand.tripType,
-            options: activeDemand.options,
-            email: normalizeEmailForApi(chatEmail),
-          }),
-        });
-        const sync = (await syncResponse.json()) as {
-          status: string;
-          message: string;
-          leadId?: string;
-        };
-        if (sync.status !== "QUALIFIED" || !sync.leadId) {
-          setWorkflowError(sync.message || "Il manque encore quelques informations pour préparer le devis.");
-          return;
-        }
-
-        const quoteResponse = await fetch("/api/quotes", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ leadId: sync.leadId }),
-        });
-        if (!quoteResponse.ok) throw new Error("QUOTE_GENERATION_FAILED");
-        const quote = (await quoteResponse.json()) as { id: string };
-        clearDemandSession();
-        router.push(`/client/devis/${quote.id}`);
-      } catch {
-        setWorkflowError("Nous n’avons pas pu préparer le devis pour l’instant. Vous pouvez réessayer ou nous contacter.");
-      } finally {
-        setIsGeneratingQuote(false);
-      }
-      return;
-    }
-
-    // Fallback: URL-param flow (pre-filled demand from homepage form). With no lead yet,
-    // we need the homepage pre-fill to create one.
-    if (!hasInitialDemand) {
-      setWorkflowError("Décrivez votre trajet dans le chat pour démarrer votre demande.");
-      return;
-    }
-
+    // One path for both chat and manual side-panel entry: persist the current form state
+    // to a lead (the sync route CREATES one when no leadId is given), attach the email so
+    // a client exists for the devis, let the server validate, then quote. No need to talk
+    // to the AI first.
     setIsGeneratingQuote(true);
     try {
-      const leadResponse = await fetch("/api/leads", {
+      const syncResponse = await fetch("/api/leads/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          rawMessage: `Demande client ${demoOrganization} ${demoEmail} : ${demand.departure} vers ${demand.arrival}`,
-          organization: demoOrganization,
-          email: demoEmail,
-          departureCity: demand.departure,
-          arrivalCity: demand.arrival,
-          departureDate: initialDemand.departureDate?.trim() || null,
-          returnDate: initialDemand.tripType === "one_way" ? null : initialDemand.returnDate?.trim() || null,
-          passengerCount: Number.isFinite(Number(demand.passengers)) ? Number(demand.passengers) : null,
-          tripType: initialDemand.tripType === "one_way" ? "one_way" : "round_trip",
-          options: demand.options,
-          qualify: true,
+          ...(currentLeadId ? { leadId: currentLeadId } : {}),
+          departureCity: activeDemand.departureCity,
+          arrivalCity: activeDemand.arrivalCity,
+          departureDate: activeDemand.departureDate,
+          returnDate: activeDemand.tripType === "round_trip" ? activeDemand.returnDate : null,
+          passengerCount: activeDemand.passengerCount,
+          tripType: activeDemand.tripType,
+          options: selectedOptions,
+          email: normalizeEmailForApi(chatEmail),
         }),
       });
-
-      if (!leadResponse.ok) throw new Error("LEAD_CREATION_FAILED");
-      const leadPayload = (await leadResponse.json()) as {
-        leadId: string;
-        qualification?: { status: string; missingFields?: string[]; humanReviewReason?: string | null };
+      const sync = (await syncResponse.json()) as {
+        status: string;
+        message: string;
+        leadId?: string;
       };
-
-      if (leadPayload.qualification?.status === "HUMAN_REVIEW") {
-        setWorkflowError(
-          leadPayload.qualification.humanReviewReason ??
-            "Un conseiller doit vérifier votre demande avant la préparation du devis.",
-        );
+      if (sync.status !== "QUALIFIED" || !sync.leadId) {
+        setWorkflowError(sync.message || "Il manque encore quelques informations pour préparer le devis.");
         return;
       }
-      if (leadPayload.qualification?.status === "INCOMPLETE") {
-        setWorkflowError("Il manque encore quelques informations pour préparer le devis.");
-        return;
-      }
+      setCurrentLeadId(sync.leadId);
 
       const quoteResponse = await fetch("/api/quotes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadId: leadPayload.leadId }),
+        body: JSON.stringify({ leadId: sync.leadId }),
       });
-
       if (!quoteResponse.ok) throw new Error("QUOTE_GENERATION_FAILED");
       const quote = (await quoteResponse.json()) as { id: string };
       clearDemandSession();
@@ -719,13 +714,14 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   const routeInput = useMemo(() => {
     const departure = normalizeRouteLabel(activeDemand.departureCity);
     const arrival = normalizeRouteLabel(activeDemand.arrivalCity);
-    const intermediateStops = demand.intermediateStops
+    const intermediateStops = stops
       .map(normalizeRouteLabel)
       .filter(isRouteLabelReady);
 
     return { departure, arrival, intermediateStops };
-  }, [activeDemand.departureCity, activeDemand.arrivalCity, demand.intermediateStops]);
+  }, [activeDemand.departureCity, activeDemand.arrivalCity, stops]);
   const debouncedRouteInput = useDebouncedValue(routeInput, ROUTE_PREVIEW_DEBOUNCE_MS);
+  const selectedOptionLabels = optionLabels(selectedOptions);
 
   useEffect(() => {
     if (!isRouteLabelReady(debouncedRouteInput.departure) || !isRouteLabelReady(debouncedRouteInput.arrival)) {
@@ -957,7 +953,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
                   <strong>Vous</strong>
                   <p>
                     {mainStop ? `Une étape à ${mainStop}. ` : ""}
-                    Options demandées : {demand.options.join(", ") || "aucune option particulière"}.
+                    Options demandées : {selectedOptionLabels.join(", ") || "aucune option particulière"}.
                   </p>
                 </div>
               </>
@@ -1156,10 +1152,44 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
                     <small className={styles.fieldWarning}>{warningFor("passengerCount")!.message}</small>
                   ) : null}
                 </label>
-                <div className={styles.manualOptionsLine}>
-                  <span>Options</span>
-                  <strong>{activeDemand.options.join(", ") || "Aucune"}</strong>
+                <div className={styles.optionsField}>
+                  <span className={styles.optionsLabel}>Options</span>
+                  <div className={styles.optionTags}>
+                    {AVAILABLE_OPTIONS.map((option) => {
+                      const active = selectedOptions.includes(option.code);
+                      return (
+                        <button
+                          type="button"
+                          key={option.code}
+                          className={active ? `${styles.optionTag} ${styles.optionTagOn}` : styles.optionTag}
+                          aria-pressed={active}
+                          onClick={() => toggleOption(option.code)}
+                        >
+                          {option.label}
+                          <small>{option.hint}</small>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
+
+                {multiDestination ? (
+                  <div className={styles.stopsField}>
+                    <span className={styles.stopsLabel}>Étapes intermédiaires</span>
+                    {stops.length ? (
+                      <div className={styles.stopTags}>
+                        {stops.map((stop) => (
+                          <span className={styles.stopTag} key={stop}>
+                            {stop}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    <small className={styles.stopsNote}>
+                      Trajet multi-destination — un conseiller vérifie l&apos;itinéraire avant le devis.
+                    </small>
+                  </div>
+                ) : null}
                 <label className={qualifiedLeadId && !chatEmail && !hasInitialDemand ? styles.fieldInvalid : undefined}>
                   <span>Email de contact {qualifiedLeadId && !hasInitialDemand ? <strong aria-hidden="true"> *</strong> : null}</span>
                   <input

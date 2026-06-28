@@ -1,5 +1,5 @@
-import { logAuditEvent } from "@/lib/audit/audit-service";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { logAuditEvent } from "../../../lib/audit/audit-service";
+import { createServerSupabaseClient } from "../../../lib/supabase/server";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MINUTE_MS = 60 * 1000;
@@ -18,12 +18,8 @@ export function getFollowupDelays(input: Pick<ScheduleFollowupsInput, "isUrgent"
     return [{ label: "DEMO_FAST_FOLLOWUP", delayMs: 2 * MINUTE_MS }];
   }
 
-  if (input.isUrgent) {
-    return [{ label: "URGENT_J2", delayMs: 2 * DAY_MS }];
-  }
-
   return [
-    { label: "STANDARD_J3", delayMs: 3 * DAY_MS },
+    { label: input.isUrgent ? "URGENT_J2" : "STANDARD_J2", delayMs: 2 * DAY_MS },
     { label: "STANDARD_J7", delayMs: 7 * DAY_MS }
   ];
 }
@@ -38,6 +34,37 @@ export async function scheduleFollowups(input: ScheduleFollowupsInput) {
   const delays = getFollowupDelays(input).slice(0, 2);
 
   const supabase = createServerSupabaseClient();
+  if (input.quoteId) {
+    const { data: existing, error: existingError } = await supabase
+      .from("followups")
+      .select("id, lead_id, quote_id, scheduled_at, channel, status")
+      .eq("quote_id", input.quoteId)
+      .order("scheduled_at", { ascending: true });
+
+    if (existingError) throw new Error(`Unable to load existing followups: ${existingError.message}`);
+
+    if ((existing?.length ?? 0) > 0) {
+      return {
+        leadId: input.leadId,
+        quoteId: input.quoteId,
+        quoteStatus: input.quoteStatus ?? "QUOTE_SENT",
+        ruleSet: process.env.DEMO_FAST_FOLLOWUP === "true" ? "demo_fast" : input.isUrgent ? "urgent" : "standard",
+        nextOutcomeAfterTwoNoResponse: resolvePostFollowupOutcome({
+          sentFollowupsWithoutResponse: 2,
+          highValue: input.highValue
+        }),
+        followups: existing!.map((followup) => ({
+          id: followup.id,
+          leadId: followup.lead_id,
+          quoteId: followup.quote_id ?? undefined,
+          channel: "email" as const,
+          status: followup.status === "sent" ? "SENT" as const : "SCHEDULED" as const,
+          dueAt: followup.scheduled_at,
+        }))
+      };
+    }
+  }
+
   const followups = await Promise.all(delays.map(async (delay) => {
     const dueAt = new Date(sourceDate.getTime() + delay.delayMs).toISOString();
     const { data, error } = await supabase

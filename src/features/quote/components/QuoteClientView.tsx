@@ -13,7 +13,7 @@ function formatPercent(value: number) {
 }
 
 function formatDate(value: string | null | undefined) {
-  if (!value) return "A confirmer";
+  if (!value) return "À confirmer";
   const date = new Date(`${value}T12:00:00`);
   if (Number.isNaN(date.getTime())) return value;
 
@@ -31,7 +31,7 @@ function formatTripType(value: string | null | undefined) {
   if (value === "round_trip") return "Aller-retour";
   if (value === "one_way") return "Aller simple";
 
-  return "A confirmer";
+  return "À confirmer";
 }
 
 export async function QuoteClientView({ quoteId }: { quoteId: string }) {
@@ -43,7 +43,7 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
       <main className={styles.page}>
         <section className={styles.notFound}>
           <h1>Devis introuvable</h1>
-          <p>La reference demandee ne correspond a aucun devis conserve.</p>
+          <p>La référence demandée ne correspond à aucun devis conservé.</p>
           <Link href="/">Retour accueil</Link>
         </section>
       </main>
@@ -52,16 +52,16 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
 
   const calculation = storedQuote.calculation;
   const clientName = lead?.organization ?? "Client particulier / organisation";
-  const clientEmail = lead?.email ?? "Email a confirmer";
-  const passengerLabel = lead?.passengerCount ? `${lead.passengerCount} passagers` : "A confirmer";
+  const clientEmail = lead?.email ?? "Email à confirmer";
+  const passengerLabel = lead?.passengerCount ? `${lead.passengerCount} passagers` : "À confirmer";
   const tripDates = formatTripDates(lead?.departureDate, lead?.returnDate);
   const routeLabel =
     lead?.departureCity && lead?.arrivalCity
       ? `${lead.departureCity} -> ${lead.arrivalCity}`
       : calculation.breakdown.routeLabel;
-  const options = lead?.options.length
-    ? lead.options
-    : calculation.breakdown.options.map((option) => option.label);
+  // Priced option lines from the engine — each carries a label, a note, and an amount that
+  // is 0 € only as a placeholder when no official price exists (never shown as free).
+  const optionLines = calculation.breakdown.options;
 
   return (
     <main className={styles.page}>
@@ -85,7 +85,7 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
 
       <section className={styles.pageIntro}>
         <h1>Mon devis NeoTravel</h1>
-        <p>Envoye automatiquement apres passage de toutes les regles metier</p>
+        <p>Votre devis détaillé, établi à partir de votre demande.</p>
         <span aria-hidden="true">↓</span>
       </section>
 
@@ -115,16 +115,12 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
 
           <section className={styles.metaStrip} aria-label="Informations devis">
             <div>
-              <span>Date emission</span>
+              <span>Date d'émission</span>
               <strong>{new Date().toLocaleDateString("fr-FR")}</strong>
             </div>
             <div>
-              <span>Validite offre</span>
+              <span>Validité offre</span>
               <strong>7 jours</strong>
-            </div>
-            <div>
-              <span>Statut IA</span>
-              <strong>Regles metier validees</strong>
             </div>
             <div>
               <span>Canal envoi</span>
@@ -134,7 +130,7 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
 
           <div className={styles.partiesGrid}>
             <section className={styles.partyBox}>
-              <h2>Emetteur</h2>
+              <h2>Émetteur</h2>
               <p>NeoTravel SAS</p>
               <p>Transport de voyageurs</p>
               <p>contact@neotravel.fr</p>
@@ -143,12 +139,12 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
               <h2>Client</h2>
               <p>{clientName}</p>
               <p>Email : {clientEmail}</p>
-              <p>Reference demande : {storedQuote.leadId}</p>
+              <p>Référence demande : {storedQuote.leadId}</p>
             </section>
           </div>
 
           <section className={styles.tripBox} aria-labelledby="quote-details">
-            <h2 id="quote-details">Prestation demandee</h2>
+            <h2 id="quote-details">Prestation demandée</h2>
             <div className={styles.tripGrid}>
               <div>
                 <span>Trajet</span>
@@ -156,7 +152,7 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
               </div>
               <div>
                 <span>Date et horaires</span>
-                <strong>{tripDates} - horaires a confirmer</strong>
+                <strong>{tripDates} - horaires à confirmer</strong>
               </div>
               <div>
                 <span>Passagers</span>
@@ -167,7 +163,7 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
                 <strong>{formatTripType(lead?.tripType)}</strong>
               </div>
               <div>
-                <span>Vehicule</span>
+                <span>Véhicule</span>
                 <strong>{calculation.breakdown.vehicleLabel}</strong>
               </div>
               <div>
@@ -176,17 +172,19 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
               </div>
             </div>
             <div className={styles.optionChips}>
-              {(options.length ? options : ["Aucune option ajoutee"]).map((option) => (
-                <span key={option}>{option}</span>
-              ))}
+              {optionLines.length ? (
+                optionLines.map((option) => <span key={option.code}>{option.label}</span>)
+              ) : (
+                <span>Aucune option ajoutée</span>
+              )}
             </div>
           </section>
 
           <section className={styles.breakdown} aria-labelledby="price-breakdown">
-            <h2 id="price-breakdown">Detail estimatif</h2>
+            <h2 id="price-breakdown">Détail estimatif</h2>
             <div className={styles.priceTable}>
               <div className={styles.priceHead}>
-                <span>Designation</span>
+                <span>Désignation</span>
                 <span>Qte</span>
                 <span>Prix HT</span>
                 <span>TVA</span>
@@ -203,12 +201,28 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
               ))}
             </div>
 
+            {optionLines.length ? (
+              <div className={styles.optionDetail}>
+                <h3>Options demandees</h3>
+                {optionLines.map((option) => (
+                  <div className={styles.optionDetailLine} key={option.code}>
+                    <span>{option.label}</span>
+                    <span>
+                      {option.amountEur && option.amountEur > 0
+                        ? formatEuro(option.amountEur)
+                        : `${option.note ?? "À confirmer"} — 0 € placeholder MVP`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
             <div className={styles.validationAndTotals}>
               <div className={styles.validationBox}>
-                <h3>Devis genere apres regles metier</h3>
-                <p>Horodatage calcul : {new Date().toLocaleDateString("fr-FR")}</p>
-                <p>Moteur regles : NeoTravel Pricing {calculation.breakdown.matrixVersion}</p>
-                <p>Hash devis : {calculation.deterministicHash.slice(0, 24)}...</p>
+                <h3>Référence devis</h3>
+                <p>Date d&apos;emission : {new Date().toLocaleDateString("fr-FR")}</p>
+                <p>Référence : {calculation.quoteNumber}</p>
+                <p>Devis détaillé et sans engagement, valable 7 jours.</p>
               </div>
               <div className={styles.totalsBox}>
                 <div>
@@ -216,14 +230,14 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
                   <strong>{formatEuro(calculation.priceHt)}</strong>
                 </div>
                 <div>
-                  <span>TVA estimee</span>
+                  <span>TVA estimée</span>
                   <strong>{formatEuro(calculation.vatAmount)}</strong>
                 </div>
                 <div>
                   <span>Total TTC</span>
                   <strong>{formatEuro(calculation.priceTtc)}</strong>
                 </div>
-                <p>Montant a confirmer apres disponibilite finale</p>
+                <p>Montant à confirmer après disponibilité finale</p>
               </div>
             </div>
           </section>
@@ -231,15 +245,15 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
           <section className={styles.conditionsBox}>
             <h2>Conditions et acceptation</h2>
             <p>
-              Offre valable sous reserve de disponibilite partenaires et chauffeur. Le devis devient contractuel apres
-              signature electronique ou accord ecrit du client. Ce document est un devis, pas une facture.
+              Offre valable sous réserve de disponibilité partenaires et chauffeur. Le devis devient contractuel après
+              signature électronique ou accord écrit du client. Ce document est un devis, pas une facture.
             </p>
           </section>
 
           <div className={styles.signatureGrid}>
             <div>
               <h3>Bon pour accord client</h3>
-              <span>Date, nom et signature electronique</span>
+              <span>Date, nom et signature électronique</span>
             </div>
             <div>
               <h3>Validation NeoTravel</h3>
@@ -249,18 +263,6 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
 
           <QuoteClientActions quoteId={quoteId} initialStatus={storedQuote.status} />
         </article>
-
-        <aside className={styles.sideFlow}>
-          <h2>Envoi client</h2>
-          <ol>
-            <li>Calcul devis</li>
-            <li>Passage regles metier</li>
-            <li>Generation PDF</li>
-            <li>Log horodate</li>
-            <li>Email + espace client</li>
-          </ol>
-          <span>Pret a envoyer</span>
-        </aside>
       </div>
     </main>
   );

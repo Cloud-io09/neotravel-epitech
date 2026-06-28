@@ -137,12 +137,6 @@ export async function calculateQuoteForLead(
     },
   });
 
-  // Schedule followup emails (J+3, J+7) — dynamic import keeps server-only deps out of
-  // the test module graph; fire-and-forget so quote delivery is never blocked.
-  void import("../../features/followups/services/scheduleFollowups").then(
-    ({ scheduleFollowups }) => scheduleFollowups({ leadId, quoteId })
-  ).catch(() => {});
-
   return {
     ok: true,
     quoteId,
@@ -247,6 +241,10 @@ function normalizeQuoteOptions(options: QuoteOptions | Record<string, unknown> |
     driverNights: toOptionalNumber(optionRecord.driverNights ?? optionRecord.driver_nights),
     tollsIncluded: toOptionalBoolean(optionRecord.tollsIncluded ?? optionRecord.tolls_included),
     tollPackageEur: toOptionalNumber(optionRecord.tollPackageEur ?? optionRecord.toll_package_eur),
+    // MVP requested-option flags stored on the lead (detected from the chat).
+    guide: toOptionalBoolean(optionRecord.guide),
+    driverOvernight: toOptionalBoolean(optionRecord.driverOvernight ?? optionRecord.driver_overnight),
+    tolls: toOptionalBoolean(optionRecord.tolls),
   };
 }
 

@@ -121,8 +121,8 @@ const scenarioMap: Record<DemoScenarioId, DemoScenario> = {
   },
   quote_refused: {
     id: "quote_refused",
-    title: "Devis refuse",
-    input: "Client clique Refuser sur un devis envoye.",
+    title: "Devis refusé",
+    input: "Client clique Refuser sur un devis envoyé.",
     expectedResult: "Quote REFUSED, lead LOST, audit log, dashboard mis a jour.",
     showInDemo: true,
     leadIds: ["demo-lead-refused"],

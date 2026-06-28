@@ -156,7 +156,7 @@ export const mockLeads: Lead[] = [
     options: [],
     missingFields: [],
     confidence: 0.94,
-    aiSummary: "Client a refuse le devis : statut commercial perdu."
+    aiSummary: "Client a refusé le devis : statut commercial perdu."
   },
   {
     id: "demo-lead-change-request",

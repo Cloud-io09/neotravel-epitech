@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // The customer-email service reads its HTML templates at runtime via fs. This guarantees
+  // Next traces them into the serverless function bundle (otherwise: ENOENT in production).
+  outputFileTracingIncludes: {
+    "/api/**": ["./src/features/emails/templates/**"],
+  },
   async redirects() {
     const clientRoutes = [
       "demande",
