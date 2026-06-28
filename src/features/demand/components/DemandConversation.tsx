@@ -93,6 +93,7 @@ const missingFieldLabels: Partial<Record<keyof DemandDraft, string>> = {
 };
 
 const translatableDetectedValues = new Set(["Aucune", "En attente", "Non", "Oui"]);
+type ProgressStepState = "done" | "current" | "next";
 
 function clean(value: string | undefined, fallback = "") {
  const trimmed = value?.trim();
@@ -137,6 +138,21 @@ function viewFromDraft(draft: DemandDraft, fallback: ReturnType<typeof buildInit
  };
 }
 
+function mergeDemandDraft(previous: DemandDraft | null, next: DemandDraft, message: string): DemandDraft {
+ return {
+  rawMessage: [previous?.rawMessage, message].filter(Boolean).join("\n"),
+  organization: next.organization ?? previous?.organization ?? null,
+  email: next.email ?? previous?.email ?? null,
+  departureCity: next.departureCity ?? previous?.departureCity ?? null,
+  arrivalCity: next.arrivalCity ?? previous?.arrivalCity ?? null,
+  departureDate: next.departureDate ?? previous?.departureDate ?? null,
+  returnDate: next.returnDate ?? previous?.returnDate ?? null,
+  passengerCount: next.passengerCount ?? previous?.passengerCount ?? null,
+  tripType: next.tripType ?? previous?.tripType ?? null,
+  options: Array.from(new Set([...(previous?.options ?? []), ...next.options]))
+ };
+}
+
 function buildInitialDemandView(initialDemand: InitialDemand) {
  const intermediateStops = splitValues(initialDemand.intermediateStops);
  const options = splitValues(initialDemand.options);
@@ -157,6 +173,12 @@ function buildInitialDemandView(initialDemand: InitialDemand) {
   intermediateStops,
   callbackWanted: initialDemand.callback === "no" ? "Non" : "Oui"
  };
+}
+
+function progressClassName(state: ProgressStepState) {
+ if (state === "done") return styles.doneStep;
+ if (state === "current") return styles.currentStep;
+ return styles.nextStep;
 }
 
 function loadLeaflet() {
@@ -230,6 +252,18 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   (field) => field !== missingFieldLabels.organization && field !== missingFieldLabels.email
  );
  const hasQuoteReadyDemand = hasDemand && demoBlockingMissingFields.length === 0;
+ const hasRouteDetails = Boolean(
+  demandDraft.departureCity &&
+   demandDraft.arrivalCity &&
+   demandDraft.departureDate &&
+   demandDraft.passengerCount &&
+   demandDraft.tripType
+ );
+ const progressStates: ProgressStepState[] = hasQuoteReadyDemand
+  ? ["done", "done", "current", "next"]
+  : hasRouteDetails
+   ? ["done", "current", "next", "next"]
+   : ["current", "next", "next", "next"];
  const requiresHumanReview = hasInitialDemand && demoBlockingMissingFields.length > 0;
  const [routePreview, setRoutePreview] = useState<RoutePreview | null>(null);
  const [routeStatus, setRouteStatus] = useState<"idle" | "loading" | "ready" | "fallback">("idle");
@@ -262,22 +296,29 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   setChatTurns((current) => [...current, { role: "prospect", content: message }]);
 
   try {
+   const prospectMessages = chatTurns.filter((turn) => turn.role === "prospect").map((turn) => turn.content);
+   const conversationMessage = [...prospectMessages, message].join("\n");
    const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message })
+    body: JSON.stringify({ message: conversationMessage })
    });
 
    if (!response.ok) throw new Error("CHAT_FAILED");
    const payload = (await response.json()) as ChatApiResponse;
    const nextDraft = payload.demand;
-   if (nextDraft) setChatDraft(nextDraft);
+   const mergedDraft = nextDraft ? mergeDemandDraft(chatDraft, nextDraft, message) : chatDraft;
+   if (mergedDraft) setChatDraft(mergedDraft);
 
-   const nextMissingFields = (payload.missingFields ?? [])
+   const effectiveMissingFields = mergedDraft
+    ? validateDemandCompleteness(mergedDraft).missingFields.map(String)
+    : payload.missingFields ?? [];
+   const nextMissingFields = effectiveMissingFields
     .map((field) => missingFieldLabels[field as keyof DemandDraft] ?? field)
     .filter((field) => field !== missingFieldLabels.organization && field !== missingFieldLabels.email);
    const questions = payload.clarification?.questions?.filter(Boolean) ?? [];
-   const routeHint = nextDraft?.departureCity && nextDraft.arrivalCity ? `${nextDraft.departureCity} - ${nextDraft.arrivalCity}` : null;
+   const routeHint =
+    mergedDraft?.departureCity && mergedDraft.arrivalCity ? `${mergedDraft.departureCity} - ${mergedDraft.arrivalCity}` : null;
    const assistantContent =
     payload.status === "HUMAN_REVIEW"
      ? `Merci. Cette demande doit etre reprise par un conseiller${payload.humanReviewReasons?.length ? ` : ${payload.humanReviewReasons.join(", ")}` : "."}`
@@ -512,7 +553,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
     <strong data-i18n-key="Progression de la demande prospect">Progression de la demande prospect</strong>
     <ol className={styles.progress}>
      {steps.map((step, index) => (
-      <li key={step} className={index < 2 ? styles.doneStep : index === 2 ? styles.currentStep : styles.nextStep}>
+      <li key={step} className={progressClassName(progressStates[index] ?? "next")}>
        <span>{index + 1}</span>
        <em data-i18n-key={step}>{step}</em>
       </li>
