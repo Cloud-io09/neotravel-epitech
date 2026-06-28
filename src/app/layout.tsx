@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { GlobalTranslator } from "@/shared/i18n/GlobalTranslator";
 import "./globals.css";
 
@@ -7,7 +8,7 @@ export const metadata: Metadata = {
   description: "Parcours prospect minimal pour devis transport de groupe",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="fr">
       <body>

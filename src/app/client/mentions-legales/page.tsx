@@ -14,12 +14,23 @@ export default function MentionsLegalesPage() {
         </p>
       </section>
       <section className={styles.section}>
-        <h2>Editeur du site</h2>
-        <p>NeoTravel - Projet pedagogique Epitech 2026.</p>
-        <h2>Responsabilite</h2>
-        <p>
-          Les contenus, prix, partenaires et disponibilites presentes dans le MVP servent a la demonstration. Toute
-          validation commerciale reelle necessite une confirmation humaine.
+        <h2 data-i18n-key="Editeur du site">Editeur du site</h2>
+        <p data-i18n-key="NeoTravel est une plateforme digitale spécialisée dans la gestion, la qualification et le suivi des demandes de transport. Elle met à disposition des clients, partenaires et équipes internes des outils destinés à faciliter l’organisation des trajets, la génération de devis et le suivi commercial.">
+          NeoTravel est une plateforme digitale spécialisée dans la gestion, la qualification et le suivi des demandes de
+          transport. Elle met à disposition des clients, partenaires et équipes internes des outils destinés à faciliter
+          l’organisation des trajets, la génération de devis et le suivi commercial.
+        </p>
+        <h2 data-i18n-key="Responsabilite">Responsabilite</h2>
+        <p data-i18n-key="Les informations présentées sur le site, notamment les prix, disponibilités, délais, partenaires et prestations proposées, sont fournies à titre indicatif et peuvent évoluer selon les conditions opérationnelles, les disponibilités réelles et les contraintes liées au transport.">
+          Les informations présentées sur le site, notamment les prix, disponibilités, délais, partenaires et prestations
+          proposées, sont fournies à titre indicatif et peuvent évoluer selon les conditions opérationnelles, les
+          disponibilités réelles et les contraintes liées au transport.
+        </p>
+        <p data-i18n-key="Toute demande de transport, estimation tarifaire ou proposition commerciale doit faire l’objet d’une validation définitive par l’équipe NeoTravel ou par le partenaire concerné avant confirmation. NeoTravel ne saurait être tenu responsable d’une indisponibilité, d’une modification de tarif ou d’un changement de prestation avant validation finale.">
+          Toute demande de transport, estimation tarifaire ou proposition commerciale doit faire l’objet d’une validation
+          définitive par l’équipe NeoTravel ou par le partenaire concerné avant confirmation. NeoTravel ne saurait être
+          tenu responsable d’une indisponibilité, d’une modification de tarif ou d’un changement de prestation avant
+          validation finale.
         </p>
       </section>
       <PublicPageFooter />

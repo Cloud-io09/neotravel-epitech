@@ -883,7 +883,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
         <nav className={styles.nav} aria-label="Navigation principale">
           <Link href="/#estimation">Estimation</Link>
           <Link href="/#projets">Vos projets</Link>
-          <Link href="/partenaires">Partenaires</Link>
+          <Link href="/client/partenaires">Partenaires</Link>
           <Link href="/#engagements">Engagements</Link>
         </nav>
 
@@ -897,7 +897,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
             votre devis.
           </p>
         </div>
-        <Link className={styles.heroCallButton} href="/contact">
+        <Link className={styles.heroCallButton} href="/client/contact">
           Nous contacter
         </Link>
       </section>

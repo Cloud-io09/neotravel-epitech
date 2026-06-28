@@ -12,8 +12,8 @@ export default function ContactPage() {
       <PublicPageHeader />
       <section className={styles.hero}>
         <p className={styles.kicker}>Contact</p>
-        <h1>Nous trouver et nous contacter</h1>
-        <p>
+        <h1 data-i18n-key="Nous trouver et nous contacter">Nous trouver et nous contacter</h1>
+        <p data-i18n-key="Pour la demo NeoTravel, le point de contact est positionne sur le campus Epitech KB Paris, au Kremlin-Bicetre.">
           Pour la demo NeoTravel, le point de contact est positionne sur le campus Epitech KB Paris, au Kremlin-Bicetre.
         </p>
       </section>
@@ -26,7 +26,8 @@ export default function ContactPage() {
             <br />
             {address}
           </p>
-          <p>Email demo : contact@neotravel.fr</p>
+          <p data-i18n-key="Email : contact@neotravel.fr">Email : contact@neotravel.fr</p>
+          <p data-i18n-key="Téléphone : 01 02 03 04 05">Téléphone : 01 02 03 04 05</p>
           <Link className={styles.button} href="/client/demande">
             Faire une demande
           </Link>
