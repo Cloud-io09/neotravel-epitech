@@ -205,9 +205,9 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
 
             <div className={styles.validationAndTotals}>
               <div className={styles.validationBox}>
-                <h3>Devis genere apres regles metier</h3>
+                <h3>Devis généré après règles metier</h3>
                 <p>Horodatage calcul : {new Date().toLocaleDateString("fr-FR")}</p>
-                <p>Moteur regles : NeoTravel Pricing {calculation.breakdown.matrixVersion}</p>
+                <p>Moteur règles : NeoTravel Pricing {calculation.breakdown.matrixVersion}</p>
                 <p>Hash devis : {calculation.deterministicHash.slice(0, 24)}...</p>
               </div>
               <div className={styles.totalsBox}>
