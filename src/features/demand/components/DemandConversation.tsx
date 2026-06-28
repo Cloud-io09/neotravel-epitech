@@ -286,6 +286,8 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   const [qualifiedLeadId, setQualifiedLeadId] = useState<string | null>(null);
   const [chatHumanReview, setChatHumanReview] = useState(false);
   const [chatEmail, setChatEmail] = useState<string | null>(null);
+  const [chatOptions, setChatOptions] = useState<string[]>([]);
+  const [multiDestination, setMultiDestination] = useState(false);
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [chatExtracted, setChatExtracted] = useState<ChatExtracted>({
     departureCity: null,
@@ -440,6 +442,8 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
     setQualifiedLeadId(null);
     setChatHumanReview(false);
     setChatEmail(null);
+    setChatOptions([]);
+    setMultiDestination(false);
     setChatExtracted({
       departureCity: null,
       arrivalCity: null,
@@ -486,6 +490,8 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
           passengerCount: number | null;
           tripType: "one_way" | "round_trip" | null;
           email: string | null;
+          options?: string[];
+          multiDestination?: boolean;
         };
       };
 
@@ -495,6 +501,8 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
       const ef = data.extractedFields;
       if (ef) {
         if (ef.email) setChatEmail(ef.email);
+        if (ef.options) setChatOptions(ef.options);
+        if (ef.multiDestination) setMultiDestination(true);
         setChatExtracted((prev) => ({
           departureCity: ef.departureCity ?? prev.departureCity,
           arrivalCity: ef.arrivalCity ?? prev.arrivalCity,
@@ -1094,9 +1102,16 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
                   ) : null}
                 </label>
                 <div className={styles.manualOptionsLine}>
-                  <span>Options</span>
-                  <strong>{activeDemand.options.join(", ") || "Aucune"}</strong>
+                  <span>Options détectées</span>
+                  <strong>
+                    {[...new Set([...chatOptions, ...activeDemand.options])].join(", ") || "Aucune"}
+                  </strong>
                 </div>
+                {multiDestination ? (
+                  <div className={styles.multiDestNote}>
+                    Multi-destination / étapes détectées — un conseiller vérifie le trajet avant devis.
+                  </div>
+                ) : null}
                 <label className={qualifiedLeadId && !chatEmail && !hasInitialDemand ? styles.fieldInvalid : undefined}>
                   <span>Email de contact {qualifiedLeadId && !hasInitialDemand ? <strong aria-hidden="true"> *</strong> : null}</span>
                   <input

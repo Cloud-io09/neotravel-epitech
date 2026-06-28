@@ -262,6 +262,8 @@ Message : ${latestUserText}`,
       passengerCount: lead.passenger_count ?? null,
       tripType: (lead.trip_type ?? null) as "one_way" | "round_trip" | null,
       email: lead.email ?? null,
+      options: formatDetectedOptions(lead.options),
+      multiDestination: Boolean(lead.has_intermediate_stop),
     };
 
     if (lead.has_intermediate_stop) {
@@ -485,6 +487,15 @@ function isSingleMessageBody(body: unknown): body is SingleMessageBody {
     body !== null &&
     typeof (body as { message?: unknown }).message === "string"
   );
+}
+
+function formatDetectedOptions(options: Record<string, unknown> | undefined | null): string[] {
+  if (!options) return [];
+  const labels: string[] = [];
+  if (options.guide || options.guideDays) labels.push("Guide / accompagnateur");
+  if (options.driverOvernight || options.driver_overnight || options.driverNights) labels.push("Nuit chauffeur");
+  if (options.tolls || options.tollsIncluded || options.tollPackageEur) labels.push("Péages");
+  return labels;
 }
 
 function getMessageText(content: unknown): string {

@@ -372,7 +372,6 @@ async function generateBrowserPdf(input: {
       <section class="strip">
         <div><span class="label">${escapeHtml(tr("Date emission"))}</span><strong>${new Date().toLocaleDateString("fr-FR")}</strong></div>
         <div><span class="label">${escapeHtml(tr("Validite offre"))}</span><strong>${escapeHtml(tr("7 jours"))}</strong></div>
-        <div><span class="label">${escapeHtml(tr("Statut IA"))}</span><strong>${escapeHtml(tr("Regles metier validees"))}</strong></div>
         <div><span class="label">${escapeHtml(tr("Canal envoi"))}</span><strong>Email</strong></div>
       </section>
       <section class="parties">
@@ -476,9 +475,8 @@ export async function generateQuotePdf(quoteId: string, language?: string | null
   ];
 
   field(commands, tr("Date emission"), generatedAt.toLocaleDateString("fr-FR"), 82, 682);
-  field(commands, tr("Validite offre"), tr("7 jours"), 210, 682);
-  field(commands, tr("Statut IA"), tr("Regles metier validees"), 328, 682);
-  field(commands, tr("Canal envoi"), "Email", 448, 682);
+  field(commands, tr("Validite offre"), tr("7 jours"), 240, 682);
+  field(commands, tr("Canal envoi"), "Email", 410, 682);
 
   commands.push(rect(66, 550, 220, 68, colors.white, colors.border));
   commands.push(text(tr("Emetteur"), 80, 598, 12, "F2", colors.navy));
