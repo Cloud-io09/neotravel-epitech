@@ -191,8 +191,15 @@ Message : ${latestUserText}`,
       combinedDelta,
       existingQualification,
     );
+    const merged = mergeLead(existingQualification, normalizedDelta);
+    // A known departure date with no return and no round-trip signal defaults to one-way.
+    // Round-trip still wins whenever a return date or "aller-retour" is detected (now or in
+    // a later turn — a real value always overrides this default via mergeLead).
+    if (!merged.trip_type && merged.departure_date && !merged.return_date) {
+      merged.trip_type = "one_way";
+    }
     const mergedLead = LeadQualificationSchema.parse({
-      ...mergeLead(existingQualification, normalizedDelta),
+      ...merged,
       free_message: latestUserText,
     });
 
