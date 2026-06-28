@@ -84,6 +84,13 @@ const AVAILABLE_OPTIONS: { code: string; label: string; hint: string }[] = [
   { code: "driver_overnight", label: "Nuit chauffeur", hint: "à confirmer" },
   { code: "tolls", label: "Péages", hint: "inclus / à confirmer" },
 ];
+
+const OPTION_ALIASES = new Map(
+  AVAILABLE_OPTIONS.flatMap((option) => [
+    [option.code, option.code],
+    [option.label.toLocaleLowerCase("fr-FR"), option.code],
+  ])
+);
 const missingFieldLabels: Partial<Record<keyof DemandDraft, string>> = {
   organization: "Nom de l'organisation",
   email: "Email de contact",
@@ -112,6 +119,22 @@ function splitValues(value: string | undefined) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function normalizeOptionCodes(values: string[]) {
+  return [
+    ...new Set(
+      values
+        .map((value) => OPTION_ALIASES.get(value.trim().toLocaleLowerCase("fr-FR")) ?? value.trim())
+        .filter((value) => AVAILABLE_OPTIONS.some((option) => option.code === value))
+    ),
+  ];
+}
+
+function optionLabels(codes: string[]) {
+  return codes
+    .map((code) => AVAILABLE_OPTIONS.find((option) => option.code === code)?.label)
+    .filter((label): label is string => Boolean(label));
 }
 
 function formatDate(value: string | undefined, fallback = "") {
@@ -175,6 +198,9 @@ type DemandSessionCache = {
   chatHumanReview: boolean;
   chatEmail: string | null;
   chatExtracted: ChatExtracted;
+  selectedOptions?: string[];
+  multiDestination?: boolean;
+  stops?: string[];
 };
 
 function useDebouncedValue<T>(value: T, delayMs: number) {
@@ -259,7 +285,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   );
   const demand = useMemo(() => {
     const intermediateStops = splitValues(initialDemand.intermediateStops);
-    const options = splitValues(initialDemand.options);
+    const options = normalizeOptionCodes(splitValues(initialDemand.options));
     const departure = clean(initialDemand.departure);
     const arrival = clean(initialDemand.arrival);
     const departureDate = formatDate(initialDemand.departureDate);
@@ -294,9 +320,9 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   const [qualifiedLeadId, setQualifiedLeadId] = useState<string | null>(null);
   const [chatHumanReview, setChatHumanReview] = useState(false);
   const [chatEmail, setChatEmail] = useState<string | null>(null);
-  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
-  const [multiDestination, setMultiDestination] = useState(false);
-  const [stops, setStops] = useState<string[]>([]);
+  const [selectedOptions, setSelectedOptions] = useState<string[]>(() => demand.options);
+  const [multiDestination, setMultiDestination] = useState(() => demand.intermediateStops.length > 0);
+  const [stops, setStops] = useState<string[]>(() => demand.intermediateStops);
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [chatExtracted, setChatExtracted] = useState<ChatExtracted>({
     departureCity: null,
@@ -320,6 +346,9 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
       setChatHumanReview(cached.chatHumanReview);
       setChatEmail(cached.chatEmail);
       setChatExtracted(cached.chatExtracted);
+      setSelectedOptions(normalizeOptionCodes(cached.selectedOptions ?? []));
+      setMultiDestination(Boolean(cached.multiDestination));
+      setStops(cached.stops ?? []);
     }
     hydratedRef.current = true;
   }, []);
@@ -334,8 +363,11 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
       chatHumanReview,
       chatEmail,
       chatExtracted,
+      selectedOptions,
+      multiDestination,
+      stops,
     });
-  }, [chatMessages, currentLeadId, qualifiedLeadId, chatHumanReview, chatEmail, chatExtracted]);
+  }, [chatMessages, currentLeadId, qualifiedLeadId, chatHumanReview, chatEmail, chatExtracted, selectedOptions, multiDestination, stops]);
 
   // activeDemand: fusionne URL params + ce que le chat a extrait + éditions manuelles
   const activeDemand = useMemo(() => ({
@@ -349,8 +381,8 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
         ? Number(demand.passengers)
         : null),
     tripType: chatExtracted.tripType ?? (initialDemand.tripType === "one_way" ? "one_way" as const : initialDemand.tripType ? "round_trip" as const : null),
-    options: demand.options,
-  }), [chatExtracted, demand, initialDemand]);
+    options: selectedOptions,
+  }), [chatExtracted, demand, initialDemand, selectedOptions]);
 
   // Client-side validation mirrors the server (same shared validators) for instant
   // feedback on manual edits. The quote button is gated on these.
@@ -433,7 +465,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   const mapRef = useRef<LeafletMap | null>(null);
   const routeLayersRef = useRef<LeafletLayer[]>([]);
   const chatMessagesRef = useRef<HTMLDivElement | null>(null);
-  const mainStop = demand.intermediateStops[0];
+  const mainStop = stops[0];
 
   useEffect(() => {
     const container = chatMessagesRef.current;
@@ -518,7 +550,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
       const ef = data.extractedFields;
       if (ef) {
         if (ef.email) setChatEmail(ef.email);
-        if (ef.options?.length) setSelectedOptions((prev) => [...new Set([...prev, ...ef.options!])]);
+        if (ef.options?.length) setSelectedOptions((prev) => normalizeOptionCodes([...prev, ...ef.options!]));
         if (ef.multiDestination) setMultiDestination(true);
         if (ef.stops?.length) setStops(ef.stops);
         setChatExtracted((prev) => ({
@@ -682,13 +714,14 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   const routeInput = useMemo(() => {
     const departure = normalizeRouteLabel(activeDemand.departureCity);
     const arrival = normalizeRouteLabel(activeDemand.arrivalCity);
-    const intermediateStops = demand.intermediateStops
+    const intermediateStops = stops
       .map(normalizeRouteLabel)
       .filter(isRouteLabelReady);
 
     return { departure, arrival, intermediateStops };
-  }, [activeDemand.departureCity, activeDemand.arrivalCity, demand.intermediateStops]);
+  }, [activeDemand.departureCity, activeDemand.arrivalCity, stops]);
   const debouncedRouteInput = useDebouncedValue(routeInput, ROUTE_PREVIEW_DEBOUNCE_MS);
+  const selectedOptionLabels = optionLabels(selectedOptions);
 
   useEffect(() => {
     if (!isRouteLabelReady(debouncedRouteInput.departure) || !isRouteLabelReady(debouncedRouteInput.arrival)) {
@@ -920,7 +953,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
                   <strong>Vous</strong>
                   <p>
                     {mainStop ? `Une étape à ${mainStop}. ` : ""}
-                    Options demandées : {demand.options.join(", ") || "aucune option particulière"}.
+                    Options demandées : {selectedOptionLabels.join(", ") || "aucune option particulière"}.
                   </p>
                 </div>
               </>
