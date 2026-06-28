@@ -3,6 +3,10 @@ import type { DemandDraft, TripType } from "@/shared/types/lead";
 const cityPairPattern = /\b([A-ZÀ-Ÿ][\p{L} -]{1,40})\s*(?:->|→|vers|a|à)\s*([A-ZÀ-Ÿ][\p{L} -]{1,40})\b/u;
 const passengerPattern = /(\d{1,3})\s*(?:passagers?|personnes?|pax)\b/i;
 const simpleCityPairPattern = /^\s*([\p{L}'-]{2,40})\s+([\p{L}'-]{2,40})\s*$/u;
+const explicitDepartureArrivalPattern =
+ /\b(?:depart|départ)\s+([\p{L}' -]{2,40}?)\s+(?:arrivee|arrivée|destination|vers|a|à)\s+([\p{L}' -]{2,40})\b/iu;
+const fromToPattern = /\bde\s+([\p{L}' -]{2,40}?)\s+(?:a|à|vers)\s+([\p{L}' -]{2,40})\b/iu;
+const lowerCityPairPattern = /\b([\p{L}'-]{2,40})\s*(?:->|→|vers|a|à)\s*([\p{L}'-]{2,40})\b/iu;
 const emailPattern = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 const isoDatePattern = /\b(20\d{2}-\d{2}-\d{2})\b/;
 const frenchDatePattern =
@@ -28,9 +32,11 @@ const frenchMonths: Record<string, string> = {
 
 function cleanCity(value: string) {
  return value
+  .replace(/^(de|depart|départ|arrivee|arrivée|destination)\s+/i, "")
   .replace(/\s+(aujourd'hui|aujourdhui|demain)\b.*$/i, "")
-  .replace(/\s+(le|pour|avec)\s*$/i, "")
-  .replace(/\s+(le|pour|avec)\s.+$/i, "")
+  .replace(/\s+(le|pour|avec|date|passagers?|personnes?|pax|retour|aller|option|options)\s*$/i, "")
+  .replace(/\s+(le|pour|avec|date|passagers?|personnes?|pax|retour|aller|option|options)\s.+$/i, "")
+  .replace(/[.,;:!?]+$/g, "")
   .trim();
 }
 
@@ -39,6 +45,39 @@ function titleCity(value: string) {
   .trim()
   .toLowerCase()
   .replace(/(^|[\s'-])(\p{L})/gu, (_match, prefix: string, letter: string) => `${prefix}${letter.toUpperCase()}`);
+}
+
+function detectRoute(message: string) {
+ const lines = message
+  .split(/\r?\n/)
+  .map((line) => line.trim())
+  .filter(Boolean)
+  .reverse();
+
+ for (const line of lines) {
+  const explicitMatch =
+   line.match(explicitDepartureArrivalPattern) ?? line.match(fromToPattern) ?? line.match(cityPairPattern) ?? line.match(lowerCityPairPattern);
+
+  if (explicitMatch?.[1] && explicitMatch[2]) {
+   return {
+    departureCity: titleCity(cleanCity(explicitMatch[1])),
+    arrivalCity: titleCity(cleanCity(explicitMatch[2]))
+   };
+  }
+
+  const simpleMatch = line.match(simpleCityPairPattern);
+  if (simpleMatch?.[1] && simpleMatch[2] && !/^(depart|départ|arrivee|arrivée|de)$/i.test(simpleMatch[1])) {
+   return {
+    departureCity: titleCity(cleanCity(simpleMatch[1])),
+    arrivalCity: titleCity(cleanCity(simpleMatch[2]))
+   };
+  }
+ }
+
+ return {
+  departureCity: null,
+  arrivalCity: null
+ };
 }
 
 function detectTripType(message: string): TripType | null {
@@ -86,8 +125,7 @@ function detectDepartureDate(message: string) {
 }
 
 export async function extractDemandInfo(message: string): Promise<DemandDraft> {
- const routeMatch = message.match(cityPairPattern);
- const simpleRouteMatch = routeMatch ? null : message.match(simpleCityPairPattern);
+ const route = detectRoute(message);
  const passengerMatch = message.match(passengerPattern);
  const emailMatch = message.match(emailPattern);
 
@@ -95,8 +133,8 @@ export async function extractDemandInfo(message: string): Promise<DemandDraft> {
   rawMessage: message,
   organization: detectOrganization(message, emailMatch?.[0]),
   email: emailMatch?.[0] ?? null,
-  departureCity: routeMatch?.[1] ? cleanCity(routeMatch[1]) : simpleRouteMatch?.[1] ? titleCity(simpleRouteMatch[1]) : null,
-  arrivalCity: routeMatch?.[2] ? cleanCity(routeMatch[2]) : simpleRouteMatch?.[2] ? titleCity(simpleRouteMatch[2]) : null,
+  departureCity: route.departureCity,
+  arrivalCity: route.arrivalCity,
   departureDate: detectDepartureDate(message),
   returnDate: null,
   passengerCount: passengerMatch ? Number(passengerMatch[1]) : null,
