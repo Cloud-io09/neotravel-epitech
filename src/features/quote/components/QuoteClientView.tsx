@@ -249,18 +249,6 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
 
           <QuoteClientActions quoteId={quoteId} initialStatus={storedQuote.status} />
         </article>
-
-        <aside className={styles.sideFlow}>
-          <h2>Envoi client</h2>
-          <ol>
-            <li>Calcul devis</li>
-            <li>Passage regles metier</li>
-            <li>Generation PDF</li>
-            <li>Log horodate</li>
-            <li>Email + espace client</li>
-          </ol>
-          <span>Pret a envoyer</span>
-        </aside>
       </div>
     </main>
   );

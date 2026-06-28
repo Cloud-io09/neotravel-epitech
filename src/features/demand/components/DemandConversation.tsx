@@ -423,8 +423,6 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   const routeLayersRef = useRef<LeafletLayer[]>([]);
   const chatMessagesRef = useRef<HTMLDivElement | null>(null);
   const mainStop = demand.intermediateStops[0];
-  const demoOrganization = "Alpha Conseil";
-  const demoEmail = "client@neotravel.fr";
 
   useEffect(() => {
     const container = chatMessagesRef.current;
@@ -539,104 +537,43 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
       return;
     }
 
-    // Chat / manual-edit path: persist the current (possibly corrected) state to the
-    // lead, let the server re-validate, then quote only if it comes back QUALIFIED.
-    if (currentLeadId) {
-      setIsGeneratingQuote(true);
-      try {
-        const syncResponse = await fetch("/api/leads/sync", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            leadId: currentLeadId,
-            departureCity: activeDemand.departureCity,
-            arrivalCity: activeDemand.arrivalCity,
-            departureDate: activeDemand.departureDate,
-            returnDate: activeDemand.tripType === "round_trip" ? activeDemand.returnDate : null,
-            passengerCount: activeDemand.passengerCount,
-            tripType: activeDemand.tripType,
-            options: activeDemand.options,
-            email: normalizeEmailForApi(chatEmail),
-          }),
-        });
-        const sync = (await syncResponse.json()) as {
-          status: string;
-          message: string;
-          leadId?: string;
-        };
-        if (sync.status !== "QUALIFIED" || !sync.leadId) {
-          setWorkflowError(sync.message || "Il manque encore quelques informations pour préparer le devis.");
-          return;
-        }
-
-        const quoteResponse = await fetch("/api/quotes", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ leadId: sync.leadId }),
-        });
-        if (!quoteResponse.ok) throw new Error("QUOTE_GENERATION_FAILED");
-        const quote = (await quoteResponse.json()) as { id: string };
-        clearDemandSession();
-        router.push(`/client/devis/${quote.id}`);
-      } catch {
-        setWorkflowError("Nous n’avons pas pu préparer le devis pour l’instant. Vous pouvez réessayer ou nous contacter.");
-      } finally {
-        setIsGeneratingQuote(false);
-      }
-      return;
-    }
-
-    // Fallback: URL-param flow (pre-filled demand from homepage form). With no lead yet,
-    // we need the homepage pre-fill to create one.
-    if (!hasInitialDemand) {
-      setWorkflowError("Décrivez votre trajet dans le chat pour démarrer votre demande.");
-      return;
-    }
-
+    // One path for both chat and manual side-panel entry: persist the current form state
+    // to a lead (the sync route CREATES one when no leadId is given), attach the email so
+    // a client exists for the devis, let the server validate, then quote. No need to talk
+    // to the AI first.
     setIsGeneratingQuote(true);
     try {
-      const leadResponse = await fetch("/api/leads", {
+      const syncResponse = await fetch("/api/leads/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          rawMessage: `Demande client ${demoOrganization} ${demoEmail} : ${demand.departure} vers ${demand.arrival}`,
-          organization: demoOrganization,
-          email: demoEmail,
-          departureCity: demand.departure,
-          arrivalCity: demand.arrival,
-          departureDate: initialDemand.departureDate?.trim() || null,
-          returnDate: initialDemand.tripType === "one_way" ? null : initialDemand.returnDate?.trim() || null,
-          passengerCount: Number.isFinite(Number(demand.passengers)) ? Number(demand.passengers) : null,
-          tripType: initialDemand.tripType === "one_way" ? "one_way" : "round_trip",
-          options: demand.options,
-          qualify: true,
+          ...(currentLeadId ? { leadId: currentLeadId } : {}),
+          departureCity: activeDemand.departureCity,
+          arrivalCity: activeDemand.arrivalCity,
+          departureDate: activeDemand.departureDate,
+          returnDate: activeDemand.tripType === "round_trip" ? activeDemand.returnDate : null,
+          passengerCount: activeDemand.passengerCount,
+          tripType: activeDemand.tripType,
+          options: activeDemand.options,
+          email: normalizeEmailForApi(chatEmail),
         }),
       });
-
-      if (!leadResponse.ok) throw new Error("LEAD_CREATION_FAILED");
-      const leadPayload = (await leadResponse.json()) as {
-        leadId: string;
-        qualification?: { status: string; missingFields?: string[]; humanReviewReason?: string | null };
+      const sync = (await syncResponse.json()) as {
+        status: string;
+        message: string;
+        leadId?: string;
       };
-
-      if (leadPayload.qualification?.status === "HUMAN_REVIEW") {
-        setWorkflowError(
-          leadPayload.qualification.humanReviewReason ??
-            "Un conseiller doit vérifier votre demande avant la préparation du devis.",
-        );
+      if (sync.status !== "QUALIFIED" || !sync.leadId) {
+        setWorkflowError(sync.message || "Il manque encore quelques informations pour préparer le devis.");
         return;
       }
-      if (leadPayload.qualification?.status === "INCOMPLETE") {
-        setWorkflowError("Il manque encore quelques informations pour préparer le devis.");
-        return;
-      }
+      setCurrentLeadId(sync.leadId);
 
       const quoteResponse = await fetch("/api/quotes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadId: leadPayload.leadId }),
+        body: JSON.stringify({ leadId: sync.leadId }),
       });
-
       if (!quoteResponse.ok) throw new Error("QUOTE_GENERATION_FAILED");
       const quote = (await quoteResponse.json()) as { id: string };
       clearDemandSession();
