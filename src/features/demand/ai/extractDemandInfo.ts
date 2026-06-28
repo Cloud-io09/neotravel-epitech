@@ -56,8 +56,9 @@ function cleanCity(value: string) {
  return value
   .replace(/^(ville de depart|point de depart|depart|depuis|ville d'arrivee|arrivee|destination|vers|de|a)\s+/i, "")
   .replace(/\s+(aujourd'hui|aujourdhui|demain)\b.*$/i, "")
-  .replace(/\s+(le|pour|avec|date|passagers?|personnes?|pax|retour|aller|option|options)\s*$/i, "")
-  .replace(/\s+(le|pour|avec|date|passagers?|personnes?|pax|retour|aller|option|options)\s.+$/i, "")
+  .replace(/\s+(pour|avec|date|passagers?|personnes?|pax|retour|aller|option|options)\s*$/i, "")
+  .replace(/\s+(le|pour|avec|date|passagers?|personnes?|pax|retour|aller|option|options)\s+\d.*$/i, "")
+  .replace(/\s+(pour|avec|date|passagers?|personnes?|pax|retour|aller|option|options)\s.+$/i, "")
   .replace(/[.,;:!?]+$/g, "")
   .replace(/\s+/g, " ")
   .trim();
@@ -86,11 +87,19 @@ function isCityOnlyLine(value: string) {
 
 function extractPairFromLine(line: string) {
  const normalized = normalizeForParsing(line);
- const cityPart = "([\\p{L}' -]{2,60}?)";
+ const departureCityPart = "([\\p{L}' -]{2,60}?)";
+ const arrivalCityPart = "([\\p{L}' -]{2,80})";
+ const routeSeparator = "(?:\\s*->\\s*|\\s+vers\\s+|\\s+a\\s+)";
  const patterns = [
-  new RegExp(`\\b(?:depart|ville de depart|point de depart)\\s*:?\\s*${cityPart}\\s+(?:arrivee|ville d'arrivee|destination|vers|a|->)\\s*:?\\s*${cityPart}\\b`, "iu"),
-  new RegExp(`\\b(?:de|depuis)\\s+${cityPart}\\s+(?:a|vers|jusqu'a|jusqua|->)\\s+${cityPart}\\b`, "iu"),
-  new RegExp(`\\b${cityPart}\\s*(?:->|vers|a)\\s*${cityPart}\\b`, "iu")
+  new RegExp(
+   `\\b(?:depart|ville de depart|point de depart)\\s*:?\\s*${departureCityPart}\\s+(?:arrivee|ville d'arrivee|destination|vers|a|->)\\s*:?\\s*${arrivalCityPart}(?:\\b|$)`,
+   "iu"
+  ),
+  new RegExp(
+   `\\b(?:de|depuis)\\s+${departureCityPart}\\s+(?:a|vers|jusqu'a|jusqua|->)\\s+${arrivalCityPart}(?:\\b|$)`,
+   "iu"
+  ),
+  new RegExp(`\\b${departureCityPart}${routeSeparator}${arrivalCityPart}(?:\\b|$)`, "iu")
  ];
 
  for (const pattern of patterns) {
