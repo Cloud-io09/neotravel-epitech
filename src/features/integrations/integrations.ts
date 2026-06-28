@@ -31,7 +31,11 @@ export function getIntegrationsStatus(): IntegrationStatus[] {
     isSet(env.NEXT_PUBLIC_SUPABASE_URL) && isSet(env.NEXT_PUBLIC_SUPABASE_ANON_KEY) && isSet(env.SUPABASE_SERVICE_ROLE_KEY);
   const aiConnected = isSet(env.AI_GATEWAY_API_KEY) || isSet(env.AI_API_KEY);
   const aiProvider = isSet(env.AI_GATEWAY_API_KEY) ? "Vercel AI Gateway" : isSet(env.AI_API_KEY) ? "OpenRouter" : "mock";
-  const n8nConnected = isSet(env.N8N_BASE_URL);
+  const n8nConnected =
+    isSet(env.N8N_CUSTOMER_EMAIL_WEBHOOK) ||
+    isSet(env.N8N_SEND_QUOTE_WEBHOOK) ||
+    isSet(env.N8N_FOLLOWUP_WEBHOOK) ||
+    isSet(env.N8N_BASE_URL);
 
   return [
     {
@@ -76,6 +80,7 @@ export function getIntegrationsStatus(): IntegrationStatus[] {
       fields: withStatus([
         { key: "N8N_BASE_URL", label: "URL n8n", placeholder: "https://n8n.exemple.com" },
         { key: "N8N_WEBHOOK_SECRET", label: "Secret webhook", secret: true },
+        { key: "N8N_CUSTOMER_EMAIL_WEBHOOK", label: "Webhook emails clients" },
         { key: "N8N_SEND_QUOTE_WEBHOOK", label: "Webhook envoi devis" },
         { key: "N8N_FOLLOWUP_WEBHOOK", label: "Webhook relances" }
       ])

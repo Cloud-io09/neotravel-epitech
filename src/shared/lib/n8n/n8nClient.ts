@@ -1,5 +1,14 @@
-export async function n8nClient(workflow: string, payload: unknown) {
+export type N8nClientResult = {
+  workflow: string;
+  simulated: boolean;
+  payload?: unknown;
+  status?: number;
+  ok?: boolean;
+};
+
+export async function n8nClient(workflow: string, payload: unknown): Promise<N8nClientResult> {
   const webhookByWorkflow: Record<string, string | undefined> = {
+    "customer-email": process.env.N8N_CUSTOMER_EMAIL_WEBHOOK,
     "send-quote": process.env.N8N_SEND_QUOTE_WEBHOOK,
     followup: process.env.N8N_FOLLOWUP_WEBHOOK,
     "human-review-notify": process.env.N8N_HUMAN_REVIEW_WEBHOOK,

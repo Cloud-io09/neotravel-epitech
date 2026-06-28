@@ -1,27 +1,23 @@
 export const runtime = "nodejs";
 
-import { triggerFollowup } from "@/shared/lib/n8n/triggerFollowup";
+import { sendFollowupEmail } from "@/features/emails/services/customerEmailService";
+import { isN8nRequestAuthorized } from "@/shared/lib/n8n/authorizeN8nRequest";
+import { handleApiError, jsonError, jsonOk } from "@/shared/lib/utils/apiResponse";
 import { z } from "zod";
-import { handleApiError, jsonOk } from "@/shared/lib/utils/apiResponse";
 
-const FollowupWebhookSchema = z.object({
-  quoteId: z.string().min(1),
-  email: z.string().email(),
-  preview: z.string().min(1),
-  scheduledAt: z.string().min(1)
+const FollowupSchema = z.object({
+  followupId: z.string().uuid(),
+  force: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
   try {
-    const body = FollowupWebhookSchema.parse(await request.json());
-    return jsonOk(
-      await triggerFollowup({
-        quote_id: body.quoteId,
-        email: body.email,
-        preview: body.preview,
-        scheduled_at: body.scheduledAt
-      })
-    );
+    if (!(await isN8nRequestAuthorized(request))) {
+      return jsonError("UNAUTHORIZED", "Secret n8n ou session admin requis.", 401);
+    }
+
+    const body = FollowupSchema.parse(await request.json());
+    return jsonOk(await sendFollowupEmail({ followupId: body.followupId, triggeredBy: "n8n", force: body.force }));
   } catch (error) {
     return handleApiError(error);
   }

@@ -29,7 +29,6 @@ export function QuoteClientActions({
   const [state, setState] = useState<ActionState>(
     alreadyClosed ? "accepted" : "idle",
   );
-  const [email, setEmail] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [downloadLanguage, setDownloadLanguage] = useState<LanguageCode>(defaultLanguage);
 
@@ -53,9 +52,8 @@ export function QuoteClientActions({
     setErrorMessage(null);
 
     try {
-      const result = (await postQuoteAction(quoteId, action)) as { email?: string | null };
+      await postQuoteAction(quoteId, action);
       if (action === "accept") {
-        setEmail(result.email ?? null);
         setState("accepted");
       } else {
         setState("refused");
@@ -75,11 +73,9 @@ export function QuoteClientActions({
           </a>
         </div>
         <p className={styles.actionMessage}>
-          {alreadyClosed && state === "accepted" && !email
+          {alreadyClosed && state === "accepted"
             ? "Ce devis a deja ete finalise."
-            : email
-              ? `Devis accepte. Recapitulatif envoye a ${email}. Notre equipe vous contacte sous 48h.`
-              : "Devis accepte. Notre equipe vous contactera sous 48h."}
+            : "Devis accepte. Notre equipe vous contactera sous 48h."}
         </p>
       </div>
     );

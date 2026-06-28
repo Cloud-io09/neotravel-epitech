@@ -4,7 +4,6 @@ import { logAuditEvent } from "@/lib/audit/audit-service";
 import { markHumanReview, updateLeadStatus } from "@/lib/leads/lead-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { AppError } from "@/shared/lib/utils/errors";
-import { triggerSendQuote } from "@/shared/lib/n8n/triggerSendQuote";
 
 export const QuoteActionParamsSchema = z.object({
   quoteId: z.string().uuid(),
@@ -19,15 +18,13 @@ type StoredQuote = {
   id: string;
   lead_id: string | null;
   status: "QUOTE_READY" | "QUOTE_SENT" | "CLOSED";
-  quote_number?: string;
-  price_ttc?: number;
 };
 
 async function requireQuote(quoteId: string): Promise<StoredQuote> {
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase
     .from("quotes")
-    .select("id, lead_id, status, quote_number, price_ttc")
+    .select("id, lead_id, status")
     .eq("id", quoteId)
     .maybeSingle();
 
@@ -62,24 +59,7 @@ export async function acceptQuote(quoteId: string) {
     metadata: { leadId: quote.lead_id },
   });
 
-  // Load the lead's email via the clients join (email is in clients, not leads)
-  const supabase = createServerSupabaseClient();
-  const { data: leadData } = await supabase
-    .from("leads")
-    .select("clients(email)")
-    .eq("id", quote.lead_id!)
-    .maybeSingle();
-  const clientRow = (leadData as { clients?: { email?: string | null } | { email?: string | null }[] | null } | null)?.clients;
-  const email = (Array.isArray(clientRow) ? clientRow[0]?.email : clientRow?.email) ?? null;
-
-  if (email && quote.quote_number) {
-    const priceTtc = quote.price_ttc ?? 0;
-    const formatted = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(priceTtc);
-    const preview = `Devis NeoTravel N° ${quote.quote_number} — ${formatted} TTC`;
-    triggerSendQuote({ quote_id: quote.id, email, preview, scheduled_at: new Date().toISOString() }).catch(() => {});
-  }
-
-  return { id: quote.id, leadId: quote.lead_id, status: "CLOSED", email };
+  return { id: quote.id, leadId: quote.lead_id, status: "CLOSED" };
 }
 
 export async function refuseQuote(quoteId: string) {

@@ -271,7 +271,9 @@ SUPABASE_SERVICE_KEY=
 RESEND_API_KEY=
 ORS_API_KEY=
 DEMO_MODE=true
-N8N_WEBHOOK_URL=
+NEXT_PUBLIC_APP_URL=
+N8N_CUSTOMER_EMAIL_WEBHOOK=
+N8N_WEBHOOK_SECRET=
 ```
 
 `DEMO_MODE=true` force le seed `route_pricing` — zéro dépendance réseau le jour J.

@@ -14,6 +14,7 @@ import { detectIntermediateStops } from "../../../lib/ai/detect-intermediate-sto
 import { validateLead } from "../../../lib/ai/validate-lead";
 import { getChatModel } from "../../../lib/ai/provider";
 import { sanitizeExtractionDelta } from "../../../lib/ai/sanitize-extraction-delta";
+import { sendLeadStatusEmail } from "../../../features/emails/services/customerEmailService";
 
 export const runtime = "nodejs";
 const DEFAULT_QUALIFICATION_TIMEOUT_MS = 30_000;
@@ -252,6 +253,10 @@ Message : ${latestUserText}`,
 
     if (lead.has_intermediate_stop) {
       const reason = "INTERMEDIATE_STOP_REQUIRES_MANUAL_ROUTE";
+      void sendLeadStatusEmail({
+        leadId: leadResult.leadId,
+        scenario: "DEMAND_IN_PROGRESS",
+      }).catch(() => {});
       logAgentEvent(
         requestId,
         "request_completed",
@@ -272,6 +277,10 @@ Message : ${latestUserText}`,
     // HUMAN_REVIEW so the quote endpoint refuses it.
     if (review === "PAX_OVER_85") {
       await markHumanReview(leadResult.leadId, "PAX_OVER_85");
+      void sendLeadStatusEmail({
+        leadId: leadResult.leadId,
+        scenario: "DEMAND_IN_PROGRESS",
+      }).catch(() => {});
       logAgentEvent(
         requestId,
         "request_completed",
@@ -317,6 +326,10 @@ Message : ${latestUserText}`,
         { status: "INCOMPLETE", blocking, leadId: leadResult.leadId },
         startedAt,
       );
+      void sendLeadStatusEmail({
+        leadId: leadResult.leadId,
+        scenario: "DEMAND_INCOMPLETE",
+      }).catch(() => {});
 
       return chatJson({
         status: "INCOMPLETE",
