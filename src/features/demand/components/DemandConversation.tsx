@@ -348,6 +348,24 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   );
   const hasAnyDemand = Boolean(activeDemand.departureCity || activeDemand.arrivalCity || activeDemand.passengerCount || activeDemand.departureDate);
   const requiresHumanReview = hasAnyDemand && demoBlockingMissingFields.length > 0;
+
+  // Quote readiness is decided form-side, from the side-panel fields — NOT from the AI's
+  // qualification status. These are exactly the 5 fields the server needs to price.
+  // returnDate and email are intentionally optional (server doesn't require them).
+  const criticalLabels: Record<string, string> = {
+    departureCity: "ville de départ",
+    arrivalCity: "ville d'arrivée",
+    departureDate: "date de départ",
+    passengerCount: "nombre de passagers",
+    tripType: "type de trajet (aller simple / aller-retour)",
+  };
+  const criticalMissing = (
+    ["departureCity", "arrivalCity", "departureDate", "passengerCount", "tripType"] as const
+  ).filter((key) => {
+    const value = activeDemand[key];
+    return value === null || value === undefined || value === "";
+  });
+  const formReady = criticalMissing.length === 0 && !hasBlockingWarning;
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const routeLayersRef = useRef<LeafletLayer[]>([]);
@@ -459,6 +477,12 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
       return;
     }
 
+    if (!formReady) {
+      const missing = criticalMissing.map((key) => criticalLabels[key]).join(", ");
+      setWorkflowError(`Complétez le trajet pour recevoir votre devis : ${missing}.`);
+      return;
+    }
+
     // Chat / manual-edit path: persist the current (possibly corrected) state to the
     // lead, let the server re-validate, then quote only if it comes back QUALIFIED.
     if (currentLeadId) {
@@ -505,9 +529,10 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
       return;
     }
 
-    // Fallback: URL-param flow (pre-filled demand from homepage form)
-    if (!hasInitialDemand || demoBlockingMissingFields.length > 0) {
-      setWorkflowError("Conversez d'abord avec l'IA pour qualifier votre trajet.");
+    // Fallback: URL-param flow (pre-filled demand from homepage form). With no lead yet,
+    // we need the homepage pre-fill to create one.
+    if (!hasInitialDemand) {
+      setWorkflowError("Décrivez votre trajet dans le chat pour démarrer votre demande.");
       return;
     }
 
@@ -822,32 +847,32 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
               </Link>
             ) : userInput.trim() ? (
               <button
-                className={styles.primaryButton}
+                className={styles.sendButton}
                 type="button"
                 disabled={isSending}
                 onClick={() => void sendMessage()}
               >
-                {isSending ? "Envoi..." : "Envoyer"}
+                {isSending ? "Envoi en cours…" : "Envoyer mon message"}
               </button>
             ) : (
               <button
                 className={styles.primaryButton}
                 type="button"
-                disabled={isGeneratingQuote || hasBlockingWarning || (!hasInitialDemand && !qualifiedLeadId) || (Boolean(qualifiedLeadId) && !chatEmail && !hasInitialDemand)}
+                disabled={isGeneratingQuote || !formReady}
                 onClick={() => void generateClientQuote()}
               >
-                {isGeneratingQuote
-                  ? "Creation du devis..."
-                  : qualifiedLeadId || hasInitialDemand
-                    ? "Recevoir mon devis"
-                    : "Demarrer avec le chat"}
+                {isGeneratingQuote ? "Création du devis…" : "Recevoir mon devis"}
               </button>
             )}
           </div>
           {hasBlockingWarning ? (
             <p className={styles.workflowError}>{fieldWarnings.find((w) => w.blocking)?.message}</p>
-          ) : qualifiedLeadId && !chatEmail && !hasInitialDemand ? (
-            <p className={styles.workflowError}>Donnez votre email dans la conversation pour recevoir le devis.</p>
+          ) : !formReady && hasAnyDemand ? (
+            <p className={styles.workflowHint}>
+              Encore besoin de : {criticalMissing.map((key) => criticalLabels[key]).join(", ")}.
+            </p>
+          ) : formReady ? (
+            <p className={styles.workflowReady}>Trajet complet — vous pouvez recevoir votre devis.</p>
           ) : null}
           {workflowError ? <p className={styles.workflowError}>{workflowError}</p> : null}
         </section>
@@ -917,7 +942,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
                 </label>
                 {activeDemand.tripType === "round_trip" ? (
                   <label className={warningFor("returnDate") ? styles.fieldInvalid : undefined}>
-                    <span>Date de retour</span>
+                    <span>Date de retour facultative</span>
                     <input
                       type="date"
                       value={activeDemand.returnDate ?? ""}

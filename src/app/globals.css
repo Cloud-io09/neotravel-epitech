@@ -30,6 +30,12 @@ textarea {
   font: inherit;
 }
 
+/* Links: no legacy underline by default (high-contrast mode re-adds it via !important). */
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
 .shell {
   display: grid;
   grid-template-columns: minmax(320px, 520px) minmax(320px, 520px);

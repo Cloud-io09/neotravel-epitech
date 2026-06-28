@@ -382,14 +382,6 @@ export async function PricingDashboardPage() {
     title="Tarification"
     subtitle="Tarifs déterministes modifiables manuellement. Le prix n'est jamais calculé par l'IA."
    />
-   <KpiGrid
-    kpis={[
-     { label: "Règles tarifaires", value: pricingRules.length, tone: "blue" },
-     { label: "Édition", value: "Manuelle", tone: "blue" },
-     { label: "Source du prix", value: "calculerDevis()", tone: "green" },
-     { label: "Recalcul IA", value: "Interdit", tone: "red" }
-    ]}
-   />
    <PricingSettingsEditor pricingRules={pricingRules} />
    <Note>Toute modification d'un tarif doit être testée et auditée avant mise en production.</Note>
   </main>

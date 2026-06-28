@@ -859,3 +859,49 @@
     flex-direction: column;
   }
 }
+
+/* --- Send button (distinct from the red devis CTA) + neutral/ready messages --- */
+.sendButton {
+  display: inline-flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  padding: 0 16px;
+  color: #ffffff;
+  background: #123885;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.sendButton:hover {
+  background: #0e2c69;
+}
+
+.sendButton:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.workflowHint {
+  margin: -4px 0 0;
+  border: 1px solid #cfe0f5;
+  border-radius: 14px;
+  padding: 11px 13px;
+  color: #1c4a8a;
+  background: #eef5fd;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.workflowReady {
+  margin: -4px 0 0;
+  border: 1px solid #bfe8d2;
+  border-radius: 14px;
+  padding: 11px 13px;
+  color: #0b7a4b;
+  background: #e9f9f0;
+  font-size: 13px;
+  font-weight: 800;
+}
