@@ -11,6 +11,7 @@ import { buildQualificationResponse } from "../../../lib/ai/qualification-respon
 import { generateAssistantReply, type ReplyTurn } from "../../../lib/ai/generate-reply";
 import { extractTurnFacts } from "../../../lib/ai/extract-turn-facts";
 import { detectIntermediateStops } from "../../../lib/ai/detect-intermediate-stops";
+import { detectOptions } from "../../../lib/ai/detect-options";
 import { validateLead } from "../../../lib/ai/validate-lead";
 import { getChatModel } from "../../../lib/ai/provider";
 import { sanitizeExtractionDelta } from "../../../lib/ai/sanitize-extraction-delta";
@@ -175,6 +176,10 @@ Message : ${latestUserText}`,
     const rawExtractedDelta: ExtractionDelta = parseResult.success ? parseResult.data : {};
     const deterministicFacts = extractTurnFacts(latestUserText, existingQualification, today, lastAssistantText);
     const deterministicStops = detectIntermediateStops(latestUserText);
+    // Options are detected deterministically and unioned with what's already on the lead so
+    // earlier-turn options are never dropped. The LLM never touches options or their price.
+    const detectedOptions = detectOptions(latestUserText);
+    const mergedOptions = { ...(existingQualification.options ?? {}), ...detectedOptions };
     const extractedDelta = sanitizeExtractionDelta(
       rawExtractedDelta,
       deterministicFacts,
@@ -184,6 +189,7 @@ Message : ${latestUserText}`,
       ...extractedDelta,
       ...deterministicFacts,
       ...deterministicStops,
+      ...(Object.keys(mergedOptions).length > 0 ? { options: mergedOptions } : {}),
       departure_city: extractedDelta.departure_city ?? deterministicFacts.departure_city,
       arrival_city: extractedDelta.arrival_city ?? deterministicFacts.arrival_city,
     };

@@ -7,6 +7,8 @@ import type {
   PricingRules,
   QuoteBreakdown,
   QuoteInput,
+  QuoteOptionLine,
+  QuoteOptions,
   QuoteOutput,
   QuoteResult,
 } from "../domain/types";
@@ -55,7 +57,12 @@ export function calculer_devis(
   const coefficientAmountEur = roundCurrency(baseAfterTripTypeEur * (totalCoefficient - 1));
   const baseAfterCoefficientsEur = roundCurrency(baseAfterTripTypeEur * totalCoefficient);
   const tollPackageEur = normalizeControlledAmount(input.options?.tollPackageEur);
-  const optionsTotalEur = tollPackageEur;
+  const optionItems = buildOptionLines(input.options, tollPackageEur);
+  // Only options with an official/controlled amount add to the total. Placeholder lines
+  // (guide, nuit chauffeur, péages non chiffrés) carry amountEur 0 and never inflate it.
+  const optionsTotalEur = roundCurrency(
+    optionItems.reduce((sum, item) => sum + (item.pricingStatus === "PRICED" ? item.amountEur : 0), 0),
+  );
   const beforeMarginEur = roundCurrency(baseAfterCoefficientsEur + optionsTotalEur);
   const marginAmountEur = roundCurrency(beforeMarginEur * rules.marginRate);
   const priceHt = roundCurrency(beforeMarginEur + marginAmountEur);
@@ -83,6 +90,7 @@ export function calculer_devis(
       amountEur: coefficientAmountEur,
     },
     options: {
+      items: optionItems,
       tollPackageEur,
       totalEur: optionsTotalEur,
     },
@@ -124,6 +132,62 @@ export function calculer_devis(
   };
 
   return { ok: true, quote };
+}
+
+/**
+ * Builds the option breakdown lines. The engine is the ONLY place option lines are created.
+ * An option only carries a real amount when an official/controlled value exists (toll
+ * package). Otherwise the line is a 0 € placeholder explicitly marked TO_CONFIRM/INCLUDED —
+ * never presented as free, and never added to the total.
+ */
+function buildOptionLines(options: QuoteOptions | undefined, tollPackageEur: number): QuoteOptionLine[] {
+  const items: QuoteOptionLine[] = [];
+
+  const guideRequested = Boolean(options?.guide) || (options?.guideDays ?? 0) > 0;
+  const driverRequested = Boolean(options?.driverOvernight) || (options?.driverNights ?? 0) > 0;
+  const tollsRequested = Boolean(options?.tolls) || Boolean(options?.tollsIncluded) || tollPackageEur > 0;
+
+  if (guideRequested) {
+    items.push({
+      code: "guide",
+      label: "Guide / accompagnateur",
+      amountEur: 0,
+      pricingStatus: "TO_CONFIRM",
+      note: "À chiffrer commercialement",
+    });
+  }
+
+  if (driverRequested) {
+    items.push({
+      code: "driver_overnight",
+      label: "Nuit chauffeur",
+      amountEur: 0,
+      pricingStatus: "TO_CONFIRM",
+      note: "À confirmer selon organisation",
+    });
+  }
+
+  if (tollsRequested) {
+    items.push(
+      tollPackageEur > 0
+        ? {
+            code: "tolls",
+            label: "Péages",
+            amountEur: tollPackageEur,
+            pricingStatus: "PRICED",
+            note: "Forfait péages contrôlé",
+          }
+        : {
+            code: "tolls",
+            label: "Péages",
+            amountEur: 0,
+            pricingStatus: "INCLUDED",
+            note: "Inclus ou à confirmer selon trajet",
+          },
+    );
+  }
+
+  return items;
 }
 
 function validatePassengerCount(passengerCount: number): QuoteResult | null {

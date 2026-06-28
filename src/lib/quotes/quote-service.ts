@@ -241,6 +241,10 @@ function normalizeQuoteOptions(options: QuoteOptions | Record<string, unknown> |
     driverNights: toOptionalNumber(optionRecord.driverNights ?? optionRecord.driver_nights),
     tollsIncluded: toOptionalBoolean(optionRecord.tollsIncluded ?? optionRecord.tolls_included),
     tollPackageEur: toOptionalNumber(optionRecord.tollPackageEur ?? optionRecord.toll_package_eur),
+    // MVP requested-option flags stored on the lead (detected from the chat).
+    guide: toOptionalBoolean(optionRecord.guide),
+    driverOvernight: toOptionalBoolean(optionRecord.driverOvernight ?? optionRecord.driver_overnight),
+    tolls: toOptionalBoolean(optionRecord.tolls),
   };
 }
 

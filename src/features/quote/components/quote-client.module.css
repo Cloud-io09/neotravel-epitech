@@ -586,3 +586,43 @@
     box-shadow: none;
   }
 }
+
+/* --- Detected options (auditable lines in the quote detail) --- */
+.optionDetail {
+  margin-top: 14px;
+  border: 1px solid #e1e8f2;
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: #f8fafd;
+}
+
+.optionDetail h3 {
+  margin: 0 0 8px;
+  color: #0d2040;
+  font-size: 14px;
+}
+
+.optionDetailLine {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 0;
+  border-top: 1px solid #eef2f7;
+  font-size: 13px;
+}
+
+.optionDetailLine:first-of-type {
+  border-top: 0;
+}
+
+.optionDetailLine > span:first-child {
+  color: #17202e;
+  font-weight: 800;
+}
+
+.optionDetailLine > span:last-child {
+  color: #5b6573;
+  text-align: right;
+  font-weight: 600;
+}

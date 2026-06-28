@@ -59,9 +59,9 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
     lead?.departureCity && lead?.arrivalCity
       ? `${lead.departureCity} -> ${lead.arrivalCity}`
       : calculation.breakdown.routeLabel;
-  const options = lead?.options.length
-    ? lead.options
-    : calculation.breakdown.options.map((option) => option.label);
+  // Priced option lines from the engine — each carries a label, a note, and an amount that
+  // is 0 € only as a placeholder when no official price exists (never shown as free).
+  const optionLines = calculation.breakdown.options;
 
   return (
     <main className={styles.page}>
@@ -176,9 +176,11 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
               </div>
             </div>
             <div className={styles.optionChips}>
-              {(options.length ? options : ["Aucune option ajoutee"]).map((option) => (
-                <span key={option}>{option}</span>
-              ))}
+              {optionLines.length ? (
+                optionLines.map((option) => <span key={option.code}>{option.label}</span>)
+              ) : (
+                <span>Aucune option ajoutee</span>
+              )}
             </div>
           </section>
 
@@ -202,6 +204,22 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
                 </div>
               ))}
             </div>
+
+            {optionLines.length ? (
+              <div className={styles.optionDetail}>
+                <h3>Options demandees</h3>
+                {optionLines.map((option) => (
+                  <div className={styles.optionDetailLine} key={option.code}>
+                    <span>{option.label}</span>
+                    <span>
+                      {option.amountEur && option.amountEur > 0
+                        ? formatEuro(option.amountEur)
+                        : `${option.note ?? "À confirmer"} — 0 € placeholder MVP`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
 
             <div className={styles.validationAndTotals}>
               <div className={styles.validationBox}>

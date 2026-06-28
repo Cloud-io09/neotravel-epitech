@@ -34,6 +34,20 @@ export function storedQuoteCalculation(input: StoredQuoteCalculationInput): Quot
   const totals = breakdown.totals;
   const vat = breakdown.vat;
 
+  // Prefer the engine's explicit option items; fall back to the legacy toll-package shape
+  // for quotes generated before option lines existed.
+  const optionLines = (options?.items?.length
+    ? options.items.map((item) => ({
+        code: item.code,
+        label: item.label,
+        amountEur: money(item.amountEur),
+        note: item.note,
+        pricingStatus: item.pricingStatus,
+      }))
+    : options?.tollPackageEur
+      ? [{ code: "tolls", label: "Péages", amountEur: money(options.tollPackageEur), pricingStatus: "PRICED" as const, note: "Forfait péages contrôlé" }]
+      : []);
+
   const priceTtc = money(input.priceTtc ?? totals?.priceTtcEur);
   const priceHt = money(input.priceHt ?? totals?.priceHtEur);
   const vatRate = money(input.vatRate ?? vat?.rate ?? 0.1);
@@ -71,9 +85,7 @@ export function storedQuoteCalculation(input: StoredQuoteCalculationInput): Quot
       tariffKm: distance?.gridCeilingKm,
       formulaLabel: pricingMode,
       basePriceEur: money(distance?.oneWayBaseEur),
-      options: options?.tollPackageEur
-        ? [{ code: "toll_package", label: "Forfait péages", amountEur: money(options.tollPackageEur) }]
-        : [],
+      options: optionLines,
       optionsTotal,
       subtotal,
       seasonCoeff: money(coefficients?.seasonality),
