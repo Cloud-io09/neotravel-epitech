@@ -77,7 +77,7 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
         </Link>
 
         <nav className={styles.nav} aria-label="Parcours client">
-          <Link href="/demande">Conversation</Link>
+          <Link href="/client/demande">Conversation</Link>
           <span>Devis</span>
           <Link href="/contact">Contact</Link>
         </nav>
