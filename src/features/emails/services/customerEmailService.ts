@@ -172,7 +172,7 @@ export async function sendFollowupEmail(input: {
   if (!quote || !followup.quote_id) throw new AppError("Relance sans devis lié.", "NOT_FOUND");
 
   if (followup.status !== "scheduled" && !input.force) {
-    return skippedResult("FOLLOWUP_J2", lead, "FOLLOWUP_ALREADY_PROCESSED");
+    return skippedResult("FOLLOWUP_J1", lead, "FOLLOWUP_ALREADY_PROCESSED");
   }
 
   const scenario = await resolveFollowupScenario(followup);
@@ -206,6 +206,14 @@ export async function sendFollowupEmail(input: {
 }
 
 const FOLLOWUP_CLOSURE_GRACE_DAYS = 7;
+const FOLLOWUP_SEQUENCE_LENGTH = 3;
+
+// Grace before auto-closing a lead that stayed silent after the final relance. Compressed in
+// demo mode so the full cycle (… → CLOSED) is observable within a few minutes.
+function followupClosureGraceMs() {
+  if (process.env.DEMO_FAST_FOLLOWUP === "true") return 60 * 1000;
+  return FOLLOWUP_CLOSURE_GRACE_DAYS * 24 * 60 * 60 * 1000;
+}
 
 export async function sendDueFollowupEmails(input: { now?: Date; limit?: number; triggeredBy?: "n8n" } = {}) {
   const now = input.now ?? new Date();
@@ -256,22 +264,16 @@ async function updateLeadAfterFollowupSent(input: {
 
   if (sentCount <= 0) return;
 
-  if (sentCount === 1) {
-    await updateLeadStatus(input.leadId, "FOLLOWUP_1", {
-      quoteId: input.quoteId,
-      sentFollowupsWithoutResponse: sentCount,
-    });
-    return;
-  }
-
-  await updateLeadStatus(input.leadId, "FOLLOWUP_2", {
+  // 3-step standard sequence (J1/J3/J7) → FOLLOWUP_1/2/3. Cap at FOLLOWUP_3.
+  const status = sentCount === 1 ? "FOLLOWUP_1" : sentCount === 2 ? "FOLLOWUP_2" : "FOLLOWUP_3";
+  await updateLeadStatus(input.leadId, status, {
     quoteId: input.quoteId,
     sentFollowupsWithoutResponse: sentCount,
   });
 }
 
 async function closeLeadsAfterSecondFollowupGracePeriod(input: { now: Date }) {
-  const cutoff = new Date(input.now.getTime() - FOLLOWUP_CLOSURE_GRACE_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const cutoff = new Date(input.now.getTime() - followupClosureGraceMs()).toISOString();
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase
     .from("followups")
@@ -291,7 +293,7 @@ async function closeLeadsAfterSecondFollowupGracePeriod(input: { now: Date }) {
   const closed: string[] = [];
   for (const followup of latestByLead.values()) {
     const lead = one(followup.leads);
-    if (!lead || lead.status !== "FOLLOWUP_2") continue;
+    if (!lead || lead.status !== "FOLLOWUP_3") continue;
 
     const { count, error: countError } = await supabase
       .from("followups")
@@ -300,12 +302,12 @@ async function closeLeadsAfterSecondFollowupGracePeriod(input: { now: Date }) {
       .eq("status", "sent");
 
     if (countError) throw new AppError("Comptage des relances envoyees impossible.", "EMAIL_STATUS_UPDATE_FAILED");
-    if ((count ?? 0) < 2) continue;
+    if ((count ?? 0) < FOLLOWUP_SEQUENCE_LENGTH) continue;
 
     await updateLeadStatus(followup.lead_id, "CLOSED", {
       quoteId: followup.quote_id,
       sentFollowupsWithoutResponse: count,
-      reason: "NO_RESPONSE_7_DAYS_AFTER_SECOND_FOLLOWUP",
+      reason: "NO_RESPONSE_AFTER_FINAL_FOLLOWUP",
     });
     closed.push(followup.lead_id);
   }
@@ -429,8 +431,10 @@ async function loadFollowup(followupId: string) {
   return data as unknown as FollowupEmailRow;
 }
 
-async function resolveFollowupScenario(followup: FollowupEmailRow): Promise<Extract<CustomerEmailScenario, "FOLLOWUP_J2" | "FOLLOWUP_J7">> {
-  if (!followup.quote_id) return "FOLLOWUP_J2";
+async function resolveFollowupScenario(
+  followup: FollowupEmailRow,
+): Promise<Extract<CustomerEmailScenario, "FOLLOWUP_J1" | "FOLLOWUP_J3" | "FOLLOWUP_J7">> {
+  if (!followup.quote_id) return "FOLLOWUP_J1";
 
   const supabase = createServerSupabaseClient();
   const { data } = await supabase
@@ -439,8 +443,11 @@ async function resolveFollowupScenario(followup: FollowupEmailRow): Promise<Extr
     .eq("quote_id", followup.quote_id)
     .order("scheduled_at", { ascending: true });
 
+  // Position in the sequence drives the template: 1st = J1, 2nd = J3, 3rd (and beyond) = J7.
   const index = (data ?? []).findIndex((item) => item.id === followup.id);
-  return index >= 1 ? "FOLLOWUP_J7" : "FOLLOWUP_J2";
+  if (index <= 0) return "FOLLOWUP_J1";
+  if (index === 1) return "FOLLOWUP_J3";
+  return "FOLLOWUP_J7";
 }
 
 function buildTemplateValues(input: {

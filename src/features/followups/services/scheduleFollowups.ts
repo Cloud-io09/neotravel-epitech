@@ -13,28 +13,41 @@ export type ScheduleFollowupsInput = {
 };
 
 export function getFollowupDelays(input: Pick<ScheduleFollowupsInput, "isUrgent">) {
+  // Demo mode compresses the real cadence to minutes so the full sequence is observable
+  // during a live demo. Urgent keeps a single relance, standard keeps the 3-step sequence.
   if (process.env.DEMO_FAST_FOLLOWUP === "true") {
-    return [{ label: "DEMO_FAST_FOLLOWUP", delayMs: 2 * MINUTE_MS }];
+    if (input.isUrgent) {
+      return [{ label: "DEMO_URGENT_J1", delayMs: 1 * MINUTE_MS }];
+    }
+    return [
+      { label: "DEMO_STANDARD_J1", delayMs: 1 * MINUTE_MS },
+      { label: "DEMO_STANDARD_J3", delayMs: 2 * MINUTE_MS },
+      { label: "DEMO_STANDARD_J7", delayMs: 3 * MINUTE_MS }
+    ];
   }
 
+  // Urgent (départ 48h–7j) : une seule relance rapide à J+1 — J+3/J+7 tomberaient après
+  // le départ.
   if (input.isUrgent) {
-    return [{ label: "URGENT_J2", delayMs: 2 * DAY_MS }];
+    return [{ label: "URGENT_J1", delayMs: 1 * DAY_MS }];
   }
 
+  // Standard (départ > 7j) : séquence J+1, J+3, J+7.
   return [
+    { label: "STANDARD_J1", delayMs: 1 * DAY_MS },
     { label: "STANDARD_J3", delayMs: 3 * DAY_MS },
     { label: "STANDARD_J7", delayMs: 7 * DAY_MS }
   ];
 }
 
 export function resolvePostFollowupOutcome(input: { sentFollowupsWithoutResponse: number }) {
-  if (input.sentFollowupsWithoutResponse < 2) return "PENDING";
+  if (input.sentFollowupsWithoutResponse < 3) return "PENDING";
   return "CLOSED";
 }
 
 export async function scheduleFollowups(input: ScheduleFollowupsInput) {
   const sourceDate = input.now ? new Date(input.now) : new Date();
-  const delays = getFollowupDelays(input).slice(0, 2);
+  const delays = getFollowupDelays(input).slice(0, 3);
 
   const supabase = createServerSupabaseClient();
   if (input.quoteId) {
@@ -53,7 +66,7 @@ export async function scheduleFollowups(input: ScheduleFollowupsInput) {
         quoteStatus: input.quoteStatus ?? "QUOTE_SENT",
         ruleSet: process.env.DEMO_FAST_FOLLOWUP === "true" ? "demo_fast" : input.isUrgent ? "urgent" : "standard",
         nextOutcomeAfterTwoNoResponse: resolvePostFollowupOutcome({
-          sentFollowupsWithoutResponse: 2,
+          sentFollowupsWithoutResponse: 3,
         }),
         followups: existing!.map((followup) => ({
           id: followup.id,

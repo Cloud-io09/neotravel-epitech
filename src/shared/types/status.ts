@@ -8,6 +8,7 @@ export type CommercialStatus =
   | "QUOTE_SENT"
   | "FOLLOWUP_1"
   | "FOLLOWUP_2"
+  | "FOLLOWUP_3"
   | "FOLLOWUP_SCHEDULED"
   | "WON"
   | "LOST"

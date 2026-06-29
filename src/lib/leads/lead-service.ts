@@ -155,7 +155,7 @@ function toLeadRecord(data: Record<string, unknown>): LeadRecord {
 }
 
 function toLegacyStatus(status: LeadStatus): LeadStatus | null {
-  if (status === "FOLLOWUP_1" || status === "FOLLOWUP_2") return "FOLLOWUP_SCHEDULED";
+  if (status === "FOLLOWUP_1" || status === "FOLLOWUP_2" || status === "FOLLOWUP_3") return "FOLLOWUP_SCHEDULED";
   return null;
 }
 

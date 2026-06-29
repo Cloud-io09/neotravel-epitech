@@ -71,7 +71,29 @@ function PriorityBadge({ priority }: { priority: LeadPriorityBucket }) {
  );
 }
 
+// Departure proximity drives a dedicated tag: ≤48h "Très urgent" (routed to human review,
+// no relance), 48h–7j "Urgent" (single J+1 relance). Terminal leads are excluded.
+function departureUrgency(lead: Lead): "very_urgent" | "urgent" | null {
+ if (lead.status === "WON" || lead.status === "LOST" || lead.status === "CLOSED") return null;
+ if (!lead.departureDate) return null;
+ const departure = new Date(`${lead.departureDate}T12:00:00`).getTime();
+ if (Number.isNaN(departure)) return null;
+ const diffHours = (departure - Date.now()) / (60 * 60 * 1000);
+ if (diffHours < 0) return null;
+ if (diffHours <= 48) return "very_urgent";
+ if (diffHours <= 7 * 24) return "urgent";
+ return null;
+}
+
 function leadPriorityBucket(lead: Lead, quote?: Quote): LeadPriorityBucket {
+ const urgency = departureUrgency(lead);
+ if (urgency === "very_urgent") {
+  return { rank: 0, label: "Très urgent", tone: "critical" };
+ }
+ if (urgency === "urgent") {
+  return { rank: 1, label: "Urgent", tone: "critical" };
+ }
+
  if (lead.status === "HUMAN_REVIEW") {
   return { rank: 1, label: "1 - À valider urgent", tone: "critical" };
  }

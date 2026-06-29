@@ -26,6 +26,7 @@ const STATUS_MAP: Record<string, StatusEntry> = {
  FOLLOWUP_SCHEDULED: { label: "Relance prévue", tone: "warning" },
  FOLLOWUP_1: { label: "1re relance", tone: "warning" },
  FOLLOWUP_2: { label: "2e relance", tone: "warning" },
+ FOLLOWUP_3: { label: "3e relance", tone: "warning" },
  WON: { label: "Gagné", tone: "success" },
  LOST: { label: "Perdu", tone: "danger" },
  CLOSED: { label: "Clôturé", tone: "muted" },
