@@ -401,6 +401,25 @@
   width: 100%;
 }
 
+.chatQuoteActions {
+  display: grid;
+  gap: 10px;
+}
+
+.formSubmitActions {
+  display: grid;
+  gap: 10px;
+  padding: 20px 24px;
+  border: 1px solid #cfe0ff;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #ffffff 0%, #f3f7ff 100%);
+}
+
+.formSubmitActions .primaryButton,
+.formSubmitActions .humanReviewButton {
+  width: 100%;
+}
+
 .primaryButton:disabled {
   cursor: wait;
   opacity: 0.72;
@@ -496,8 +515,55 @@
   line-height: 1.12;
 }
 
+.dropdownHeader {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dropdownHeader:focus-visible {
+  outline: 3px solid rgba(18, 56, 133, 0.22);
+  outline-offset: 6px;
+  border-radius: 12px;
+}
+
+.dropdownTitleBlock {
+  display: grid;
+  gap: 10px;
+}
+
+.panelTitle {
+  margin: 0;
+  color: #0d2040;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1.12;
+}
+
+.dropdownChevron {
+  width: 12px;
+  height: 12px;
+  border-right: 2px solid #123885;
+  border-bottom: 2px solid #123885;
+  transform: rotate(45deg);
+  transition: transform 0.16s ease;
+}
+
+.dropdownChevronOpen {
+  transform: rotate(225deg);
+}
+
 .reviewStatus,
-.readyStatus {
+.readyStatus,
+.pendingStatus {
   display: inline-grid;
   width: fit-content;
   min-height: 30px;
@@ -992,6 +1058,18 @@
   background: #e9f9f0;
   font-size: 13px;
   font-weight: 800;
+}
+
+.workflowReview {
+  margin: -4px 0 0;
+  border: 1px solid #ffe0aa;
+  border-radius: 14px;
+  padding: 11px 13px;
+  color: #7a4d00;
+  background: #fff7e8;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.45;
 }
 
 .multiDestNote {

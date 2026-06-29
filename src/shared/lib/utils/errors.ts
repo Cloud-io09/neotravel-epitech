@@ -1,8 +1,8 @@
 export class AppError extends Error {
-  constructor(
-    message: string,
-    public readonly code: string
-  ) {
-    super(message);
-  }
+ constructor(
+  message: string,
+  public readonly code: string
+ ) {
+  super(message);
+ }
 }

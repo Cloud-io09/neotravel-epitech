@@ -110,7 +110,7 @@ export function AutomationWorkflowsManager({
     <div className={styles.panelHeader}>
      <div>
       <h2>Ajouter une automatisation</h2>
-      <p>Creation locale d'un workflow a raccorder ensuite a n8n.</p>
+      <p>Création locale d'un workflow à raccorder ensuite à n8n.</p>
      </div>
     </div>
     <form className={styles.automationForm} onSubmit={addWorkflow}>
@@ -123,11 +123,11 @@ export function AutomationWorkflowsManager({
       />
      </label>
      <label>
-      <span>Declencheur</span>
+      <span>Déclencheur</span>
       <input
        value={form.trigger}
        onChange={(event) => updateField("trigger", event.target.value)}
-       placeholder="Ex : Devis sans reponse"
+       placeholder="Ex : Devis sans réponse"
       />
      </label>
      <label>
@@ -143,7 +143,7 @@ export function AutomationWorkflowsManager({
       <select value={form.status} onChange={(event) => updateField("status", event.target.value)}>
        <option value={statusLabel}>{statusLabel}</option>
        <option value="Brouillon">Brouillon</option>
-       <option value="A connecter">A connecter</option>
+       <option value="À connecter">À connecter</option>
        <option value="Actif">Actif</option>
       </select>
      </label>
@@ -164,7 +164,7 @@ export function AutomationWorkflowsManager({
     <div className={styles.automationTable}>
      <div className={styles.automationHead}>
       <span>Workflow</span>
-      <span>Declencheur</span>
+      <span>Déclencheur</span>
       <span>Action</span>
       <span>Statut</span>
       <span />
@@ -173,7 +173,7 @@ export function AutomationWorkflowsManager({
       <div className={styles.automationRow} key={workflow.id} data-custom={workflow.source === "custom" ? "true" : undefined}>
        <span>
         <strong>{workflow.name}</strong>
-        <small>{workflow.source === "custom" ? "Ajoute" : "Defaut"}</small>
+        <small>{workflow.source === "custom" ? "Ajouté" : "Défaut"}</small>
        </span>
        <span>{workflow.trigger}</span>
        <span>{workflow.action}</span>

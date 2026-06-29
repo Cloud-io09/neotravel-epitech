@@ -4,6 +4,10 @@ let warned = false;
 
 export function shouldUseDemoData() {
   const demo = isDemoMode();
+  if (!demo && !warned) {
+    warned = true;
+    console.info("[NeoTravel] Mode Supabase actif : données lues depuis la base configurée.");
+  }
   if (demo && !warned) {
     warned = true;
     console.warn("[NeoTravel] DEMO_MODE actif : utilisation du demoStore, aucun appel Supabase.");

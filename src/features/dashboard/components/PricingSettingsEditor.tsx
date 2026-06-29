@@ -30,12 +30,16 @@ function storageHint(mode: PricingStorageMode) {
   return "Valeurs par défaut du code — enregistrez pour créer un fichier local.";
 }
 
+export type PricingEditorSection = "none" | "grid" | "coefficients" | "fiscal";
+
 export function PricingSettingsEditor({
   initialRules,
-  storageMode
+  storageMode,
+  section = "grid"
 }: {
   initialRules: PricingRules;
   storageMode: PricingStorageMode;
+  section?: PricingEditorSection;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -122,6 +126,10 @@ export function PricingSettingsEditor({
 
   const leadTimeLabels = ["Prioritaire (≤ 14 j)", "Urgent (15–30 j)", "Normal (31–90 j)", "3 mois et plus"];
 
+  const showGrid = section === "grid";
+  const showCoefficients = section === "coefficients";
+  const showFiscal = section === "fiscal";
+
   return (
     <section className={styles.pricingEditor} aria-label="Édition des tarifs" data-no-translate>
       {feedback ? (
@@ -130,6 +138,7 @@ export function PricingSettingsEditor({
         </p>
       ) : null}
 
+      {section !== "none" || changed ? (
       <div className={styles.pricingToolbar}>
         <div>
           <strong>{changed ? "Modifications non enregistrées" : "Tarifs à jour"}</strong>
@@ -152,7 +161,9 @@ export function PricingSettingsEditor({
           </button>
         </div>
       </div>
+      ) : null}
 
+      {showGrid ? (
       <section className={styles.pricingSection}>
         <div className={styles.panelHeader}>
           <div>
@@ -200,7 +211,9 @@ export function PricingSettingsEditor({
           ))}
         </div>
       </section>
+      ) : null}
 
+      {showGrid ? (
       <section className={styles.pricingSection}>
         <div className={styles.panelHeader}>
           <div>
@@ -235,7 +248,9 @@ export function PricingSettingsEditor({
           </div>
         </div>
       </section>
+      ) : null}
 
+      {showCoefficients ? (
       <section className={styles.pricingSection}>
         <div className={styles.panelHeader}>
           <div>
@@ -266,7 +281,9 @@ export function PricingSettingsEditor({
           ))}
         </div>
       </section>
+      ) : null}
 
+      {showCoefficients ? (
       <section className={styles.pricingSection}>
         <div className={styles.panelHeader}>
           <div>
@@ -297,7 +314,9 @@ export function PricingSettingsEditor({
           ))}
         </div>
       </section>
+      ) : null}
 
+      {showCoefficients ? (
       <section className={styles.pricingSection}>
         <div className={styles.panelHeader}>
           <div>
@@ -331,7 +350,70 @@ export function PricingSettingsEditor({
           ))}
         </div>
       </section>
+      ) : null}
 
+      {showFiscal ? (
+      <section className={styles.pricingSection}>
+        <div className={styles.panelHeader}>
+          <div>
+            <h2>Suppléments options</h2>
+            <p>Tarifs guide et chauffeur (Tableau 3).</p>
+          </div>
+        </div>
+        <div className={styles.pricingTable}>
+          <div className={styles.pricingRow}>
+            <span className={styles.pricingName}>
+              <strong>Guide</strong>
+              <small>Par journée</small>
+            </span>
+            <label className={styles.pricingInputGroup}>
+              <input
+                className={styles.pricingInput}
+                type="number"
+                min="0"
+                step="1"
+                value={rules.optionRates.guideDayRateEur}
+                onChange={(e) =>
+                  setRules((prev) => ({
+                    ...prev,
+                    optionRates: { ...prev.optionRates, guideDayRateEur: Number(e.target.value) || 0 }
+                  }))
+                }
+              />
+              <span>EUR / jour</span>
+            </label>
+            <span />
+            <span />
+          </div>
+          <div className={styles.pricingRow}>
+            <span className={styles.pricingName}>
+              <strong>Chauffeur nuitée</strong>
+              <small>Par nuit</small>
+            </span>
+            <label className={styles.pricingInputGroup}>
+              <input
+                className={styles.pricingInput}
+                type="number"
+                min="0"
+                step="1"
+                value={rules.optionRates.driverNightRateEur}
+                onChange={(e) =>
+                  setRules((prev) => ({
+                    ...prev,
+                    optionRates: { ...prev.optionRates, driverNightRateEur: Number(e.target.value) || 0 }
+                  }))
+                }
+              />
+              <span>EUR / nuit</span>
+            </label>
+            <span />
+            <span />
+          </div>
+        </div>
+      </section>
+      ) : null}
+
+      {showFiscal ? (
       <section className={styles.pricingSection}>
         <div className={styles.panelHeader}>
           <div>
@@ -380,6 +462,7 @@ export function PricingSettingsEditor({
           </div>
         </div>
       </section>
+      ) : null}
     </section>
   );
 }

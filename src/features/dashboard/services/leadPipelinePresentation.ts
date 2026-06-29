@@ -111,9 +111,9 @@ export function getLeadCommercialAction({
 
  if ((lead.status === "QUALIFIED" || lead.status === "HIGH_VALUE") && !quote) {
   return {
-   label: "Automatisation a reprendre",
-   detail: "Demande qualifiee sans devis : le flux attendu est devis auto ou validation humaine.",
-   cta: "Verifier",
+   label: "Automatisation à reprendre",
+   detail: "Demande qualifiée sans devis : le flux attendu est devis auto ou validation humaine.",
+   cta: "Vérifier",
    href: leadHref,
    priority: 0,
    tone: "critical"

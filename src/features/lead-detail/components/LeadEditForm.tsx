@@ -26,10 +26,17 @@ const STATUS_OPTIONS = [
 
 const OPTION_CHOICES = [
  { code: "guide", label: "Guide / accompagnateur" },
- { code: "driver_overnight", label: "Nuit chauffeur" }
+ { code: "driver_overnight", label: "Nuit chauffeur" },
+ { code: "tolls", label: "Péages" }
 ];
 
 const OPTION_ALIASES = new Map<string, string>([
+ ["peage", "tolls"],
+ ["peages", "tolls"],
+ ["péage", "tolls"],
+ ["péages", "tolls"],
+ ["toll", "tolls"],
+ ["tolls", "tolls"],
  ["guide", "guide"],
  ["accompagnateur", "guide"],
  ["driver_overnight", "driver_overnight"],
@@ -172,7 +179,7 @@ export function LeadEditForm({ lead }: { lead: Lead }) {
      <label>
       Type de client
       <select value={form.clientType} onChange={(event) => set("clientType", event.target.value)}>
-       <option value="">A confirmer</option>
+       <option value="">À confirmer</option>
        <option value="Particulier">Particulier</option>
        <option value="Entreprise">Entreprise</option>
        <option value="Association">Association</option>
@@ -194,7 +201,7 @@ export function LeadEditForm({ lead }: { lead: Lead }) {
       <input type="email" value={form.email} onChange={(event) => set("email", event.target.value)} />
      </label>
      <label>
-      Telephone
+      Téléphone
       <input type="tel" value={form.phone} onChange={(event) => set("phone", event.target.value)} />
      </label>
      <label>

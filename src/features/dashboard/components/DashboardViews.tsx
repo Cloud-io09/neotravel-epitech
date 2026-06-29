@@ -1,5 +1,4 @@
 import Link from "next/link";
-import type { CSSProperties } from "react";
 import { getAuditLogs } from "@/features/admin/services/getAuditLogs";
 import { getModelRuns } from "@/features/admin/services/getModelRuns";
 import { getIntegrationsStatus } from "@/features/integrations/integrations";
@@ -15,14 +14,22 @@ import {
  nextScheduledFollowup,
  quoteLabel
 } from "@/features/dashboard/services/leadPipelinePresentation";
-import { getDataMode } from "@/shared/lib/demo/demoMode";
 import type { Followup } from "@/shared/types/followup";
 import type { Lead } from "@/shared/types/lead";
 import type { Quote } from "@/shared/types/quote";
 import styles from "./dashboard.module.css";
-import { AutomationWorkflowsManager } from "./AutomationWorkflowsManager";
+import { AdminDashboardClient } from "./AdminDashboardClient";
+import { AutomationsDashboardClient } from "./AutomationsDashboardClient";
+import { getAutomationsDashboardData } from "@/features/dashboard/services/getAutomationsDashboardData";
+import { GrowthDashboardClient } from "./GrowthDashboardClient";
+import { RgpdAuditDashboardClient } from "./RgpdAuditDashboardClient";
+import { getRgpdAuditDashboardData } from "@/features/dashboard/services/getRgpdAuditDashboardData";
+import { getAdminDashboardData } from "@/features/dashboard/services/getAdminDashboardData";
 import { CardList, DashboardHeader, DataTable, KpiGrid, Note, Panel } from "./DashboardPageKit";
-import { PricingSettingsEditor } from "./PricingSettingsEditor";
+import { KpisDashboardClient } from "./KpisDashboardClient";
+import { getKpisDashboardData } from "@/features/dashboard/services/getKpisDashboardData";
+import { PricingDashboardClient } from "./PricingDashboardClient";
+import { getPricingDashboardData } from "@/features/dashboard/services/getPricingDashboardData";
 import { StatusBadge } from "./StatusBadge";
 
 function euro(value: number) {
@@ -129,226 +136,9 @@ function dateTime(value: string | null | undefined) {
  return Number.isFinite(time) ? time : null;
 }
 
-function formatMinutes(minutes: number | null) {
- if (minutes === null) return "Non disponible";
- if (minutes < 60) return `${Math.round(minutes)} min`;
- const hours = minutes / 60;
- return `${hours.toFixed(hours < 10 ? 1 : 0)} h`;
-}
-
-function percent(part: number, total: number) {
- return total > 0 ? `${Math.round((part / total) * 100)}%` : "0%";
-}
-
-function averageLeadToQuoteMinutes(leads: Lead[], quotes: Quote[]) {
- const leadById = new Map(leads.map((lead) => [lead.id, lead]));
- const durations = quotes
-  .map((quote) => {
-   const lead = leadById.get(quote.leadId);
-   const leadCreatedAt = dateTime(lead?.createdAt);
-   const quoteCreatedAt = dateTime(quote.createdAt) ?? dateTime(quote.updatedAt) ?? dateTime(lead?.qualifiedAt) ?? dateTime(lead?.updatedAt);
-   if (leadCreatedAt === null || quoteCreatedAt === null || quoteCreatedAt < leadCreatedAt) return null;
-   return (quoteCreatedAt - leadCreatedAt) / 60_000;
-  })
-  .filter((value): value is number => value !== null);
-
- if (durations.length === 0) return null;
- return durations.reduce((sum, value) => sum + value, 0) / durations.length;
-}
-
-function monthKey(date: Date) {
- return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function monthLabel(key: string) {
- const [year, month] = key.split("-").map(Number);
- return new Intl.DateTimeFormat("fr-FR", { month: "short" }).format(new Date(year, month - 1, 1));
-}
-
-function buildConversionEvolution(quotes: Quote[], leadById: Map<string, Lead>) {
- const now = new Date();
- const buckets = Array.from({ length: 12 }, (_, index) => {
-  const date = new Date(now.getFullYear(), index, 1);
-  return {
-   key: monthKey(date),
-   sent: 0,
-   accepted: 0,
-  };
- });
- const bucketByKey = new Map(buckets.map((bucket) => [bucket.key, bucket]));
-
- for (const quote of quotes) {
-  const lead = leadById.get(quote.leadId);
-  const commercialEventTime =
-   (quote.status === "ACCEPTED" || quote.status === "REFUSED" || quote.status === "CLOSED"
-    ? dateTime(quote.updatedAt) ?? dateTime(lead?.updatedAt)
-    : dateTime(quote.updatedAt)) ??
-   dateTime(quote.createdAt) ??
-   dateTime(lead?.qualifiedAt) ??
-   now.getTime();
-  const quoteDate = new Date(commercialEventTime);
-  const bucket = bucketByKey.get(monthKey(quoteDate));
-  if (!bucket) continue;
-
-  if (quote.status === "QUOTE_SENT" || isWonQuote(quote, lead) || isLostQuote(quote, lead)) {
-   bucket.sent += 1;
-  }
-  if (isWonQuote(quote, lead)) {
-   bucket.accepted += 1;
-  }
- }
-
- return buckets.map((bucket) => ({
-  ...bucket,
-  label: monthLabel(bucket.key),
-  rate: bucket.sent > 0 ? Math.round((bucket.accepted / bucket.sent) * 100) : 0,
- }));
-}
-
 export async function KpisDashboardPage() {
- const [leads, quotes, followups] = await Promise.all([listLeads(), listQuotes(), listFollowups()]);
- const now = Date.now();
- const leadById = new Map(leads.map((lead) => [lead.id, lead]));
- const quoteByLeadId = latestQuoteByLeadId(quotes);
- const generatedQuotes = quotes.length;
- const sentQuotes = quotes.filter((quote) => {
-  const lead = leadById.get(quote.leadId);
-  return quote.status === "QUOTE_SENT" || isWonQuote(quote, lead) || isLostQuote(quote, lead);
- }).length;
- const acceptedQuotes = quotes.filter((quote) => isWonQuote(quote, leadById.get(quote.leadId))).length;
- const refusedOrLostQuotes = quotes.filter((quote) => isLostQuote(quote, leadById.get(quote.leadId))).length;
- const incompleteLeads = leads.filter((lead) => lead.status === "INCOMPLETE" || (lead.missingFields?.length ?? 0) > 0).length;
- const urgentLeads = leads.filter((lead) => {
-  const departureTime = dateTime(lead.departureDate);
-  if (departureTime === null) return false;
-  const hoursToDeparture = (departureTime - now) / 3_600_000;
-  return hoursToDeparture >= 0 && hoursToDeparture < 7 * 24;
- });
- const scheduledFollowups = followups.filter((followup) => followup.status === "SCHEDULED");
- const overdueFollowups = scheduledFollowups.filter((followup) => dateTime(followup.dueAt)! < now);
- const averageDelay = averageLeadToQuoteMinutes(leads, quotes);
- const conversionEvolution = buildConversionEvolution(quotes, leadById);
- const humanManagedLeads = leads.filter((lead) => lead.status === "HUMAN_REVIEW").length;
- const blockedLeads = leads.filter((lead) => lead.status === "INCOMPLETE" || (lead.missingFields?.length ?? 0) > 0).length;
- const newLeads = leads.filter((lead) => lead.status === "NEW").length;
- const automaticLeadStatuses = new Set<Lead["status"]>([
-  "QUOTE_READY",
-  "QUOTE_SENT",
-  "FOLLOWUP_1",
-  "FOLLOWUP_2",
-  "FOLLOWUP_SCHEDULED",
-  "WON"
- ]);
- const aiManagedLeads = leads.filter((lead) => {
-  if (automaticLeadStatuses.has(lead.status)) return true;
-  if (lead.status === "LOST" || lead.status === "CLOSED") return quoteByLeadId.has(lead.id);
-  return false;
- }).length;
- const handledLeads = aiManagedLeads + humanManagedLeads;
- const aiManagedRate = percent(aiManagedLeads, handledLeads);
-
- return (
-  <main className={styles.page}>
-   <DashboardHeader
-    title="KPIs"
-    subtitle="Pilotage commercial demandé par le kit : leads, devis, conversion, relances, urgences et délais moyens."
-   />
-   <KpiGrid
-    kpis={[
-     { label: "Leads recus", value: leads.length, tone: "blue", href: "/dashboard/demandes" },
-     { label: "Demandes urgentes", value: urgentLeads.length, tone: urgentLeads.length > 0 ? "red" : "green", href: "/dashboard/demandes?status=urgent" },
-     { label: "Demandes incompletes", value: incompleteLeads, tone: incompleteLeads > 0 ? "gold" : "green", href: "/dashboard/demandes?status=incomplete" },
-     { label: "Devis generes", value: generatedQuotes, tone: "blue", href: "/dashboard/devis" },
-     { label: "Devis envoyes", value: sentQuotes, tone: "blue", href: "/dashboard/devis?status=sent" },
-     { label: "Devis acceptes", value: acceptedQuotes, tone: "green", href: "/dashboard/devis?status=accepted" },
-     { label: "Refuses / perdus", value: refusedOrLostQuotes, tone: refusedOrLostQuotes > 0 ? "red" : "green", href: "/dashboard/devis?status=lost" },
-     { label: "Conversion devis", value: percent(acceptedQuotes, sentQuotes), tone: "green" },
-     { label: "Relances en attente", value: scheduledFollowups.length, tone: "gold", href: "/dashboard/relances?status=scheduled" },
-     { label: "Relances en retard", value: overdueFollowups.length, tone: overdueFollowups.length > 0 ? "red" : "green", href: "/dashboard/relances?status=overdue" },
-     { label: "Délai moyen lead → devis", value: formatMinutes(averageDelay), tone: "blue" }
-    ]}
-   />
-
-  <Panel
-   title="Evolution du taux de conversion"
-    subtitle="Conversion devis = devis acceptes / devis envoyes. La courbe montre la tendance mensuelle, les points indiquent le volume."
-  >
-    <div
-     className={styles.conversionLineChart}
-     style={
-      {
-       "--points": conversionEvolution
-        .map((bucket, index) => {
-         const x = conversionEvolution.length <= 1 ? 50 : 8 + (index * 84) / (conversionEvolution.length - 1);
-         const y = 88 - bucket.rate * 0.72;
-         return `${x},${y}`;
-        })
-        .join(" "),
-      } as CSSProperties
-     }
-    >
-     <svg viewBox="0 0 100 100" role="img" aria-label="Courbe du taux de conversion mensuel" preserveAspectRatio="none">
-      <polyline points={conversionEvolution.map((bucket, index) => {
-       const x = conversionEvolution.length <= 1 ? 50 : 8 + (index * 84) / (conversionEvolution.length - 1);
-       const y = 88 - bucket.rate * 0.72;
-       return `${x},${y}`;
-      }).join(" ")} />
-     </svg>
-     <div className={styles.conversionLinePoints}>
-      {conversionEvolution.map((bucket, index) => {
-       const left = conversionEvolution.length <= 1 ? 50 : 8 + (index * 84) / (conversionEvolution.length - 1);
-       const top = 88 - bucket.rate * 0.72;
-       return (
-        <span
-         className={styles.conversionLinePoint}
-         key={bucket.key}
-         style={{ left: `${left}%`, top: `${top}%` }}
-        >
-         <strong>{bucket.rate}%</strong>
-         <small>{bucket.accepted}/{bucket.sent}</small>
-        </span>
-       );
-      })}
-     </div>
-     <div className={styles.conversionLineLabels}>
-      {conversionEvolution.map((bucket) => (
-       <span key={bucket.key}>{bucket.label}</span>
-      ))}
-     </div>
-   </div>
-   </Panel>
-   <Panel
-    title="Demandes traitees automatiquement"
-    subtitle="Part des demandes qui avancent dans le flux automatise, comparee aux reprises humaines et aux dossiers incomplets."
-   >
-    <div className={styles.aiManagedBox}>
-    <div className={styles.aiManagedMain}>
-      <span>Flux automatise</span>
-      <strong>{aiManagedRate}</strong>
-      <small>{aiManagedLeads} demande(s) geree(s) par IA + moteur + workflow sur {handledLeads} dossier(s) traites</small>
-     </div>
-     <div className={styles.aiManagedSplit}>
-      <span>
-       <strong>{aiManagedLeads}</strong>
-       Auto
-      </span>
-      <span>
-       <strong>{humanManagedLeads}</strong>
-       Humain
-      </span>
-      <span>
-       <strong>{blockedLeads}</strong>
-       Incomplet
-      </span>
-      <span>
-       <strong>{newLeads}</strong>
-       Nouveau
-      </span>
-     </div>
-    </div>
-   </Panel>
-  </main>
- );
+ const data = await getKpisDashboardData();
+ return <KpisDashboardClient data={data} />;
 }
 
 export async function CommercialLeadsPage({ status }: { status?: string }) {
@@ -673,120 +463,18 @@ export async function CostsLogsDashboardPage() {
 }
 
 export async function AdminOverviewDashboardPage() {
- const [leads, quotes, followups, logs, runs] = await Promise.all([
-  listLeads(),
-  listQuotes(),
-  listFollowups(),
-  getAuditLogs(),
-  getModelRuns()
- ]);
- const supabase = getDataMode() === "supabase";
- const aiCost = runs.reduce((sum, run) => sum + (run.costEur ?? 0), 0);
- const toTreat = leads.filter((lead) => ["NEW", "INCOMPLETE", "HUMAN_REVIEW"].includes(lead.status)).length;
- const leadById = new Map(leads.map((lead) => [lead.id, lead]));
- const acceptedCount = quotes.filter((quote) => isWonQuote(quote, leadById.get(quote.leadId))).length;
-
- return (
-  <main className={styles.page}>
-   <DashboardHeader
-    title="Vue admin"
-    subtitle="Supervision en direct : source des données, activité commerciale et coûts IA."
-   />
-   <KpiGrid
-    kpis={[
-     { label: "Source des données", value: supabase ? "Supabase" : "Démo", tone: supabase ? "green" : "gold" },
-     { label: "Appels IA", value: runs.length, tone: "blue" },
-     { label: "Coût IA cumulé", value: euro(aiCost), tone: "green" }
-    ]}
-   />
-   <div className={styles.grid}>
-    <aside className={styles.sideStack}>
-     <Panel title="Activité commerciale" subtitle="Volumes réels du moment.">
-      <CardList
-       items={[
-        { title: `${leads.length} demandes`, body: `${toTreat} à traiter actuellement.`, tone: "blue" },
-        {
-         title: `${quotes.length} devis`,
-         body: `${quotes.filter((quote) => quote.status === "QUOTE_SENT").length} envoyés · ${acceptedCount} acceptés.`,
-         tone: "green"
-        },
-        {
-         title: `${followups.length} relances`,
-         body: `${followups.filter((followup) => followup.status === "SCHEDULED").length} programmées.`,
-         tone: "gold"
-        }
-       ]}
-      />
-     </Panel>
-     <Panel title="Traçabilité" subtitle="Preuve d'audit conservée.">
-      <CardList
-       items={[
-        {
-         title: `${logs.length} événements d'audit`,
-         body: "Transitions métier journalisées avec empreintes d'intégrité.",
-         tone: "blue"
-        }
-       ]}
-      />
-     </Panel>
-    </aside>
-   </div>
-   <Note>Le prix vient uniquement de calculerDevis() ; les cas sensibles passent en validation humaine.</Note>
-  </main>
- );
+ const data = await getAdminDashboardData();
+ return <AdminDashboardClient data={data} />;
 }
 
 export async function PricingDashboardPage() {
- const [rules, storageMode] = await Promise.all([
-  import("@/lib/pricing/pricing-matrix-store").then((m) => m.loadActivePricingRules()),
-  import("@/lib/pricing/pricing-matrix-store").then((m) => m.getPricingStorageMode())
- ]);
-
- return (
-  <main className={styles.page}>
-   <DashboardHeader
-    title="Tarification"
-    subtitle="Modifiez les tarifs et paramètres du moteur calculer_devis(). Les changements s'appliquent aux prochains devis."
-   />
-   <PricingSettingsEditor initialRules={rules} storageMode={storageMode} />
-   <Note>Le prix client reste calculé de façon déterministe — jamais par l&apos;IA.</Note>
-  </main>
- );
+ const data = await getPricingDashboardData();
+ return <PricingDashboardClient data={data} />;
 }
 
 export async function AutomationsDashboardPage() {
- const [followups, quotes] = await Promise.all([listFollowups(), listQuotes()]);
- const integrations = getIntegrationsStatus();
- const n8nOn = Boolean(integrations.find((integration) => integration.id === "n8n")?.connected);
- const scheduled = followups.filter((followup) => followup.status === "SCHEDULED").length;
- const sent = followups.filter((followup) => followup.status !== "SCHEDULED").length;
- const quotesReady = quotes.filter((quote) => quote.status === "QUOTE_READY").length;
- const statusLabel = n8nOn ? "Actif" : "Simule (demo)";
-
- const workflows: Array<[string, string, string]> = [
-  ["Envoi de devis", "Devis prêt", "Email au client"],
-  ["Relance J+2 (urgent)", "Sans réponse", "Email de relance"],
-  ["Relance J+7", "Standard", "Email de relance"],
-  ["Notification validation", "Passage en validation humaine", "Alerte interne"]
- ];
-
- return (
-  <main className={styles.page}>
-   <DashboardHeader
-    title="Automatisations"
-    subtitle="Gestion des workflows, relances et notifications."
-   />
-   <KpiGrid
-    kpis={[
-     { label: "n8n", value: n8nOn ? "Connecte" : "Non connecte", tone: n8nOn ? "green" : "red" },
-     { label: "Relances programmées", value: scheduled, tone: "gold" },
-     { label: "Relances envoyées", value: sent, tone: "blue" },
-     { label: "Devis prêts à envoyer", value: quotesReady, tone: "blue" }
-    ]}
-   />
-   <AutomationWorkflowsManager workflows={workflows} statusLabel={statusLabel} />
-  </main>
- );
+ const data = await getAutomationsDashboardData();
+ return <AutomationsDashboardClient data={data} />;
 }
 
 export async function AdminAiCostsDashboardPage() {
@@ -804,7 +492,7 @@ export async function AdminAiCostsDashboardPage() {
    />
    <KpiGrid
     kpis={[
-     { label: "Fournisseur IA", value: aiOn ? "Connecte" : "Mock", tone: aiOn ? "green" : "gold" },
+     { label: "Fournisseur IA", value: aiOn ? "Connecté" : "Mock", tone: aiOn ? "green" : "gold" },
      { label: "Modèle", value: runs[0]?.model ?? "mock", tone: "blue" },
      { label: "Coût cumulé", value: euro(cost), tone: "green" },
      { label: "Appels en erreur", value: errors, tone: errors > 0 ? "red" : "green" }
@@ -831,123 +519,10 @@ export async function AdminAiCostsDashboardPage() {
 }
 
 export async function RgpdAuditDashboardPage() {
- const logs = await getAuditLogs();
- const entities = new Set(logs.map((log) => log.entityType)).size;
- const withHash = logs.filter((log) => log.inputHash && log.outputHash).length;
-
- return (
-  <main className={styles.page}>
-   <DashboardHeader
-    title="Audit RGPD"
-    subtitle="Données minimales, conservation maîtrisée et preuve d'audit sans aucun secret en clair."
-   />
-   <KpiGrid
-    kpis={[
-     { label: "Événements d'audit", value: logs.length, tone: "blue" },
-     { label: "Types d'entités tracés", value: entities, tone: "blue" },
-     { label: "Avec empreinte", value: `${withHash}/${logs.length}`, tone: "green" },
-     { label: "Secrets affichés", value: "0", tone: "green" }
-    ]}
-   />
-   <Panel title="Preuve d'audit" subtitle="Dernières transitions journalisées avec empreintes d'intégrité.">
-    <DataTable
-     columns={["Date", "Acteur", "Action", "Objet", "Empreinte"]}
-     columnsTemplate="1.2fr .7fr 1.4fr 1fr .7fr"
-     rows={logs.slice(0, 8).map((log) => ({
-      cells: [
-       new Date(log.createdAt).toLocaleString("fr-FR", {
-        day: "2-digit",
-        month: "short",
-        hour: "2-digit",
-        minute: "2-digit"
-       }),
-       log.actor,
-       log.action,
-       log.entityType,
-       log.inputHash ? "Oui" : "—"
-      ]
-     }))}
-    />
-   </Panel>
-   <Panel title="Données & conservation" subtitle="Politique de minimisation appliquée.">
-    <DataTable
-     columns={["Donnée", "Usage", "Conservation", "Base légale"]}
-     rows={[
-      { cells: ["Email prospect", "Devis + relance", "Durée du MVP", "Intérêt légitime"] },
-      { cells: ["Message brut", "Qualification", "Limitée", "Exécution de la demande"] },
-      { cells: ["Empreintes (hash)", "Preuve d'audit", "Longue", "Intégrité"] },
-      { cells: ["Payload n8n", "Notification", "Nettoyé", "Opérationnel"] }
-     ]}
-    />
-   </Panel>
-   <Note>Minimisation : les secrets et jetons ne sont jamais affichés. Audit : chaque transition clé crée un log avec empreinte entrée/sortie.</Note>
-  </main>
- );
+ const data = await getRgpdAuditDashboardData();
+ return <RgpdAuditDashboardClient data={data} />;
 }
 
 export async function GrowthDashboardPage() {
- const [leads, quotes] = await Promise.all([listLeads(), listQuotes()]);
-
- const total = leads.length;
- const qualifiedStatuses = [
-  "QUALIFIED",
-  "HIGH_VALUE",
-  "QUOTE_READY",
-  "QUOTE_SENT",
-  "FOLLOWUP_1",
-  "FOLLOWUP_2",
-  "FOLLOWUP_SCHEDULED",
-  "WON",
-  "LOST",
-  "CLOSED"
- ];
- const qualified = leads.filter((lead) => qualifiedStatuses.includes(lead.status)).length;
- const quoted = quotes.length;
- const leadById = new Map(leads.map((lead) => [lead.id, lead]));
- const wonQuotes = quotes.filter((quote) => isWonQuote(quote, leadById.get(quote.leadId)));
- const accepted = wonQuotes.length;
- const caPotentiel = quotes.reduce((sum, quote) => sum + quote.calculation.priceTtc, 0);
- const caGagne = wonQuotes.reduce((sum, quote) => sum + quote.calculation.priceTtc, 0);
- const convRate = quoted > 0 ? Math.round((accepted / quoted) * 100) : 0;
-
- const funnel = [
-  { label: "Demandes reçues", value: total },
-  { label: "Demandes qualifiées", value: qualified },
-  { label: "Devis générés", value: quoted },
-  { label: "Devis acceptés", value: accepted }
- ];
- const max = Math.max(1, ...funnel.map((stage) => stage.value));
-
- return (
-  <main className={styles.page}>
-   <DashboardHeader title="Croissance" subtitle="Conversion réelle, du premier contact au devis accepté." />
-   <KpiGrid
-    kpis={[
-     { label: "Demandes", value: total, tone: "blue" },
-     { label: "Taux de conversion", value: `${convRate}%`, tone: "green" },
-     { label: "CA potentiel", value: euro(caPotentiel), tone: "blue" },
-     { label: "CA gagné", value: euro(caGagne), tone: "green" }
-    ]}
-   />
-   <Panel title="Entonnoir commercial" subtitle="Chaque étape avec son volume réel et sa part des demandes.">
-    <DataTable
-     columns={["Étape", "Volume", "Part des demandes"]}
-     columnsTemplate="1.4fr .6fr 1.6fr"
-     rows={funnel.map((stage) => ({
-      cells: [
-       stage.label,
-       stage.value,
-       <span className={styles.funnelCell} key="bar">
-        <span className={styles.funnelBar}>
-         <span style={{ width: `${Math.round((stage.value / max) * 100)}%` }} />
-        </span>
-        <em>{total > 0 ? Math.round((stage.value / total) * 100) : 0}%</em>
-       </span>
-      ]
-     }))}
-    />
-   </Panel>
-   <Note>Le gain d'automatisation se lit comme du temps libéré pour les cas complexes, pas comme une réduction d'effectif.</Note>
-  </main>
- );
+ return <GrowthDashboardClient />;
 }

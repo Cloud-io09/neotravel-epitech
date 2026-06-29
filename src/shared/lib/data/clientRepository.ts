@@ -63,6 +63,66 @@ export async function createClient(input: ClientInput) {
   return toClient(data as ClientRow);
 }
 
+export async function ensureClientForLead(input: {
+  email: string;
+  organization: string | null;
+  contactName?: string | null;
+  phone?: string | null;
+}) {
+  if (shouldUseDemoData()) {
+    const existing = demoStore
+      .listClients()
+      .find((client) => client.email.toLowerCase() === input.email.toLowerCase());
+    if (existing) return existing;
+    return demoStore.createClient({
+      organization: input.organization,
+      contactName: input.contactName ?? null,
+      email: input.email,
+      phone: input.phone ?? null,
+      active: true
+    });
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { data: existingClient, error: lookupError } = await supabase
+    .from("clients")
+    .select(SELECT)
+    .eq("email", input.email)
+    .maybeSingle();
+
+  if (lookupError && !isMissingColumnError(lookupError)) throw lookupError;
+  if (existingClient) return toClient(existingClient as ClientRow);
+
+  const { data, error } = await supabase
+    .from("clients")
+    .insert({
+      organization: input.organization,
+      contact_name: input.contactName ?? null,
+      email: input.email,
+      phone: input.phone ?? null,
+      active: true
+    })
+    .select(SELECT)
+    .single();
+
+  if (error && isMissingColumnError(error)) {
+    const fallback = await supabase
+      .from("clients")
+      .insert({
+        organization: input.organization,
+        email: input.email
+      })
+      .select(LEGACY_SELECT)
+      .single();
+
+    if (fallback.error) throw fallback.error;
+    return toClient(fallback.data as ClientRow);
+  }
+
+  if (error) throw error;
+  return toClient(data as ClientRow);
+}
+
 export async function listClients() {
   if (shouldUseDemoData()) return demoStore.listClients();
 
@@ -84,6 +144,26 @@ export async function listClients() {
 
   if (error) throw error;
   return (data as ClientRow[]).map(toClient);
+}
+
+export async function getClientByEmail(email: string): Promise<Client | null> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return null;
+
+  if (shouldUseDemoData()) {
+    const all = await demoStore.listClients();
+    return all.find((client) => client.email.toLowerCase() === normalized) ?? null;
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase.from("clients").select(SELECT).ilike("email", normalized).maybeSingle();
+  if (error && isMissingColumnError(error)) {
+    const fallback = await supabase.from("clients").select(LEGACY_SELECT).ilike("email", normalized).maybeSingle();
+    if (fallback.error) throw fallback.error;
+    return fallback.data ? toClient(fallback.data as ClientRow) : null;
+  }
+  if (error) throw error;
+  return data ? toClient(data as ClientRow) : null;
 }
 
 export async function getClientById(id: string): Promise<Client | null> {

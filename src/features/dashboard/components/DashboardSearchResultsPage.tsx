@@ -132,21 +132,21 @@ export async function DashboardSearchResultsPage({ query }: { query: string }) {
   <main className={styles.page}>
    <DashboardHeader
     title="Recherche"
-    subtitle={query ? `Resultats correspondant a "${query}".` : "Saisissez un mot-cle dans la recherche du dashboard."}
+    subtitle={query ? `Résultats correspondant à « ${query} ».` : "Saisissez un mot-clé dans la recherche du dashboard."}
     actionHref="/dashboard"
     actionLabel="Retour dashboard"
    />
    <KpiGrid
     kpis={[
-     { label: "Resultats", value: rows.length, tone: "blue" },
+     { label: "Résultats", value: rows.length, tone: "blue" },
      { label: "Demandes", value: leadRows.length, tone: "gold", href: query ? `/dashboard/recherche?q=${encodeURIComponent(query)}` : undefined },
      { label: "Devis", value: quoteRows.length, tone: "green" },
      { label: "Relances", value: followupRows.length, tone: "blue" }
     ]}
    />
    <Panel
-    title="Liste des resultats"
-    subtitle="Cliquez sur une ligne pour ouvrir directement le dossier, le devis ou la demande associee."
+    title="Liste des résultats"
+    subtitle="Cliquez sur une ligne pour ouvrir directement le dossier, le devis ou la demande associée."
     action={
      <Link className={styles.secondary} href="/dashboard">
       Retour dashboard
@@ -154,12 +154,12 @@ export async function DashboardSearchResultsPage({ query }: { query: string }) {
     }
    >
     {!query ? (
-     <Note>Aucune recherche lancee.</Note>
+     <Note>Aucune recherche lancée.</Note>
     ) : rows.length === 0 ? (
-     <Note>Aucun resultat pour cette recherche.</Note>
+     <Note>Aucun résultat pour cette recherche.</Note>
     ) : (
      <DataTable
-      columns={["Type", "Resultat", "Detail", "Statut", "Action"]}
+      columns={["Type", "Résultat", "Détail", "Statut", "Action"]}
       columnsTemplate=".75fr 1.25fr 1.5fr .9fr .7fr"
       rows={rows.map((row) => ({
        cells: [row.type, row.title, row.detail, <StatusBadge key="s" status={row.status} />, "Ouvrir"],

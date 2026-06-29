@@ -1,6 +1,6 @@
 export async function markFollowupSent(followupId: string) {
-  return {
-    followupId,
-    status: "SENT"
-  };
+ return {
+  followupId,
+  status: "SENT"
+ };
 }
