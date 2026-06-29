@@ -16,7 +16,6 @@ import { canonicalizeCity } from "../../../lib/ai/canonicalize-city";
 import { validateLead } from "../../../lib/ai/validate-lead";
 import { getChatModel } from "../../../lib/ai/provider";
 import { sanitizeExtractionDelta } from "../../../lib/ai/sanitize-extraction-delta";
-import { calculateQuoteForLead } from "../../../lib/quotes/quote-service";
 import { sendLeadStatusEmail } from "../../../features/emails/services/customerEmailService";
 
 export const runtime = "nodejs";
@@ -367,7 +366,9 @@ Message : ${latestUserText}`,
       });
     }
 
-    // All required fields collected: continue automatically to deterministic quote generation.
+    // All required fields collected: the lead is QUALIFIED. Quote generation is NOT triggered
+    // here — it is an explicit user action (the "Recevoir mon devis" button on the form, which
+    // goes through /api/leads/sync then /api/quotes). The chat only confirms qualification.
     const qualifiedSummary = [
       lead.departure_city && lead.arrival_city ? `${lead.departure_city} → ${lead.arrival_city}` : null,
       lead.departure_date ? `le ${lead.departure_date}` : null,
@@ -377,31 +378,7 @@ Message : ${latestUserText}`,
       .filter(Boolean)
       .join(", ");
 
-    const quoteResult = await calculateQuoteForLead(leadResult.leadId);
-
-    if (!quoteResult.ok) {
-      logAgentEvent(
-        requestId,
-        "request_completed",
-        { status: quoteResult.status, reason: quoteResult.reason, leadId: leadResult.leadId },
-        startedAt,
-      );
-
-      return chatJson({
-        status: quoteResult.status,
-        message:
-          quoteResult.status === "HUMAN_REVIEW"
-            ? formatHumanReviewMessage(quoteResult.reason)
-            : "Votre demande contient assez d'informations, mais un point doit etre corrige avant de generer le devis.",
-        leadId: leadResult.leadId,
-        missingFields: quoteResult.status === "INCOMPLETE" ? missing.missing_fields : undefined,
-        reviewReason: quoteResult.status === "HUMAN_REVIEW" ? quoteResult.reason : undefined,
-        extractedFields,
-        warnings,
-      });
-    }
-
-    const qualifiedFallback = `Parfait, j'ai toutes les informations pour votre trajet (${qualifiedSummary}). Votre devis est pret.`;
+    const qualifiedFallback = `Parfait, j'ai toutes les informations pour votre trajet (${qualifiedSummary}). Cliquez sur « Recevoir mon devis » pour générer votre estimation.`;
     const qualifiedMessage = await generateAssistantReply(
       {
         status: "QUALIFIED",
@@ -417,17 +394,16 @@ Message : ${latestUserText}`,
     logAgentEvent(
       requestId,
       "request_completed",
-      { status: "QUOTE_READY", leadId: leadResult.leadId, quoteId: quoteResult.quoteId },
+      { status: "QUALIFIED", leadId: leadResult.leadId },
       startedAt,
     );
 
     return chatJson({
-      status: "QUOTE_READY",
+      status: "QUALIFIED",
       message: qualifiedMessage,
       leadId: leadResult.leadId,
-      quoteId: quoteResult.quoteId,
-      quote: quoteResult.quote,
       extractedFields,
+      warnings,
     });
   } catch (error) {
     const isDirectApiError = error instanceof APICallError;

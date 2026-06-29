@@ -80,9 +80,14 @@ const steps = ["Trajet", "Vérification", "Devis"];
 // Options the prospect can request. Péages are route-dependent and must stay automatic,
 // not customer-selectable.
 const AVAILABLE_OPTIONS: { code: string; label: string; hint: string }[] = [
-  { code: "guide", label: "Guide / accompagnateur", hint: "à chiffrer" },
-  { code: "driver_overnight", label: "Nuit chauffeur", hint: "à confirmer" },
+  { code: "guide", label: "Guide / accompagnateur", hint: "+80 €/jour" },
+  { code: "driver_overnight", label: "Nuit chauffeur", hint: "+120 €/nuit" },
 ];
+
+// Display-only estimates mirroring the engine's Tableau 3 rates. calculer_devis() stays the
+// sole pricing authority; these only preview the supplément while the prospect fills the form.
+const GUIDE_DAY_RATE_EUR = 80;
+const DRIVER_NIGHT_RATE_EUR = 120;
 
 const OPTION_ALIASES = new Map(
   AVAILABLE_OPTIONS.flatMap((option) => [
@@ -208,6 +213,8 @@ type DemandSessionCache = {
   selectedOptions?: string[];
   multiDestination?: boolean;
   stops?: string[];
+  guideDays?: number | null;
+  driverNights?: number | null;
 };
 
 function useDebouncedValue<T>(value: T, delayMs: number) {
@@ -334,6 +341,8 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   const [selectedOptions, setSelectedOptions] = useState<string[]>(() => demand.options);
   const [multiDestination, setMultiDestination] = useState(() => demand.intermediateStops.length > 0);
   const [stops, setStops] = useState<string[]>(() => demand.intermediateStops);
+  const [guideDays, setGuideDays] = useState<number | null>(null);
+  const [driverNights, setDriverNights] = useState<number | null>(null);
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [chatExtracted, setChatExtracted] = useState<ChatExtracted>({
     clientType: null,
@@ -368,6 +377,8 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
       setSelectedOptions(normalizeOptionCodes(cached.selectedOptions ?? []));
       setMultiDestination(Boolean(cached.multiDestination));
       setStops(cached.stops ?? []);
+      setGuideDays(cached.guideDays ?? null);
+      setDriverNights(cached.driverNights ?? null);
     }
     hydratedRef.current = true;
   }, []);
@@ -389,8 +400,10 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
       selectedOptions,
       multiDestination,
       stops,
+      guideDays,
+      driverNights,
     });
-  }, [chatMessages, currentLeadId, qualifiedLeadId, chatHumanReview, chatEmail, chatClientType, chatContactName, chatOrganization, chatPhone, chatExtracted, selectedOptions, multiDestination, stops]);
+  }, [chatMessages, currentLeadId, qualifiedLeadId, chatHumanReview, chatEmail, chatClientType, chatContactName, chatOrganization, chatPhone, chatExtracted, selectedOptions, multiDestination, stops, guideDays, driverNights]);
 
   // activeDemand: fusionne URL params + ce que le chat a extrait + éditions manuelles
   const activeDemand = useMemo(() => ({
@@ -520,6 +533,8 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
     setSelectedOptions([]);
     setMultiDestination(false);
     setStops([]);
+    setGuideDays(null);
+    setDriverNights(null);
     setChatExtracted({
       clientType: null,
       contactName: null,
@@ -538,9 +553,14 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   }
 
   function toggleOption(code: string) {
-    setSelectedOptions((prev) =>
-      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code],
-    );
+    setSelectedOptions((prev) => {
+      if (prev.includes(code)) {
+        if (code === "guide") setGuideDays(null);
+        if (code === "driver_overnight") setDriverNights(null);
+        return prev.filter((c) => c !== code);
+      }
+      return [...prev, code];
+    });
   }
 
   function updateTripType(value: string) {
@@ -628,11 +648,8 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
         }));
       }
       setChatMessages((prev) => [...prev, { role: "assistant", content: data.message }]);
-
-      if (data.status === "QUOTE_READY" && data.quoteId) {
-        clearDemandSession();
-        router.push(`/client/devis/${data.quoteId}`);
-      }
+      // The chat never auto-generates or navigates to a quote. Quote generation is an explicit
+      // user action via the "Recevoir mon devis" button (generateClientQuote).
     } catch {
       setChatMessages((prev) => [
         ...prev,
@@ -683,6 +700,8 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
           hasIntermediateStop: multiDestination,
           intermediateStops: stops,
           options: selectedOptions,
+          guideDays: selectedOptions.includes("guide") ? guideDays : null,
+          driverNights: selectedOptions.includes("driver_overnight") ? driverNights : null,
           email: normalizeEmailForApi(chatEmail),
           phone: activeDemand.phone,
         }),
@@ -1135,10 +1154,74 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
         </section>
 
         <div className={styles.sideStack}>
-          <aside className={styles.sidePanel} id="infos">
-            <div className={styles.sidePanelHeader}>
-              <h2>Trajet et options</h2>
+          <aside className={styles.sidePanel} id="infos" aria-labelledby="trip-panel-title">
+            <div className={styles.routeHeader}>
+              <div>
+                <p>Votre trajet</p>
+                <h2 id="trip-panel-title">
+                  {activeDemand.departureCity && activeDemand.arrivalCity
+                    ? `${activeDemand.departureCity} vers ${activeDemand.arrivalCity}`
+                    : "Trajet en attente"}
+                </h2>
+              </div>
+              <span>{routeStatus === "loading" ? "Calcul..." : routePreview ? `${routePreview.distanceKm} km` : "À confirmer"}</span>
             </div>
+
+            <div
+              className={isMapExpanded ? `${styles.mapBox} ${styles.mapBoxExpanded}` : styles.mapBox}
+              aria-label="Carte du trajet"
+            >
+              <div className={styles.leafletMap} ref={mapContainerRef} />
+              {activeDemand.departureCity && activeDemand.arrivalCity ? (
+                <>
+                  <div className={styles.mapControls} aria-label="Contrôle carte">
+                    <button type="button" onClick={() => changeMapZoom(1)}>
+                      +
+                    </button>
+                    <button type="button" onClick={() => changeMapZoom(-1)}>
+                      -
+                    </button>
+                    <button type="button" onClick={() => setIsMapExpanded((current) => !current)}>
+                      {isMapExpanded ? "Réduire" : "Agrandir"}
+                    </button>
+                  </div>
+                  {routeStatus === "fallback" ? <span className={styles.mapLine} /> : null}
+                </>
+              ) : (
+                <div className={styles.routeEmptyOverlay}>
+                  Le trajet s&apos;affichera ici dès les premières informations.
+                </div>
+              )}
+            </div>
+
+            <dl className={styles.routeFacts}>
+              <div>
+                <dt>Départ</dt>
+                <dd>
+                  {activeDemand.departureCity || "En attente"}
+                  {activeDemand.departureDate ? ` - ${formatDate(activeDemand.departureDate)}` : ""}
+                </dd>
+              </div>
+              {mainStop ? (
+                <div>
+                  <dt>Étape</dt>
+                  <dd>Pause intermédiaire à {mainStop}</dd>
+                </div>
+              ) : null}
+              <div>
+                <dt>Arrivée</dt>
+                <dd>
+                  {activeDemand.arrivalCity || "En attente"}
+                  {activeDemand.tripType === "round_trip" && demand.returnDate
+                    ? ` - retour le ${demand.returnDate}`
+                    : ""}
+                </dd>
+              </div>
+              <div>
+                <dt>Durée</dt>
+                <dd>{formatDuration(routePreview?.durationMinutes)}</dd>
+              </div>
+            </dl>
 
             <div className={styles.manualForm}>
               <div className={styles.manualFields}>
@@ -1251,6 +1334,42 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
                       );
                     })}
                   </div>
+                  {selectedOptions.includes("guide") ? (
+                    <label className={styles.optionQtyRow}>
+                      <span>Jours de guide</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={60}
+                        placeholder="ex: 2"
+                        value={guideDays ?? ""}
+                        onChange={(e) => setGuideDays(e.target.value === "" ? null : Number(e.target.value))}
+                      />
+                      <small>
+                        {guideDays && guideDays > 0
+                          ? `≈ ${guideDays * GUIDE_DAY_RATE_EUR} € HT`
+                          : "à confirmer"}
+                      </small>
+                    </label>
+                  ) : null}
+                  {selectedOptions.includes("driver_overnight") ? (
+                    <label className={styles.optionQtyRow}>
+                      <span>Nuits chauffeur</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={60}
+                        placeholder="ex: 1"
+                        value={driverNights ?? ""}
+                        onChange={(e) => setDriverNights(e.target.value === "" ? null : Number(e.target.value))}
+                      />
+                      <small>
+                        {driverNights && driverNights > 0
+                          ? `≈ ${driverNights * DRIVER_NIGHT_RATE_EUR} € HT`
+                          : "à confirmer"}
+                      </small>
+                    </label>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -1325,76 +1444,6 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
               </div>
             </div>
           </details>
-
-          <aside className={styles.routePreview} aria-labelledby="route-preview-title">
-            <div className={styles.routeHeader}>
-              <div>
-                <p>Aperçu trajet</p>
-                <h2 id="route-preview-title">
-                  {activeDemand.departureCity && activeDemand.arrivalCity
-                    ? `${activeDemand.departureCity} vers ${activeDemand.arrivalCity}`
-                    : "Trajet en attente"}
-                </h2>
-              </div>
-              <span>{routeStatus === "loading" ? "Calcul..." : routePreview ? `${routePreview.distanceKm} km` : "À confirmer"}</span>
-            </div>
-
-            <div
-              className={isMapExpanded ? `${styles.mapBox} ${styles.mapBoxExpanded}` : styles.mapBox}
-              aria-label="Carte du trajet"
-            >
-              <div className={styles.leafletMap} ref={mapContainerRef} />
-              {activeDemand.departureCity && activeDemand.arrivalCity ? (
-                <>
-                  <div className={styles.mapControls} aria-label="Contrôle carte">
-                    <button type="button" onClick={() => changeMapZoom(1)}>
-                      +
-                    </button>
-                    <button type="button" onClick={() => changeMapZoom(-1)}>
-                      -
-                    </button>
-                    <button type="button" onClick={() => setIsMapExpanded((current) => !current)}>
-                      {isMapExpanded ? "Réduire" : "Agrandir"}
-                    </button>
-                  </div>
-                  {routeStatus === "fallback" ? <span className={styles.mapLine} /> : null}
-                </>
-              ) : (
-                <div className={styles.routeEmptyOverlay}>
-                  Le trajet s&apos;affichera ici après les premières informations données au chat.
-                </div>
-              )}
-            </div>
-
-            <dl className={styles.routeFacts}>
-              <div>
-                <dt>Départ</dt>
-                <dd>
-                  {activeDemand.departureCity || "En attente"}
-                  {activeDemand.departureDate ? ` - ${formatDate(activeDemand.departureDate)}` : ""}
-                </dd>
-              </div>
-              {mainStop ? (
-                <div>
-                  <dt>Étape</dt>
-                  <dd>Pause intermédiaire à {mainStop}</dd>
-                </div>
-              ) : null}
-              <div>
-                <dt>Arrivée</dt>
-                <dd>
-                  {activeDemand.arrivalCity || "En attente"}
-                  {activeDemand.tripType === "round_trip" && demand.returnDate
-                    ? ` - retour le ${demand.returnDate}`
-                    : ""}
-                </dd>
-              </div>
-              <div>
-                <dt>Durée</dt>
-                <dd>{formatDuration(routePreview?.durationMinutes)}</dd>
-              </div>
-            </dl>
-          </aside>
         </div>
       </div>
     </main>

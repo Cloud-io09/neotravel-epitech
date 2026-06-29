@@ -1084,3 +1084,41 @@
   font-weight: 600;
   line-height: 1.4;
 }
+
+/* --- Manually confirmed option quantities (guide days / driver nights) --- */
+.optionQtyRow {
+  display: grid;
+  grid-template-columns: 108px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.optionQtyRow span {
+  font-size: 11px;
+  color: #637188;
+  font-weight: 700;
+}
+
+.optionQtyRow input {
+  height: 32px;
+  border: 1px solid #d9e2ed;
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: 12px;
+  background: #f8fafd;
+  color: #17202e;
+  outline: none;
+}
+
+.optionQtyRow input:focus {
+  border-color: #123885;
+  background: #fff;
+}
+
+.optionQtyRow small {
+  color: #0b7a4b;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}

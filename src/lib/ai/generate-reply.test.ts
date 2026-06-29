@@ -32,10 +32,11 @@ describe("buildReplyPrompt", () => {
     expect(prompt).toContain('UNIQUEMENT la première information manquante : "ville d\'arrivée"');
   });
 
-  it("announces automatic quote preparation when QUALIFIED", () => {
+  it("invites the user to click the quote button when QUALIFIED (no auto-generation)", () => {
     const prompt = buildReplyPrompt({ ...baseCtx, status: "QUALIFIED", missingFields: [] });
-    expect(prompt).toContain("devis se prepare automatiquement");
-    expect(prompt).not.toContain("Recevoir mon devis");
+    expect(prompt).toContain("Recevoir mon devis");
+    expect(prompt).toContain("n'est PAS encore genere");
+    expect(prompt).not.toContain("se prepare automatiquement");
   });
 
   it("instructs the model from the generic last-turn signal", () => {

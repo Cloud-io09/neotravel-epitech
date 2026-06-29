@@ -24,7 +24,36 @@ const SyncInputSchema = z.object({
   hasIntermediateStop: z.boolean().optional(),
   intermediateStops: z.array(z.string().trim().min(1)).optional(),
   options: z.array(z.string()).optional(),
+  // Manually confirmed option quantities (guide days / driver overnights). The engine
+  // prices them at the controlled Tableau 3 rates; absent/0 keeps the line "à confirmer".
+  guideDays: z.number().int().min(0).optional().nullable(),
+  driverNights: z.number().int().min(0).optional().nullable(),
 });
+
+type SyncInput = z.infer<typeof SyncInputSchema>;
+
+/**
+ * Builds the lead.options jsonb from the selected option codes plus any manually confirmed
+ * quantities. Quantities are only kept when their option is actually selected, so a stale
+ * count can never silently price an unselected option.
+ */
+function buildOptionsRecord(body: SyncInput): Record<string, unknown> | undefined {
+  const codes = body.options ?? [];
+  if (codes.length === 0 && body.guideDays == null && body.driverNights == null) {
+    return undefined;
+  }
+
+  const record: Record<string, unknown> = Object.fromEntries(codes.map((code) => [code, true]));
+
+  if (codes.includes("guide") && body.guideDays && body.guideDays > 0) {
+    record.guideDays = body.guideDays;
+  }
+  if (codes.includes("driver_overnight") && body.driverNights && body.driverNights > 0) {
+    record.driverNights = body.driverNights;
+  }
+
+  return record;
+}
 
 /**
  * Persists manual side-panel edits to the lead before a quote is requested.
@@ -56,9 +85,7 @@ export async function POST(request: Request): Promise<Response> {
       trip_type: body.tripType ?? undefined,
       has_intermediate_stop: body.hasIntermediateStop,
       intermediate_stops: body.intermediateStops,
-      options: body.options
-        ? Object.fromEntries(body.options.map((option) => [option, true]))
-        : undefined,
+      options: buildOptionsRecord(body),
     };
 
     const merged = mergeLead(existing, incoming);

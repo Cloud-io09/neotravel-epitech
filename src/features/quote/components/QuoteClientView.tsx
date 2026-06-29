@@ -209,8 +209,8 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
                     <span>{option.label}</span>
                     <span>
                       {option.amountEur && option.amountEur > 0
-                        ? formatEuro(option.amountEur)
-                        : `${option.note ?? "À confirmer"} — 0 € (placeholder)`}
+                        ? `${formatEuro(option.amountEur)}${option.note ? ` — ${option.note}` : ""}`
+                        : option.note ?? "À confirmer"}
                     </span>
                   </div>
                 ))}

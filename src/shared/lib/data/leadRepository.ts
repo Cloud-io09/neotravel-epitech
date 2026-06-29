@@ -58,9 +58,17 @@ function toLead(row: LeadRow): Lead {
 function normalizeOptions(options: LeadRow["options"]): string[] {
   if (Array.isArray(options)) return options;
   if (options && typeof options === "object") {
-    return Object.entries(options)
-      .filter(([, value]) => Boolean(value))
-      .map(([key]) => key);
+    // Map the raw options jsonb to canonical option codes. Quantity keys (guideDays /
+    // driverNights) enable their parent option but must never surface as options themselves.
+    const record = options as Record<string, unknown>;
+    const isPositive = (value: unknown) => typeof value === "number" && value > 0;
+    const codes = new Set<string>();
+    if (record.guide || isPositive(record.guideDays)) codes.add("guide");
+    if (record.driverOvernight || record.driver_overnight || isPositive(record.driverNights)) {
+      codes.add("driver_overnight");
+    }
+    if (record.tolls || record.tollsIncluded || isPositive(record.tollPackageEur)) codes.add("tolls");
+    return [...codes];
   }
   return [];
 }

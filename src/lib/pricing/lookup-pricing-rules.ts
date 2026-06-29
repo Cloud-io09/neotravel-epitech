@@ -5,6 +5,7 @@ import type {
   SeasonPricingRule,
 } from "../domain/types";
 import { createServerSupabaseClient } from "../supabase/server";
+import { DEFAULT_OPTION_RATES } from "./pricing-rules";
 
 type RawPricingRules = {
   forfait_distance_grid: Array<{
@@ -45,6 +46,10 @@ type RawPricingRules = {
     max_passengers_inclusive: number;
     coefficient: number;
   }>;
+  options?: {
+    guide_day_rate_eur?: number;
+    driver_night_rate_eur?: number;
+  };
   margin_rate: number;
   vat_rate: number;
 };
@@ -91,6 +96,10 @@ function mapPricingMatrix(row: PricingMatrixRow): PricingRules {
     },
     leadTime: mapLeadTimeRules(rules),
     capacity: mapCapacityRules(rules),
+    optionRates: {
+      guideDayRateEur: rules.options?.guide_day_rate_eur ?? DEFAULT_OPTION_RATES.guideDayRateEur,
+      driverNightRateEur: rules.options?.driver_night_rate_eur ?? DEFAULT_OPTION_RATES.driverNightRateEur,
+    },
     marginRate: rules.margin_rate,
     vatRate: rules.vat_rate,
   };
