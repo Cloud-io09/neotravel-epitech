@@ -39,7 +39,7 @@ export function LeadReviewActions({ lead }: { lead: Lead }) {
  }
 
  return (
-  <section className={styles.card} aria-label="Décision humaine">
+  <section id="human-review-actions" className={styles.card} aria-label="Décision humaine">
    <div className={styles.copy}>
     <p className={styles.kicker}>Revue humaine</p>
     <h2>Votre décision sur cette demande</h2>
@@ -56,6 +56,15 @@ export function LeadReviewActions({ lead }: { lead: Lead }) {
      {busy === "validate" ? <Loader2 className={styles.spin} aria-hidden="true" size={16} /> : <Check aria-hidden="true" size={16} />}
      Valider la demande
     </button>
+   </div>
+
+   <div className={styles.emailPreview} aria-label="Email client à brancher">
+    <strong>Email client — placeholder dev</strong>
+    <p>
+     Destinataire : {lead.email ?? "email à renseigner"}. Après validation, l&apos;email de reprise confirmera la
+     prise en charge commerciale. Après refus, il indiquera qu&apos;un conseiller ne peut pas traiter la demande en
+     l&apos;état. L&apos;envoi réel sera branché sur le workflow email/n8n.
+    </p>
    </div>
   </section>
  );

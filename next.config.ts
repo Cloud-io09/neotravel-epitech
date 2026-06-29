@@ -1,41 +1,45 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
 
-const securityHeaders = [
- { key: "X-Frame-Options", value: "DENY" },
- { key: "X-Content-Type-Options", value: "nosniff" },
- { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
- { key: "X-DNS-Prefetch-Control", value: "off" },
- {
-  key: "Permissions-Policy",
-  value: "camera=(), microphone=(), geolocation=(), interest-cohort=()"
- },
- {
-  key: "Strict-Transport-Security",
-  value: "max-age=63072000; includeSubDomains; preload"
- }
-];
-
-const noStoreHeaders = [
- ...securityHeaders,
- { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, private" },
- { key: "Pragma", value: "no-cache" }
-];
+const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
- poweredByHeader: false,
- async redirects() {
-  return [
-   { source: "/connexion", destination: "/", permanent: false },
-   { source: "/client/connexion", destination: "/", permanent: false }
-  ];
- },
- async headers() {
-  return [
-   { source: "/:path*", headers: securityHeaders },
-   { source: "/dashboard/:path*", headers: noStoreHeaders },
-   { source: "/api/:path*", headers: noStoreHeaders }
-  ];
- }
+  // Parent folder also has a package-lock.json; without this, Turbopack resolves
+  // node_modules from the wrong directory and @ai-sdk/openai appears missing.
+  turbopack: {
+    root: projectRoot,
+  },
+  // The customer-email service reads its HTML templates at runtime via fs. This guarantees
+  // Next traces them into the serverless function bundle (otherwise: ENOENT in production).
+  outputFileTracingIncludes: {
+    "/api/**": ["./src/features/emails/templates/**"],
+  },
+  async redirects() {
+    const clientRoutes = [
+      "demande",
+      "devis",
+      "partenaires",
+      "contact",
+      "notre-equipe",
+      "mentions-legales",
+      "confidentialite",
+    ];
+
+    return [
+      { source: "/client", destination: "/", permanent: false },
+      ...clientRoutes.map((route) => ({
+        source: `/${route}`,
+        destination: `/client/${route}`,
+        permanent: false,
+      })),
+      ...clientRoutes.map((route) => ({
+        source: `/${route}/:path*`,
+        destination: `/client/${route}/:path*`,
+        permanent: false,
+      })),
+    ];
+  },
 };
 
 export default nextConfig;

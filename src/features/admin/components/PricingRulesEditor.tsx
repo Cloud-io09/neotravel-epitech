@@ -7,7 +7,7 @@ type PricingRule = {
  value: unknown;
  unit: string;
  active: boolean;
- version: number;
+ version: string | number;
  metadata?: Record<string, unknown>;
 };
 

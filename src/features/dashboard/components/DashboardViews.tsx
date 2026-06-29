@@ -1,34 +1,43 @@
+import Link from "next/link";
 import { getAuditLogs } from "@/features/admin/services/getAuditLogs";
 import { getModelRuns } from "@/features/admin/services/getModelRuns";
-import { getPricingAdminData } from "@/features/admin/services/getPricingRules";
 import { getIntegrationsStatus } from "@/features/integrations/integrations";
 import { humanReviewReasonLabel } from "@/features/human-review/reasonLabels";
 import { listFollowups, listLeads, listQuotes } from "@/shared/lib/data";
-import { getDataMode } from "@/shared/lib/demo/demoMode";
+import { isLostQuote, isWonQuote, quoteOutcomeDisplay } from "@/features/dashboard/services/quoteOutcome";
+import {
+ formatCommercialDate,
+ getLeadCommercialAction,
+ latestQuoteByLeadId,
+ leadDisplayName,
+ leadRouteLabel,
+ nextScheduledFollowup,
+ quoteLabel
+} from "@/features/dashboard/services/leadPipelinePresentation";
 import type { Followup } from "@/shared/types/followup";
 import type { Lead } from "@/shared/types/lead";
 import type { Quote } from "@/shared/types/quote";
 import styles from "./dashboard.module.css";
-import { AutomationWorkflowsManager } from "./AutomationWorkflowsManager";
+import { AdminDashboardClient } from "./AdminDashboardClient";
+import { AutomationsDashboardClient } from "./AutomationsDashboardClient";
+import { getAutomationsDashboardData } from "@/features/dashboard/services/getAutomationsDashboardData";
+import { GrowthDashboardClient } from "./GrowthDashboardClient";
+import { RgpdAuditDashboardClient } from "./RgpdAuditDashboardClient";
+import { getRgpdAuditDashboardData } from "@/features/dashboard/services/getRgpdAuditDashboardData";
+import { getAdminDashboardData } from "@/features/dashboard/services/getAdminDashboardData";
 import { CardList, DashboardHeader, DataTable, KpiGrid, Note, Panel } from "./DashboardPageKit";
-import { PricingSettingsEditor } from "./PricingSettingsEditor";
+import { KpisDashboardClient } from "./KpisDashboardClient";
+import { getKpisDashboardData } from "@/features/dashboard/services/getKpisDashboardData";
+import { PricingDashboardClient } from "./PricingDashboardClient";
+import { getPricingDashboardData } from "@/features/dashboard/services/getPricingDashboardData";
 import { StatusBadge } from "./StatusBadge";
-
-function routeOf(lead: Lead) {
- return `${lead.departureCity ?? "?"} > ${lead.arrivalCity ?? "?"}`;
-}
 
 function euro(value: number) {
  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value);
 }
 
-function nextFollowup(leadId: string, followups: Followup[]) {
- const followup = followups.find((item) => item.leadId === leadId && item.status === "SCHEDULED");
- if (!followup) return "—";
- return new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short" }).format(new Date(followup.dueAt));
-}
-
 const PRIORITY_STATUSES = new Set(["NEW", "INCOMPLETE", "HUMAN_REVIEW"]);
+const ARCHIVED_LEAD_STATUSES = new Set<Lead["status"]>(["LOST", "CLOSED"]);
 const QUALIFIED_LEAD_STATUSES = new Set<Lead["status"]>([
  "QUALIFIED",
  "HIGH_VALUE",
@@ -41,33 +50,110 @@ const QUALIFIED_LEAD_STATUSES = new Set<Lead["status"]>([
 ]);
 
 function filterLeadsByStatus(leads: Lead[], status?: string) {
+ if (status === "incomplete") return leads.filter((lead) => lead.status === "INCOMPLETE" || (lead.missingFields?.length ?? 0) > 0);
+ if (status === "urgent") {
+  const now = Date.now();
+  return leads.filter((lead) => {
+   const departureTime = dateTime(lead.departureDate);
+   if (departureTime === null) return false;
+   const hoursToDeparture = (departureTime - now) / 3_600_000;
+   return hoursToDeparture >= 0 && hoursToDeparture < 7 * 24;
+  });
+ }
  if (status === "qualified") return leads.filter((lead) => QUALIFIED_LEAD_STATUSES.has(lead.status));
- return leads;
+ return leads.filter((lead) => !ARCHIVED_LEAD_STATUSES.has(lead.status));
 }
 
-function filterQuotesByStatus(quotes: Quote[], status?: string) {
+type LeadPriorityBucket = {
+ rank: number;
+ label: string;
+ tone: "critical" | "warning" | "info" | "muted";
+};
+
+function PriorityBadge({ priority }: { priority: LeadPriorityBucket }) {
+ return (
+  <span className={styles.priorityBadge} data-tone={priority.tone}>
+   {priority.label}
+  </span>
+ );
+}
+
+function leadPriorityBucket(lead: Lead, quote?: Quote): LeadPriorityBucket {
+ if (lead.status === "HUMAN_REVIEW") {
+  return { rank: 1, label: "1 - À valider urgent", tone: "critical" };
+ }
+
+ if (lead.status === "INCOMPLETE" || lead.status === "NEW" || (lead.missingFields?.length ?? 0) > 0) {
+  return { rank: 2, label: "2 - À compléter", tone: "warning" };
+ }
+
+ if (
+  lead.status === "QUOTE_SENT" ||
+  lead.status === "FOLLOWUP_SCHEDULED" ||
+  lead.status === "FOLLOWUP_1" ||
+  lead.status === "FOLLOWUP_2" ||
+  quote?.status === "QUOTE_SENT"
+ ) {
+  return { rank: 3, label: "3 - Envoyé", tone: "info" };
+ }
+
+ if (lead.status === "LOST" || lead.status === "CLOSED" || quote?.status === "REFUSED" || quote?.status === "CLOSED") {
+  return { rank: 4, label: "4 - Perdu", tone: "muted" };
+ }
+
+ return { rank: 5, label: "5 - Autres", tone: "info" };
+}
+
+function compareLeadPriority(a: Lead, b: Lead, quoteByLeadId: Map<string, Quote>) {
+ const aPriority = leadPriorityBucket(a, quoteByLeadId.get(a.id)).rank;
+ const bPriority = leadPriorityBucket(b, quoteByLeadId.get(b.id)).rank;
+
+ if (aPriority !== bPriority) return aPriority - bPriority;
+
+ const aDate = new Date(a.departureDate ?? a.createdAt ?? 0).getTime();
+ const bDate = new Date(b.departureDate ?? b.createdAt ?? 0).getTime();
+ return aDate - bDate;
+}
+
+function filterQuotesByStatus(quotes: Quote[], leadById: Map<string, Lead>, status?: string) {
  if (status === "open") return quotes.filter((quote) => quote.status === "QUOTE_READY" || quote.status === "QUOTE_SENT");
- if (status === "accepted") return quotes.filter((quote) => quote.status === "ACCEPTED");
+ if (status === "sent") return quotes.filter((quote) => quote.status === "QUOTE_SENT");
+ if (status === "accepted") return quotes.filter((quote) => isWonQuote(quote, leadById.get(quote.leadId)));
+ if (status === "lost") return quotes.filter((quote) => isLostQuote(quote, leadById.get(quote.leadId)));
  return quotes;
 }
 
 function filterFollowupsByStatus(followups: Followup[], status?: string) {
+ if (status === "scheduled") return followups.filter((followup) => followup.status === "SCHEDULED");
  if (status !== "overdue") return followups;
  const now = Date.now();
  return followups.filter((followup) => followup.status === "SCHEDULED" && new Date(followup.dueAt).getTime() < now);
 }
 
+function dateTime(value: string | null | undefined) {
+ if (!value) return null;
+ const time = new Date(value).getTime();
+ return Number.isFinite(time) ? time : null;
+}
+
+export async function KpisDashboardPage() {
+ const data = await getKpisDashboardData();
+ return <KpisDashboardClient data={data} />;
+}
+
 export async function CommercialLeadsPage({ status }: { status?: string }) {
- const [leads, followups] = await Promise.all([listLeads(), listFollowups()]);
- const visibleLeads = filterLeadsByStatus(leads, status);
+ const [leads, followups, quotes] = await Promise.all([listLeads(), listFollowups(), listQuotes()]);
  const toTreat = leads.filter((lead) => PRIORITY_STATUSES.has(lead.status)).length;
+ const archived = leads.filter((lead) => ARCHIVED_LEAD_STATUSES.has(lead.status)).length;
+ const quoteByLeadId = latestQuoteByLeadId(quotes);
+ const visibleLeads = filterLeadsByStatus(leads, status).sort((a, b) => compareLeadPriority(a, b, quoteByLeadId));
 
  return (
   <main className={styles.page}>
    <DashboardHeader
     title="Demandes"
     subtitle="Tous les prospects, leur statut, la priorité et la prochaine action."
-    actionHref="/demande"
+    actionHref="/client/demande"
     actionLabel="Nouvelle demande"
    />
    <KpiGrid
@@ -75,30 +161,103 @@ export async function CommercialLeadsPage({ status }: { status?: string }) {
      { label: "Demandes", value: leads.length, tone: "blue" },
      { label: "À traiter", value: toTreat, tone: "red" },
      { label: "À valider", value: leads.filter((lead) => lead.status === "HUMAN_REVIEW").length, tone: "gold" },
-     { label: "À compléter", value: leads.filter((lead) => lead.status === "INCOMPLETE").length, tone: "gold" }
+     { label: "Archives", value: archived, tone: "gold" }
     ]}
    />
    <Panel
     title="Toutes les demandes"
-    subtitle="Mettez une demande « À valider » : elle apparaît aussitôt dans Validation humaine et dans l'Agenda."
+    subtitle="Chaque ligne est un dossier commercial : statut, blocage éventuel, devis et prochaine action."
+    action={
+     <Link className={styles.secondary} href="/dashboard/demandes/archive">
+      Voir les archives
+     </Link>
+    }
    >
     {visibleLeads.length === 0 ? (
      <Note>Aucune demande pour ce filtre.</Note>
     ) : (
      <DataTable
-      columns={["Client", "Trajet", "Statut", "Priorité", "Prochaine relance", "Fiabilité"]}
-      columnsTemplate="1.2fr 1fr 1fr .8fr 1fr .6fr"
-      rows={visibleLeads.map((lead) => ({
-       cells: [
-        lead.organization ?? "Organisation manquante",
-        routeOf(lead),
-        <StatusBadge key="s" status={lead.status} />,
-        lead.status === "HUMAN_REVIEW" ? "Urgent" : "Normale",
-        nextFollowup(lead.id, followups),
-        typeof lead.confidence === "number" ? `${Math.round(lead.confidence * 100)}%` : "A confirmer"
-       ],
-       href: `/dashboard/demandes/${lead.id}`
-      }))}
+      columns={["Priorité", "Dossier", "Trajet", "Statut", "Prochaine action", "Devis", "Relance"]}
+      columnsTemplate="1fr 1.15fr 1.1fr .85fr 1.35fr .9fr .8fr"
+      rows={visibleLeads.map((lead) => {
+       const quote = quoteByLeadId.get(lead.id);
+       const followup = nextScheduledFollowup(lead.id, followups);
+       const action = getLeadCommercialAction({ lead, quote, followup });
+       const priority = leadPriorityBucket(lead, quote);
+       return {
+        cells: [
+         <PriorityBadge key="priority" priority={priority} />,
+         leadDisplayName(lead),
+         leadRouteLabel(lead),
+         <StatusBadge key="s" status={lead.status} />,
+         action.label,
+         quoteLabel(quote),
+         followup ? formatCommercialDate(followup.dueAt) : "Aucune"
+        ],
+        href: `/dashboard/demandes/${lead.id}`,
+        tone: action.tone === "critical" ? "review" : action.tone === "warning" ? "danger" : undefined
+       };
+      })}
+     />
+    )}
+   </Panel>
+  </main>
+ );
+}
+
+function archiveReason(lead: Lead, quote?: Quote) {
+ if (lead.humanReviewReason) return lead.humanReviewReason;
+ if (lead.status === "LOST" || quote?.status === "REFUSED") return "Demande perdue ou refusée.";
+ return "Demande clôturée : non traitable ou sans réponse après relances.";
+}
+
+export async function ArchivedLeadsPage() {
+ const [leads, quotes] = await Promise.all([listLeads(), listQuotes()]);
+ const quoteByLeadId = latestQuoteByLeadId(quotes);
+ const archivedLeads = leads
+  .filter((lead) => ARCHIVED_LEAD_STATUSES.has(lead.status))
+  .sort((a, b) => new Date(b.updatedAt ?? b.createdAt ?? 0).getTime() - new Date(a.updatedAt ?? a.createdAt ?? 0).getTime());
+
+ return (
+  <main className={styles.page}>
+   <DashboardHeader
+    title="Archives demandes"
+    subtitle="Demandes non traitables, perdues ou clôturées après absence de réponse."
+    actionHref="/dashboard/demandes"
+    actionLabel="Retour demandes"
+   />
+   <KpiGrid
+    kpis={[
+     { label: "Archives", value: archivedLeads.length, tone: "gold" },
+     { label: "Non traitables", value: archivedLeads.filter((lead) => lead.status === "CLOSED").length, tone: "blue" },
+     { label: "Perdues", value: archivedLeads.filter((lead) => lead.status === "LOST").length, tone: "red" },
+     { label: "Avec raison", value: archivedLeads.filter((lead) => Boolean(lead.humanReviewReason)).length, tone: "green" }
+    ]}
+   />
+   <Panel
+    title="Dossiers archivés"
+    subtitle="La raison d'archive reste visible pour éviter de retraiter un dossier non exploitable."
+   >
+    {archivedLeads.length === 0 ? (
+     <Note>Aucune demande archivée.</Note>
+    ) : (
+     <DataTable
+      columns={["Dossier", "Trajet", "Statut", "Raison", "Dernière date"]}
+      columnsTemplate="1.1fr 1.1fr .8fr 1.7fr .9fr"
+      rows={archivedLeads.map((lead) => {
+       const quote = quoteByLeadId.get(lead.id);
+       return {
+        cells: [
+         leadDisplayName(lead),
+         leadRouteLabel(lead),
+         <StatusBadge key="s" status={lead.status} />,
+         archiveReason(lead, quote),
+         formatCommercialDate(lead.updatedAt ?? lead.createdAt)
+        ],
+        href: `/dashboard/demandes/${lead.id}`,
+        tone: lead.status === "LOST" ? "danger" : undefined
+       };
+      })}
      />
     )}
    </Panel>
@@ -141,17 +300,18 @@ export async function HumanReviewDashboardPage() {
      </Note>
     ) : (
      <DataTable
-      columns={["Client", "Trajet", "Raison", "Date de départ", "Action"]}
-      columnsTemplate="1.2fr 1fr 1.4fr 1fr .7fr"
-      rows={humanLeads.map((lead) => ({
+     columns={["Client", "Trajet", "Raison", "Date de départ", "Action"]}
+     columnsTemplate="1.2fr 1fr 1.4fr 1fr .7fr"
+     rows={humanLeads.map((lead) => ({
        cells: [
-        lead.organization ?? lead.email ?? lead.id,
-        routeOf(lead),
+        leadDisplayName(lead),
+        leadRouteLabel(lead),
         humanReviewReasonLabel(lead.humanReviewReason),
         lead.departureDate ? new Date(lead.departureDate).toLocaleDateString("fr-FR") : "À préciser",
-        "Ouvrir"
+        "Reprendre"
        ],
-       href: `/dashboard/demandes/${lead.id}`
+       href: `/dashboard/demandes/${lead.id}`,
+       tone: "review"
       }))}
      />
     )}
@@ -162,9 +322,10 @@ export async function HumanReviewDashboardPage() {
 
 export async function QuotesDashboardPage({ status }: { status?: string }) {
  const [quotes, leads] = await Promise.all([listQuotes(), listLeads()]);
- const visibleQuotes = filterQuotesByStatus(quotes, status);
  const leadById = new Map(leads.map((lead) => [lead.id, lead]));
+ const visibleQuotes = filterQuotesByStatus(quotes, leadById, status);
  const quoteTotal = quotes.reduce((sum, quote) => sum + quote.calculation.priceTtc, 0);
+ const acceptedCount = quotes.filter((quote) => isWonQuote(quote, leadById.get(quote.leadId))).length;
 
  return (
   <main className={styles.page}>
@@ -176,7 +337,7 @@ export async function QuotesDashboardPage({ status }: { status?: string }) {
     kpis={[
      { label: "Devis", value: quotes.length, tone: "blue" },
      { label: "Envoyés", value: quotes.filter((quote) => quote.status === "QUOTE_SENT").length, tone: "gold" },
-     { label: "Acceptés", value: quotes.filter((quote) => quote.status === "ACCEPTED").length, tone: "green" },
+     { label: "Acceptés", value: acceptedCount, tone: "green" },
      { label: "CA potentiel", value: euro(quoteTotal), tone: "blue" }
     ]}
    />
@@ -189,15 +350,16 @@ export async function QuotesDashboardPage({ status }: { status?: string }) {
       columnsTemplate="1fr 1.2fr .9fr 1fr .8fr"
       rows={visibleQuotes.map((quote) => {
        const lead = leadById.get(quote.leadId);
+       const outcome = quoteOutcomeDisplay(quote, lead);
        return {
         cells: [
          quote.calculation.quoteNumber,
-         lead?.organization ?? quote.leadId,
+         leadDisplayName(lead),
          euro(quote.calculation.priceTtc),
-         <StatusBadge key="s" status={quote.status} />,
+         <StatusBadge key="s" status={outcome.status} />,
          "Ouvrir"
         ],
-        href: `/devis/${quote.id}`
+        href: `/client/devis/${quote.id}`
        };
       })}
      />
@@ -229,18 +391,19 @@ export async function FollowupsDashboardPage({ status }: { status?: string }) {
      <Note>Aucune relance pour ce filtre.</Note>
     ) : (
      <DataTable
-      columns={["Client", "Devis", "Date", "Canal", "Statut"]}
+      columns={["Dossier", "Devis", "Date", "Canal", "Statut"]}
       columnsTemplate="1.2fr 1fr .9fr .8fr 1fr"
       rows={visibleFollowups.map((followup) => {
        const lead = leadById.get(followup.leadId);
        return {
         cells: [
-         lead?.organization ?? followup.leadId,
+         leadDisplayName(lead),
          followup.quoteId ?? "Devis",
          new Date(followup.dueAt).toLocaleDateString("fr-FR"),
-         followup.channel,
-         <StatusBadge key="s" status={followup.status} />
-        ]
+        followup.channel,
+        <StatusBadge key="s" status={followup.status} />
+       ],
+        href: `/dashboard/relances/${followup.id}`
        };
       })}
      />
@@ -300,135 +463,18 @@ export async function CostsLogsDashboardPage() {
 }
 
 export async function AdminOverviewDashboardPage() {
- const [leads, quotes, followups, logs, runs] = await Promise.all([
-  listLeads(),
-  listQuotes(),
-  listFollowups(),
-  getAuditLogs(),
-  getModelRuns()
- ]);
- const integrations = getIntegrationsStatus();
- const connected = integrations.filter((integration) => integration.connected).length;
- const supabase = getDataMode() === "supabase";
- const aiCost = runs.reduce((sum, run) => sum + (run.costEur ?? 0), 0);
- const toTreat = leads.filter((lead) => ["NEW", "INCOMPLETE", "HUMAN_REVIEW"].includes(lead.status)).length;
-
- return (
-  <main className={styles.page}>
-   <DashboardHeader
-    title="Vue admin"
-    subtitle="Supervision en direct : source des données, état des connexions, activité commerciale et coûts IA."
-   />
-   <KpiGrid
-    kpis={[
-     { label: "Source des données", value: supabase ? "Supabase" : "Démo", tone: supabase ? "green" : "gold" },
-     { label: "Connexions actives", value: `${connected}/${integrations.length}`, tone: "blue" },
-     { label: "Appels IA", value: runs.length, tone: "blue" },
-     { label: "Coût IA cumulé", value: euro(aiCost), tone: "green" }
-    ]}
-   />
-   <div className={styles.grid}>
-    <Panel title="État des connexions" subtitle="Statut réel de chaque intégration.">
-     <DataTable
-      columns={["Intégration", "Statut", "Détail"]}
-      columnsTemplate="1.3fr .8fr 1.6fr"
-      rows={integrations.map((integration) => ({
-       cells: [integration.name, integration.connected ? "Connecte" : "Non connecte", integration.detail]
-      }))}
-     />
-    </Panel>
-    <aside className={styles.sideStack}>
-     <Panel title="Activité commerciale" subtitle="Volumes réels du moment.">
-      <CardList
-       items={[
-        { title: `${leads.length} demandes`, body: `${toTreat} à traiter actuellement.`, tone: "blue" },
-        {
-         title: `${quotes.length} devis`,
-         body: `${quotes.filter((quote) => quote.status === "QUOTE_SENT").length} envoyés · ${quotes.filter((quote) => quote.status === "ACCEPTED").length} acceptés.`,
-         tone: "green"
-        },
-        {
-         title: `${followups.length} relances`,
-         body: `${followups.filter((followup) => followup.status === "SCHEDULED").length} programmées.`,
-         tone: "gold"
-        }
-       ]}
-      />
-     </Panel>
-     <Panel title="Traçabilité" subtitle="Preuve d'audit conservée.">
-      <CardList
-       items={[
-        {
-         title: `${logs.length} événements d'audit`,
-         body: "Transitions métier journalisées avec empreintes d'intégrité.",
-         tone: "blue"
-        }
-       ]}
-      />
-     </Panel>
-    </aside>
-   </div>
-   <Note>Le prix vient uniquement de calculerDevis() ; les cas sensibles passent en validation humaine.</Note>
-  </main>
- );
+ const data = await getAdminDashboardData();
+ return <AdminDashboardClient data={data} />;
 }
 
 export async function PricingDashboardPage() {
- const { pricingRules } = await getPricingAdminData();
-
- return (
-  <main className={styles.page}>
-   <DashboardHeader
-    title="Tarification"
-    subtitle="Tarifs déterministes modifiables manuellement. Le prix n'est jamais calculé par l'IA."
-   />
-   <KpiGrid
-    kpis={[
-     { label: "Règles tarifaires", value: pricingRules.length, tone: "blue" },
-     { label: "Édition", value: "Manuelle", tone: "blue" },
-     { label: "Source du prix", value: "calculerDevis()", tone: "green" },
-     { label: "Recalcul IA", value: "Interdit", tone: "red" }
-    ]}
-   />
-   <PricingSettingsEditor pricingRules={pricingRules} />
-   <Note>Toute modification d'un tarif doit être testée et auditée avant mise en production.</Note>
-  </main>
- );
+ const data = await getPricingDashboardData();
+ return <PricingDashboardClient data={data} />;
 }
 
 export async function AutomationsDashboardPage() {
- const [followups, quotes] = await Promise.all([listFollowups(), listQuotes()]);
- const integrations = getIntegrationsStatus();
- const n8nOn = Boolean(integrations.find((integration) => integration.id === "n8n")?.connected);
- const scheduled = followups.filter((followup) => followup.status === "SCHEDULED").length;
- const sent = followups.filter((followup) => followup.status !== "SCHEDULED").length;
- const quotesReady = quotes.filter((quote) => quote.status === "QUOTE_READY").length;
- const statusLabel = n8nOn ? "Actif" : "Simule (demo)";
-
- const workflows: Array<[string, string, string]> = [
-  ["Envoi de devis", "Devis prêt", "Email au client"],
-  ["Relance J+2 (urgent)", "Sans réponse", "Email de relance"],
-  ["Relance J+7", "Standard", "Email de relance"],
-  ["Notification validation", "Passage en validation humaine", "Alerte interne"]
- ];
-
- return (
-  <main className={styles.page}>
-   <DashboardHeader
-    title="Automatisations"
-    subtitle="Gestion des workflows, relances et notifications."
-   />
-   <KpiGrid
-    kpis={[
-     { label: "n8n", value: n8nOn ? "Connecte" : "Non connecte", tone: n8nOn ? "green" : "red" },
-     { label: "Relances programmées", value: scheduled, tone: "gold" },
-     { label: "Relances envoyées", value: sent, tone: "blue" },
-     { label: "Devis prêts à envoyer", value: quotesReady, tone: "blue" }
-    ]}
-   />
-   <AutomationWorkflowsManager workflows={workflows} statusLabel={statusLabel} />
-  </main>
- );
+ const data = await getAutomationsDashboardData();
+ return <AutomationsDashboardClient data={data} />;
 }
 
 export async function AdminAiCostsDashboardPage() {
@@ -446,7 +492,7 @@ export async function AdminAiCostsDashboardPage() {
    />
    <KpiGrid
     kpis={[
-     { label: "Fournisseur IA", value: aiOn ? "Connecte" : "Mock", tone: aiOn ? "green" : "gold" },
+     { label: "Fournisseur IA", value: aiOn ? "Connecté" : "Mock", tone: aiOn ? "green" : "gold" },
      { label: "Modèle", value: runs[0]?.model ?? "mock", tone: "blue" },
      { label: "Coût cumulé", value: euro(cost), tone: "green" },
      { label: "Appels en erreur", value: errors, tone: errors > 0 ? "red" : "green" }
@@ -473,124 +519,10 @@ export async function AdminAiCostsDashboardPage() {
 }
 
 export async function RgpdAuditDashboardPage() {
- const logs = await getAuditLogs();
- const entities = new Set(logs.map((log) => log.entityType)).size;
- const withHash = logs.filter((log) => log.inputHash && log.outputHash).length;
-
- return (
-  <main className={styles.page}>
-   <DashboardHeader
-    title="Audit RGPD"
-    subtitle="Données minimales, conservation maîtrisée et preuve d'audit sans aucun secret en clair."
-   />
-   <KpiGrid
-    kpis={[
-     { label: "Événements d'audit", value: logs.length, tone: "blue" },
-     { label: "Types d'entités tracés", value: entities, tone: "blue" },
-     { label: "Avec empreinte", value: `${withHash}/${logs.length}`, tone: "green" },
-     { label: "Secrets affichés", value: "0", tone: "green" }
-    ]}
-   />
-   <Panel title="Preuve d'audit" subtitle="Dernières transitions journalisées avec empreintes d'intégrité.">
-    <DataTable
-     columns={["Date", "Acteur", "Action", "Objet", "Empreinte"]}
-     columnsTemplate="1.2fr .7fr 1.4fr 1fr .7fr"
-     rows={logs.slice(0, 8).map((log) => ({
-      cells: [
-       new Date(log.createdAt).toLocaleString("fr-FR", {
-        day: "2-digit",
-        month: "short",
-        hour: "2-digit",
-        minute: "2-digit"
-       }),
-       log.actor,
-       log.action,
-       log.entityType,
-       log.inputHash ? "Oui" : "—"
-      ]
-     }))}
-    />
-   </Panel>
-   <Panel title="Données & conservation" subtitle="Politique de minimisation appliquée.">
-    <DataTable
-     columns={["Donnée", "Usage", "Conservation", "Base légale"]}
-     rows={[
-      { cells: ["Email prospect", "Devis + relance", "Durée du MVP", "Intérêt légitime"] },
-      { cells: ["Message brut", "Qualification", "Limitée", "Exécution de la demande"] },
-      { cells: ["Empreintes (hash)", "Preuve d'audit", "Longue", "Intégrité"] },
-      { cells: ["Payload n8n", "Notification", "Nettoyé", "Opérationnel"] }
-     ]}
-    />
-   </Panel>
-   <Note>Minimisation : les secrets et jetons ne sont jamais affichés. Audit : chaque transition clé crée un log avec empreinte entrée/sortie.</Note>
-  </main>
- );
+ const data = await getRgpdAuditDashboardData();
+ return <RgpdAuditDashboardClient data={data} />;
 }
 
 export async function GrowthDashboardPage() {
- const [leads, quotes] = await Promise.all([listLeads(), listQuotes()]);
-
- const total = leads.length;
- const qualifiedStatuses = [
-  "QUALIFIED",
-  "HIGH_VALUE",
-  "QUOTE_READY",
-  "QUOTE_SENT",
-  "FOLLOWUP_1",
-  "FOLLOWUP_2",
-  "FOLLOWUP_SCHEDULED",
-  "WON",
-  "LOST",
-  "CLOSED"
- ];
- const qualified = leads.filter((lead) => qualifiedStatuses.includes(lead.status)).length;
- const quoted = quotes.length;
- const accepted = quotes.filter((quote) => quote.status === "ACCEPTED").length;
- const caPotentiel = quotes.reduce((sum, quote) => sum + quote.calculation.priceTtc, 0);
- const caGagne = quotes
-  .filter((quote) => quote.status === "ACCEPTED")
-  .reduce((sum, quote) => sum + quote.calculation.priceTtc, 0);
- const convRate = quoted > 0 ? Math.round((accepted / quoted) * 100) : 0;
-
- const funnel = [
-  { label: "Demandes reçues", value: total },
-  { label: "Demandes qualifiées", value: qualified },
-  { label: "Devis générés", value: quoted },
-  { label: "Devis acceptés", value: accepted }
- ];
- const max = Math.max(1, ...funnel.map((stage) => stage.value));
-
- return (
-  <main className={styles.page}>
-   <DashboardHeader title="Croissance" subtitle="Conversion réelle, du premier contact au devis accepté." />
-   <KpiGrid
-    kpis={[
-     { label: "Demandes", value: total, tone: "blue" },
-     { label: "Taux de conversion", value: `${convRate}%`, tone: "green" },
-     { label: "CA potentiel", value: euro(caPotentiel), tone: "blue" },
-     { label: "CA gagné", value: euro(caGagne), tone: "green" }
-    ]}
-   />
-   <Panel title="Entonnoir commercial" subtitle="Chaque étape avec son volume réel et sa part des demandes.">
-    <DataTable
-     columns={["Étape", "Volume", "Part des demandes"]}
-     columnsTemplate="1.4fr .6fr 1.6fr"
-     rows={funnel.map((stage) => ({
-      cells: [
-       stage.label,
-       stage.value,
-       <span className={styles.funnelCell} key="bar">
-        <span className={styles.funnelBar}>
-         <span style={{ width: `${Math.round((stage.value / max) * 100)}%` }} />
-        </span>
-        <em>{total > 0 ? Math.round((stage.value / total) * 100) : 0}%</em>
-       </span>
-      ]
-     }))}
-    />
-   </Panel>
-   <Note>Le gain d'automatisation se lit comme du temps libéré pour les cas complexes, pas comme une réduction d'effectif.</Note>
-  </main>
- );
+ return <GrowthDashboardClient />;
 }
-

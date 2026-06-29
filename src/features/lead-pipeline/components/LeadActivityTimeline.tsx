@@ -34,13 +34,9 @@ export function LeadActivityTimeline({ lead }: { lead: Lead }) {
  const activity = getLeadActivity(lead);
 
  return (
-  <section className={styles.logCard} aria-label="Suivi en temps réel de la demande">
+  <section className={styles.logCard} aria-label="Journal de traitement de la demande">
    <div className={styles.logHead}>
-    <h2>Suivi en temps réel</h2>
-    <span className={styles.live}>
-     <span className={styles.liveDot} aria-hidden="true" />
-     En direct
-    </span>
+    <h2>Journal de traitement</h2>
    </div>
 
    <ol className={styles.timeline}>

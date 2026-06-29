@@ -7,9 +7,60 @@ const ONE_WAY_PATTERN =
   /\baller\s+simple\b|\bsans\s+retour\b|\bjuste\s+l['']aller\b|\btrajet\s+simple\b/iu;
 
 function parseTripType(message: string): LeadQualification["trip_type"] | undefined {
-  if (ROUND_TRIP_PATTERN.test(message)) return "round_trip";
-  if (ONE_WAY_PATTERN.test(message)) return "one_way";
+  const normalized = normalizeUserText(message);
+  if (ROUND_TRIP_PATTERN.test(normalized)) return "round_trip";
+  if (ONE_WAY_PATTERN.test(normalized)) return "one_way";
   return undefined;
+}
+
+function parsePhone(message: string): string | undefined {
+  const match = /(?:\+33|0)\s*[1-9](?:[\s.-]*\d{2}){4}\b/u.exec(message);
+  return match?.[0]?.replace(/\s+/gu, " ").trim();
+}
+
+function parseClientType(message: string): string | undefined {
+  const normalized = normalizeUserText(message).toLocaleLowerCase("fr-FR");
+  if (/\b(particulier|client particulier)\b/u.test(normalized)) return "Particulier";
+  if (/\b(entreprise|societe|société|client pro|professionnel)\b/u.test(normalized)) return "Entreprise";
+  if (/\b(association|asso)\b/u.test(normalized)) return "Association";
+  if (/\b(agence|agence de voyage)\b/u.test(normalized)) return "Agence";
+  if (/\b(ecole|école|college|collège|lycee|lycée|universite|université)\b/u.test(normalized)) return "École";
+  if (/\b(collectivite|collectivité|mairie|commune)\b/u.test(normalized)) return "Collectivité";
+  return undefined;
+}
+
+function parseContactName(message: string): string | undefined {
+  const explicitContact =
+    /\b(?:contact|nom du contact|nom de contact)\s*[:=-]?\s*([\p{L}'’ -]{2,60})(?:$|[,.!?;]|\s+(?:tel|tél|telephone|téléphone|mail|email)\b)/iu.exec(message);
+
+  if (explicitContact) return cleanName(explicitContact[1]);
+
+  const selfIntroduction =
+    /\b(?:je m'appelle|je suis)\s+([\p{L}'’ -]{2,60})(?:$|[,.!?;])/iu.exec(message);
+  const candidate = selfIntroduction?.[1]?.trim();
+
+  if (!candidate || looksLikeRouteOrLocation(candidate)) return undefined;
+
+  return cleanName(candidate);
+}
+
+function looksLikeRouteOrLocation(value: string): boolean {
+  const normalized = normalizeUserText(value).toLocaleLowerCase("fr-FR");
+
+  return (
+    /^(?:à|a|au|aux|de|depuis|dans|sur|vers|pour)\b/u.test(normalized) ||
+    /\b(?:vais|va|allons|aller|partir|pars|part|partons|arrive|arrivons|destination|trajet)\b/u.test(normalized)
+  );
+}
+
+function cleanName(value: string | undefined): string | undefined {
+  const name = value?.trim().replace(/\s+/gu, " ");
+  if (!name || name.length > 60) return undefined;
+  if (!/^[\p{L}][\p{L}'’ -]*$/u.test(name)) return undefined;
+  return name
+    .split(/([\s'’ -])/u)
+    .map((part) => (/^[\p{L}]/u.test(part) ? part.charAt(0).toLocaleUpperCase("fr-FR") + part.slice(1) : part))
+    .join("");
 }
 
 const MONTHS: Record<string, number> = {
@@ -34,17 +85,61 @@ export function extractTurnFacts(
   message: string,
   existing: LeadQualification,
   referenceDate: Date,
+  lastAssistantText = "",
 ): Partial<LeadQualification> {
   const facts: Partial<LeadQualification> = {};
+  const phone = parsePhone(message);
+  const clientType = parseClientType(message);
+  const contactName = parseContactName(message);
+  const cityMentions = parseCityMentions(message);
+  const contextualCity = parseContextualCityAnswer(message);
+
+  if (!existing.phone && phone) {
+    facts.phone = phone;
+  }
+
+  if (!existing.client_type && clientType) {
+    facts.client_type = clientType;
+  }
+
+  if (!existing.contact_name && contactName) {
+    facts.contact_name = contactName;
+    facts.name = facts.name ?? contactName;
+  }
+
+  if (!existing.departure_city && cityMentions.departure_city) {
+    facts.departure_city = cityMentions.departure_city;
+  }
+
+  if (!existing.arrival_city && cityMentions.arrival_city) {
+    facts.arrival_city = cityMentions.arrival_city;
+  }
+
+  if (contextualCity) {
+    if (!existing.departure_city && !facts.departure_city && asksForDepartureCity(lastAssistantText)) {
+      facts.departure_city = contextualCity;
+    } else if (!existing.arrival_city && !facts.arrival_city && asksForArrivalCity(lastAssistantText)) {
+      facts.arrival_city = contextualCity;
+    }
+  }
 
   if (!existing.departure_date) {
     const departureDate = parseDepartureDate(message, referenceDate);
     if (departureDate) facts.departure_date = departureDate;
   }
 
-  if (!existing.passenger_count && existing.departure_date) {
-    const passengerCount = parseStandalonePassengerCount(message);
-    if (passengerCount) facts.passenger_count = passengerCount;
+  if (!existing.passenger_count) {
+    // A unit-qualified count ("45 personnes") is unambiguous and safe to read at any point
+    // in the conversation. A bare number ("45") is only trusted once a date already exists
+    // or the assistant just asked for the count — otherwise we'd mistake a date's digits
+    // (e.g. "le 12 juillet") for a passenger count.
+    const withUnit = parsePassengerCountWithUnit(message);
+    if (withUnit) {
+      facts.passenger_count = withUnit;
+    } else if (existing.departure_date || asksForPassengers(lastAssistantText)) {
+      const bare = parsePassengerCount(message);
+      if (bare) facts.passenger_count = bare;
+    }
   }
 
   if (!existing.trip_type) {
@@ -55,8 +150,60 @@ export function extractTurnFacts(
   return facts;
 }
 
+function parseCityMentions(message: string): Pick<LeadQualification, "departure_city" | "arrival_city"> {
+  const facts: Pick<LeadQualification, "departure_city" | "arrival_city"> = {};
+  const normalized = normalizeUserText(message);
+  const compactRoute = /(?:^|\b)(?:je|on|nous)?\s*(?:pars?|part|partons|dépars?|depart|suis|sommes|habite)\s+(?:de|depuis|à|a)\s+(.+?)\s+(?:et\s+)?(?:je|on|nous)?\s*(?:vais|va|allons|allez|aller|partons|arrivons|veux\s+aller|souhaite\s+aller)\s+(?:à|a|vers|sur|pour)\s+(.+?)(?:$|[.!?])/iu.exec(normalized);
+
+  if (compactRoute) {
+    facts.departure_city = cleanCity(compactRoute[1]);
+    facts.arrival_city = cleanCity(compactRoute[2]);
+    return compactFacts(facts);
+  }
+
+  const directRoute = /(?:^|\b)(?:de|depuis)\s+(.+?)\s+(?:à|a|vers|pour)\s+(.+?)(?:$|[.!?])/iu.exec(normalized);
+
+  if (directRoute) {
+    facts.departure_city = cleanCity(directRoute[1]);
+    facts.arrival_city = cleanCity(directRoute[2]);
+    return compactFacts(facts);
+  }
+
+  const departure = /(?:^|\b)(?:je|on|nous)?\s*(?:pars?|part|partons|dépars?|depart|suis|sommes|habite|départ|depart)\s+(?:de|depuis|à|a)\s+(.+?)(?:$|[.!?]|,|;|\s+et\s+|\s+pour\s+|\s+vers\s+)/iu.exec(normalized);
+  if (departure) facts.departure_city = cleanCity(departure[1]);
+
+  const arrival = /(?:^|\b)(?:je|on|nous)?\s*(?:vais|va|allons|allez|aller|veux\s+aller|souhaite\s+aller|arrivons|destination)\s+(?:à|a|vers|sur|pour)\s+(.+?)(?:$|[.!?]|,|;|\s+et\s+)/iu.exec(normalized);
+  if (arrival) facts.arrival_city = cleanCity(arrival[1]);
+
+  return compactFacts(facts);
+}
+
+function asksForDepartureCity(message: string) {
+  return /ville\s+de\s+d[eé]part|d['’]o[uù]\s+.*partez|d['’]o[uù]\s+.*part|point\s+de\s+d[eé]part/iu.test(message);
+}
+
+function asksForArrivalCity(message: string) {
+  return /ville\s+d['’]arriv[eé]e|destination|o[uù]\s+.*allez|o[uù]\s+.*souhaitez.*aller/iu.test(message);
+}
+
+function parseContextualCityAnswer(message: string): string | undefined {
+  const normalized = message.trim().replace(/[.!?]+$/u, "");
+  if (!normalized || normalized.length > 80) return undefined;
+  if (/\d|@|https?:|,|;|\/|\\|→/u.test(normalized)) return undefined;
+  if (/\b(passagers?|personnes?|aller|retour|devis|date|demain|semaine|mois|bonjour|salut|hello|merci)\b/iu.test(normalized)) {
+    return undefined;
+  }
+
+  const city = normalized.replace(/\s+/gu, " ");
+  if (!/^[\p{L}][\p{L}'’ -]*$/u.test(city)) return undefined;
+
+  return cleanCity(city);
+}
+
 function parseDepartureDate(message: string, referenceDate: Date): string | undefined {
-  const normalized = message.trim().toLocaleLowerCase("fr-FR");
+  const normalized = normalizeUserText(message).toLocaleLowerCase("fr-FR");
+  if (/^(?:demain|dem1)\b/u.test(normalized)) return addDays(referenceDate, 1);
+
   const relativeDays = /^dans\s+(\d+)\s+jours?\b/u.exec(normalized);
 
   if (relativeDays) {
@@ -71,8 +218,27 @@ function parseDepartureDate(message: string, referenceDate: Date): string | unde
     return addDays(referenceDate, 14);
   }
 
+  if (/^(?:la\s+)?semaine\s+prochaine\b/u.test(normalized)) {
+    return addDays(referenceDate, 7);
+  }
+
   const isoDate = /^(\d{4}-\d{2}-\d{2})$/u.exec(normalized);
   if (isoDate) return isoDate[1];
+
+  const slashDate = /^(?:le\s+)?(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?[.!?]?$/u.exec(normalized);
+  if (slashDate) {
+    const day = Number(slashDate[1]);
+    const month = Number(slashDate[2]) - 1;
+    let year = slashDate[3] ? Number(slashDate[3]) : referenceDate.getUTCFullYear();
+    if (year < 100) year += 2000;
+    let candidate = calendarDate(year, month, day);
+    if (!candidate) return undefined;
+    if (!slashDate[3] && candidate < startOfUtcDay(referenceDate)) {
+      candidate = calendarDate(year + 1, month, day);
+      if (!candidate) return undefined;
+    }
+    return candidate.toISOString().slice(0, 10);
+  }
 
   const explicitDate = /^(?:le\s+)?(\d{1,2})\s+([a-zéû]+)(?:\s+(\d{4}))?[.!?]?$/u.exec(normalized);
   if (!explicitDate) return undefined;
@@ -94,12 +260,67 @@ function parseDepartureDate(message: string, referenceDate: Date): string | unde
   return candidate.toISOString().slice(0, 10);
 }
 
-function parseStandalonePassengerCount(message: string): number | undefined {
-  const match = /^(\d{1,3})\s*(?:passagers?|personnes?|pax)?\s*[.!?]?$/iu.exec(message.trim());
+function parsePassengerCount(message: string): number | undefined {
+  const match = /(?:^|\b)(?:on\s+est|nous\s+sommes|nous\s+serons|on\s+sera|nous\s+seront|environ|à\s+peu\s+près|a\s+peu\s+pres|~)?\s*(\d{1,3})\s*(?:passagers?|personnes?|pers\.?|pax)?\b/iu.exec(message.trim());
   if (!match) return undefined;
 
   const passengerCount = Number(match[1]);
   return passengerCount > 0 ? passengerCount : undefined;
+}
+
+/** A passenger count whose unit is explicit ("45 personnes", "50 places") — unambiguous,
+ *  so it can be read from any message regardless of whether a date is known yet. */
+function parsePassengerCountWithUnit(message: string): number | undefined {
+  const match = /(\d{1,3})\s*(?:passagers?|personnes?|pers\.?|pax|places?|voyageurs?)\b/iu.exec(
+    normalizeUserText(message),
+  );
+  if (!match) return undefined;
+
+  const passengerCount = Number(match[1]);
+  return passengerCount > 0 ? passengerCount : undefined;
+}
+
+function asksForPassengers(message: string) {
+  return /combien\s+de\s+(?:passagers?|personnes?|voyageurs?)|nombre\s+de\s+(?:passagers?|personnes?)|passagers?\s+(?:serez|seront|à\s+bord)/iu.test(
+    message,
+  );
+}
+
+function normalizeUserText(value: string) {
+  return value
+    .trim()
+    .replace(/[’`]/gu, "'")
+    .replace(/\s+/gu, " ")
+    .replace(/\bj\s*(?:vais|vai|vé|ve|v)\b/giu, "je vais")
+    .replace(/\bj\s*(?:pars|part|par)\b/giu, "je pars")
+    .replace(/\bj\s*(?:suis|sui|s)\b/giu, "je suis")
+    .replace(/\bchui\b/giu, "je suis")
+    .replace(/\bjsuis\b/giu, "je suis")
+    .replace(/\bjveux\b|\bjve\b|\bj\s*veux\b/giu, "je veux")
+    .replace(/\bje\s+part\b/giu, "je pars")
+    .replace(/\bje\s+sui\b/giu, "je suis")
+    .replace(/\bsainté\b/giu, "Saint Étienne")
+    .replace(/\ba\b/giu, "à");
+}
+
+function cleanCity(value: string | undefined): string | undefined {
+  const city = value
+    ?.trim()
+    .replace(/[.!?]+$/u, "")
+    .replace(/\b(?:svp|stp|merci|s'il vous plait|s’il vous plaît)$/iu, "")
+    .trim();
+
+  if (!city || city.length > 60) return undefined;
+  if (!/^[\p{L}][\p{L}'’ -]*$/u.test(city)) return undefined;
+
+  return city
+    .split(/([\s'’ -])/u)
+    .map((part) => (/^[\p{L}]/u.test(part) ? part.charAt(0).toLocaleUpperCase("fr-FR") + part.slice(1) : part))
+    .join("");
+}
+
+function compactFacts<T extends Record<string, unknown>>(facts: T): T {
+  return Object.fromEntries(Object.entries(facts).filter(([, value]) => value !== undefined)) as T;
 }
 
 function addDays(date: Date, days: number): string {

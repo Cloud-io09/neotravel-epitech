@@ -7,6 +7,7 @@ type Kpi = {
  label: string;
  value: string | number;
  tone?: "blue" | "gold" | "red" | "green";
+ href?: string;
 };
 
 type TableRow = {
@@ -55,12 +56,24 @@ export function DashboardHeader({
 export function KpiGrid({ kpis }: { kpis: Kpi[] }) {
  return (
   <section className={styles.kpiGrid} aria-label="Indicateurs">
-   {kpis.map((kpi) => (
-    <article className={styles.kpi} key={kpi.label}>
-     <strong style={{ color: kpi.tone ? toneColor[kpi.tone] : undefined }}>{kpi.value}</strong>
-     <span>{kpi.label}</span>
-    </article>
-   ))}
+   {kpis.map((kpi) => {
+    const content = (
+     <>
+      <strong style={{ color: kpi.tone ? toneColor[kpi.tone] : undefined }}>{kpi.value}</strong>
+      <span>{kpi.label}</span>
+     </>
+    );
+
+    return kpi.href ? (
+     <Link className={styles.kpi} href={kpi.href} key={kpi.label} data-dash-searchable="">
+      {content}
+     </Link>
+    ) : (
+     <article className={styles.kpi} key={kpi.label} data-dash-searchable="">
+      {content}
+     </article>
+    );
+   })}
   </section>
  );
 }
@@ -83,7 +96,7 @@ export function Panel({
      <h2>{title}</h2>
      {subtitle ? <p>{subtitle}</p> : null}
     </div>
-    {action}
+    {action ? <div className={styles.panelAction}>{action}</div> : null}
    </div>
    {children}
   </section>
@@ -100,29 +113,31 @@ export function DataTable({
  columnsTemplate?: string;
 }) {
  return (
-  <div className={styles.table} style={{ "--cols": columnsTemplate } as CSSProperties}>
-   <div className={styles.tableHead}>
-    {columns.map((column) => (
-     <span key={column}>{column}</span>
-    ))}
-   </div>
-   {rows.map((row, index) => {
-    const content = row.cells.map((cell, cellIndex) => (
-     <span key={cellIndex}>
-      {cellIndex === 0 ? <strong>{cell}</strong> : cell}
-     </span>
-    ));
+  <div className={styles.tableViewport}>
+   <div className={styles.table} style={{ "--cols": columnsTemplate } as CSSProperties}>
+    <div className={styles.tableHead}>
+     {columns.map((column) => (
+      <span key={column}>{column}</span>
+     ))}
+    </div>
+    {rows.map((row, index) => {
+     const content = row.cells.map((cell, cellIndex) => (
+      <span key={cellIndex}>
+       {cellIndex === 0 ? <strong>{cell}</strong> : cell}
+      </span>
+     ));
 
-    return row.href ? (
-     <Link className={styles.row} href={row.href} key={`${row.href}-${index}`} data-dash-row="">
-      {content}
-     </Link>
-    ) : (
-     <div className={styles.row} key={index} data-dash-row="">
-      {content}
-     </div>
-    );
-   })}
+     return row.href ? (
+      <Link className={styles.row} href={row.href} key={`${row.href}-${index}`} data-dash-row="" data-tone={row.tone}>
+       {content}
+      </Link>
+     ) : (
+      <div className={styles.row} key={index} data-dash-row="" data-tone={row.tone}>
+       {content}
+      </div>
+     );
+    })}
+   </div>
   </div>
  );
 }
@@ -131,7 +146,7 @@ export function CardList({ items }: { items: Array<{ title: string; body: string
  return (
   <ul className={styles.list}>
    {items.map((item) => (
-    <li key={item.title}>
+    <li key={item.title} data-dash-searchable="">
      <strong>{item.title}</strong>
      <span>{item.body}</span>
      <div className={styles.metricBar}>

@@ -7,7 +7,7 @@ type RoutePricing = {
  distanceKm: number | null;
  basePriceEur: number;
  active: boolean;
- version: number;
+ version: string | number;
 };
 
 export function RoutePricingTable({ routes }: { routes: RoutePricing[] }) {

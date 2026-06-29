@@ -14,6 +14,22 @@ export type QuoteOptions = {
   driverNights?: number;
   tollsIncluded?: boolean;
   tollPackageEur?: number;
+  // MVP requested-option flags (detected from the chat). They never carry a price; the
+  // engine decides whether an official amount exists or the line is a placeholder.
+  guide?: boolean;
+  driverOvernight?: boolean;
+  tolls?: boolean;
+};
+
+export type OptionPricingStatus = "PRICED" | "TO_CONFIRM" | "INCLUDED";
+
+export type QuoteOptionLine = {
+  code: string;
+  label: string;
+  // 0 € is only a technical placeholder when no official amount exists — see pricingStatus.
+  amountEur: number;
+  pricingStatus: OptionPricingStatus;
+  note: string;
 };
 
 export type QuoteInput = {
@@ -65,8 +81,15 @@ export type PricingRules = {
   };
   leadTime: LeadTimePricingRule[];
   capacity: CapacityPricingRule[];
+  optionRates: OptionRates;
   marginRate: number;
   vatRate: number;
+};
+
+export type OptionRates = {
+  // Official supplément tariffs (Tableau 3). Guide is billed per day, driver per overnight.
+  guideDayRateEur: number;
+  driverNightRateEur: number;
 };
 
 export type QuoteBreakdown = {
@@ -90,6 +113,9 @@ export type QuoteBreakdown = {
     amountEur: number;
   };
   options: {
+    // Optional only for backward compatibility with quotes stored before option lines
+    // existed; the engine always produces it.
+    items?: QuoteOptionLine[];
     tollPackageEur: number;
     totalEur: number;
   };

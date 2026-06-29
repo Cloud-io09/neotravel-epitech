@@ -24,8 +24,8 @@ function formatDate(value: string) {
 function badgeTone(value: string) {
   const normalized = value.toLowerCase();
   if (normalized.includes("alerte") || normalized.includes("critique")) return "red";
-  if (normalized.includes("verifier") || normalized.includes("definir") || normalized.includes("moyen")) return "gold";
-  if (normalized.includes("ok") || normalized.includes("defini") || normalized.includes("necessaire") || normalized.includes("conforme")) return "green";
+  if (normalized.includes("vérifier") || normalized.includes("verifier") || normalized.includes("définir") || normalized.includes("definir") || normalized.includes("moyen")) return "gold";
+  if (normalized.includes("ok") || normalized.includes("défini") || normalized.includes("defini") || normalized.includes("nécessaire") || normalized.includes("necessaire") || normalized.includes("conforme")) return "green";
   return "blue";
 }
 
@@ -58,15 +58,15 @@ function RgpdPanel({ title, subtitle, children }: { title: string; subtitle: str
 }
 
 function RgpdDataTable({ data }: { data: RgpdAuditData["dataInventory"] }) {
-  if (!data.length) return <p className={styles.rgpdEmpty}>Aucune donnee disponible pour ce bloc.</p>;
+  if (!data.length) return <p className={styles.rgpdEmpty}>Aucune donnée disponible pour ce bloc.</p>;
 
   return (
     <div className={styles.rgpdTable}>
       <div className={styles.rgpdTableHead} style={{ gridTemplateColumns: "1fr 1.1fr 1.1fr .8fr 1fr .7fr" }}>
-        <span>Donnee</span>
+        <span>Donnée</span>
         <span>Usage</span>
-        <span>Finalite</span>
-        <span>Sensibilite</span>
+        <span>Finalité</span>
+        <span>Sensibilité</span>
         <span>Visible par</span>
         <span>Statut</span>
       </div>
@@ -85,15 +85,15 @@ function RgpdDataTable({ data }: { data: RgpdAuditData["dataInventory"] }) {
 }
 
 function RgpdRetentionTable({ data }: { data: RgpdAuditData["retention"] }) {
-  if (!data.length) return <p className={styles.rgpdEmpty}>Aucune donnee disponible pour ce bloc.</p>;
+  if (!data.length) return <p className={styles.rgpdEmpty}>Aucune donnée disponible pour ce bloc.</p>;
 
   return (
     <div className={styles.rgpdTable}>
       <div className={styles.rgpdTableHead} style={{ gridTemplateColumns: "1fr 1fr 1.2fr 1.2fr .7fr" }}>
-        <span>Type de donnee</span>
-        <span>Duree</span>
+        <span>Type de donnée</span>
+        <span>Durée</span>
         <span>Justification</span>
-        <span>Action prevue</span>
+        <span>Action prévue</span>
         <span>Statut</span>
       </div>
       {data.map((item) => (
@@ -110,14 +110,14 @@ function RgpdRetentionTable({ data }: { data: RgpdAuditData["retention"] }) {
 }
 
 function RgpdProcessorsTable({ data }: { data: RgpdAuditData["processors"] }) {
-  if (!data.length) return <p className={styles.rgpdEmpty}>Aucun sous-traitant externe configure.</p>;
+  if (!data.length) return <p className={styles.rgpdEmpty}>Aucun sous-traitant externe configuré.</p>
 
   return (
     <div className={styles.rgpdTable}>
       <div className={styles.rgpdTableHead} style={{ gridTemplateColumns: ".9fr 1fr 1.4fr .7fr .7fr .7fr 1fr" }}>
         <span>Service</span>
         <span>Role</span>
-        <span>Donnees transmises</span>
+        <span>Données transmises</span>
         <span>Frontend</span>
         <span>Secret</span>
         <span>Risque</span>
@@ -139,7 +139,7 @@ function RgpdProcessorsTable({ data }: { data: RgpdAuditData["processors"] }) {
 }
 
 function RgpdAuditTrail({ data }: { data: RgpdAuditData["auditTrail"] }) {
-  if (!data.length) return <p className={styles.rgpdEmpty}>Aucun evenement d'audit enregistre sur cette periode.</p>;
+  if (!data.length) return <p className={styles.rgpdEmpty}>Aucun événement d'audit enregistré sur cette période.</p>
 
   return (
     <div className={styles.rgpdTable}>
@@ -168,14 +168,14 @@ function RgpdAuditTrail({ data }: { data: RgpdAuditData["auditTrail"] }) {
 }
 
 function RgpdSecurityChecks({ data }: { data: RgpdAuditData["securityChecks"] }) {
-  if (!data.length) return <p className={styles.rgpdEmpty}>Aucun controle en alerte.</p>;
+  if (!data.length) return <p className={styles.rgpdEmpty}>Aucun contrôle en alerte.</p>
 
   return (
     <div className={styles.rgpdTable}>
       <div className={styles.rgpdTableHead} style={{ gridTemplateColumns: "1.2fr .65fr .65fr 1.7fr" }}>
-        <span>Controle</span>
+        <span>Contrôle</span>
         <span>Statut</span>
-        <span>Gravite</span>
+        <span>Gravité</span>
         <span>Recommandation</span>
       </div>
       {data.map((item) => (
@@ -215,9 +215,9 @@ export function RgpdAuditClient() {
     <main className={styles.page} data-no-translate>
       <header className={styles.rgpdHero}>
         <div>
-          <p className={styles.eyebrow}>Conformite NeoTravel</p>
+          <p className={styles.eyebrow}>Conformité NeoTravel</p>
           <h1>Audit RGPD</h1>
-          <p>Donnees minimales, conservation maitrisee et preuves d'audit sans exposition de secrets.</p>
+          <p>Données minimales, conservation maîtrisée et preuves d'audit sans exposition de secrets.</p>
         </div>
         <button className={styles.secondary} type="button" onClick={load} disabled={loading}>
           <RefreshCw aria-hidden="true" size={15} />
@@ -228,8 +228,8 @@ export function RgpdAuditClient() {
       <section className={styles.rgpdIntro}>
         <ShieldCheck aria-hidden="true" size={20} />
         <span>
-          Cette page synthetise les principaux controles RGPD appliques a NeoTravel : donnees traitees, durees de
-          conservation, flux externes, preuves d'audit et securite des integrations.
+          Cette page synthétise les principaux contrôles RGPD appliqués à NeoTravel : données traitées, durées de
+          conservation, flux externes, preuves d'audit et sécurité des intégrations.
         </span>
       </section>
 
@@ -244,30 +244,30 @@ export function RgpdAuditClient() {
 
       {data ? (
         <>
-          <section className={styles.rgpdKpiSection} aria-label="KPI conformite">
+          <section className={styles.rgpdKpiSection} aria-label="KPI conformité">
             <div className={styles.rgpdSectionTitle}>
-              <h2>KPI conformite</h2>
-              <p>Indicateurs calcules depuis audit_logs et la configuration RGPD serveur.</p>
+              <h2>KPI conformité</h2>
+              <p>Indicateurs calculés depuis audit_logs et la configuration RGPD serveur.</p>
             </div>
             <div className={styles.rgpdKpiGrid}>
-              <RgpdKpiCard label="Evenements d'audit" value={data.kpis.auditEvents} detail="Actions tracees dans audit_logs" tone="blue" />
-              <RgpdKpiCard label="Actions sensibles tracees" value={data.kpis.sensitiveActions} detail="Devis, relances, statuts, reprise humaine" tone="blue" />
-              <RgpdKpiCard label="Donnees personnelles suivies" value={data.kpis.personalDataCategories} detail="Categories declarees cote serveur" tone="gold" />
-              <RgpdKpiCard label="Sous-traitants declares" value={data.kpis.processors} detail="Services et flux externes identifies" tone="gold" />
-              <RgpdKpiCard label="Avec empreinte" value={data.kpis.integrityStampedEvents} detail="Logs avec hash de controle" tone="green" />
-              <RgpdKpiCard label="Secrets exposes" value={data.kpis.exposedSecrets} detail={data.kpis.exposedSecrets === 0 ? "Aucun detecte" : "Controle requis"} tone={data.kpis.exposedSecrets === 0 ? "green" : "red"} />
+              <RgpdKpiCard label="Événements d'audit" value={data.kpis.auditEvents} detail="Actions tracées dans audit_logs" tone="blue" />
+              <RgpdKpiCard label="Actions sensibles tracées" value={data.kpis.sensitiveActions} detail="Devis, relances, statuts, reprise humaine" tone="blue" />
+              <RgpdKpiCard label="Données personnelles suivies" value={data.kpis.personalDataCategories} detail="Catégories déclarées côté serveur" tone="gold" />
+              <RgpdKpiCard label="Sous-traitants déclarés" value={data.kpis.processors} detail="Services et flux externes identifiés" tone="gold" />
+              <RgpdKpiCard label="Avec empreinte" value={data.kpis.integrityStampedEvents} detail="Logs avec hash de contrôle" tone="green" />
+              <RgpdKpiCard label="Secrets exposés" value={data.kpis.exposedSecrets} detail={data.kpis.exposedSecrets === 0 ? "Aucun détecté" : "Contrôle requis"} tone={data.kpis.exposedSecrets === 0 ? "green" : "red"} />
             </div>
           </section>
 
-          <RgpdPanel title="Donnees traitees" subtitle="Registre simple des donnees necessaires au traitement commercial et operationnel.">
+          <RgpdPanel title="Données traitées" subtitle="Registre simple des données nécessaires au traitement commercial et opérationnel.">
             <RgpdDataTable data={data.dataInventory} />
           </RgpdPanel>
 
-          <RgpdPanel title="Conservation" subtitle="Regles de conservation formulees pour un service en exploitation.">
+          <RgpdPanel title="Conservation" subtitle="Règles de conservation formulées pour un service en exploitation.">
             <RgpdRetentionTable data={data.retention} />
           </RgpdPanel>
 
-          <RgpdPanel title="Sous-traitants et flux externes" subtitle="Separation des flux et minimisation des donnees transmises.">
+          <RgpdPanel title="Sous-traitants et flux externes" subtitle="Séparation des flux et minimisation des données transmises.">
             <RgpdProcessorsTable data={data.processors} />
             <div className={styles.rgpdRules}>
               {data.notes.map((note) => (
@@ -276,15 +276,15 @@ export function RgpdAuditClient() {
             </div>
           </RgpdPanel>
 
-          <RgpdPanel title="Preuve d'audit" subtitle="Dernieres actions sensibles journalisees sans payload ni secret.">
+          <RgpdPanel title="Preuve d'audit" subtitle="Dernières actions sensibles journalisées sans payload ni secret.">
             <RgpdAuditTrail data={data.auditTrail} />
           </RgpdPanel>
 
-          <RgpdPanel title="Controles securite" subtitle="Verification des principaux risques d'exposition cote client et integrations.">
+          <RgpdPanel title="Contrôles sécurité" subtitle="Vérification des principaux risques d'exposition côté client et intégrations.">
             <div className={styles.rgpdSecuritySummary}>
               <span><CheckCircle2 aria-hidden="true" size={16} />OK : {data.securityChecks.filter((item) => item.status === "OK").length}</span>
-              <span><AlertTriangle aria-hidden="true" size={16} />A verifier / alertes : {data.securityChecks.filter((item) => item.status !== "OK").length}</span>
-              <span><Database aria-hidden="true" size={16} />Secrets affiches : {data.kpis.exposedSecrets}</span>
+              <span><AlertTriangle aria-hidden="true" size={16} />À vérifier / alertes : {data.securityChecks.filter((item) => item.status !== "OK").length}</span>
+              <span><Database aria-hidden="true" size={16} />Secrets affichés : {data.kpis.exposedSecrets}</span>
               <span><FileCheck2 aria-hidden="true" size={16} />Empreintes : {data.kpis.integrityStampedEvents}</span>
             </div>
             <RgpdSecurityChecks data={data.securityChecks} />

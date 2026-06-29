@@ -1,10 +1,11 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { validateDemandCompleteness } from "@/features/demand/services/validateDemandCompleteness";
+import { clientHumanReviewNotice } from "@/features/human-review/clientNotice";
 import { AccessibilityWidget } from "@/shared/accessibility/AccessibilityWidget";
 import { LanguageSelector } from "@/shared/i18n/LanguageSelector";
 import type { DemandDraft } from "@/shared/types/lead";
@@ -186,9 +187,8 @@ function buildChatRouteLabel(draft: DemandDraft | null) {
 
 function buildContextualAssistantMessage(payload: ChatApiResponse, draft: DemandDraft | null, missingFieldKeys: string[]) {
  if (payload.status === "HUMAN_REVIEW") {
-  return `Merci. Cette demande doit etre reprise par un conseiller${
-   payload.humanReviewReasons?.length ? ` : ${payload.humanReviewReasons.join(", ")}` : "."
-  }`;
+  const reason = payload.humanReviewReasons?.[0];
+  return clientHumanReviewNotice(reason);
  }
 
  const businessMissingFields = missingFieldKeys.filter((field) => field !== "organization" && field !== "email");
@@ -422,8 +422,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
 
    if (leadPayload.qualification?.status === "HUMAN_REVIEW") {
     setWorkflowError(
-     leadPayload.qualification.humanReviewReason ??
-      "La demande passe en reprise humaine avant generation du devis."
+     clientHumanReviewNotice(leadPayload.qualification.humanReviewReason ?? null)
     );
     return;
    }
@@ -507,7 +506,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
      });
      leaflet
       .tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-       attribution: "© OpenStreetMap"
+       attribution: "┬® OpenStreetMap"
       })
       .addTo(mapRef.current);
     }

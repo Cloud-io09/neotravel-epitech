@@ -50,7 +50,9 @@ function normalizeOptions(options: PricingOption[]) {
    return {
     code,
     label: officialOption.label,
-    amountEur: officialOption.amountEur
+    amountEur: officialOption.amountEur,
+    note: "",
+    pricingStatus: "PRICED" as const
    };
   })
   .sort((left, right) => left.code.localeCompare(right.code));

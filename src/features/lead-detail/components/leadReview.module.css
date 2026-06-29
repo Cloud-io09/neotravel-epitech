@@ -43,6 +43,29 @@
  gap: 12px;
 }
 
+.emailPreview {
+ flex-basis: 100%;
+ border: 1px dashed #c9d7ea;
+ border-radius: 10px;
+ padding: 12px 14px;
+ color: #43516a;
+ background: #f7faff;
+ font-size: 13px;
+ line-height: 1.45;
+}
+
+.emailPreview strong {
+ display: block;
+ margin-bottom: 4px;
+ color: #123885;
+ font-size: 12px;
+ text-transform: uppercase;
+}
+
+.emailPreview p {
+ margin: 0;
+}
+
 .error {
  color: #b3261e;
  font-size: 13px;

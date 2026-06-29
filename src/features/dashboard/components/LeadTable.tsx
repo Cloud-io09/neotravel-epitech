@@ -8,12 +8,12 @@ export function LeadTable() {
   <main className={styles.page}>
    <header className={styles.header}>
     <div>
-     <p className={styles.eyebrow}>Parcours pro apres landing</p>
-     <h1>Demandes qualifiees</h1>
-     <p>Vue operationnelle des prospects : statut, trajet, prochaine action et acces fiche detaillee.</p>
+     <p className={styles.eyebrow}>Parcours pro après landing</p>
+     <h1>Demandes qualifiées</h1>
+     <p>Vue opérationnelle des prospects : statut, trajet, prochaine action et accès fiche détaillée.</p>
     </div>
-    <Link className={styles.primary} href="/demande">
-     Nouvelle demande demo
+    <Link className={styles.primary} href="/client/demande">
+     Nouvelle demande démo
     </Link>
    </header>
 
@@ -21,10 +21,10 @@ export function LeadTable() {
     <div className={styles.panelHeader}>
      <div>
       <h2 id="lead-table-title">Pipeline demandes</h2>
-      <p>Les cas complexes restent en human review, les demandes completes avancent vers devis et relances.</p>
+      <p>Les cas complexes restent en validation humaine, les demandes complètes avancent vers devis et relances.</p>
      </div>
      <Link className={styles.secondary} href="/dashboard/human-review">
-      File human review
+      File validation humaine
      </Link>
     </div>
 
@@ -45,7 +45,7 @@ export function LeadTable() {
        <span>
         {lead.departureCity ?? "?"} - {lead.arrivalCity ?? "?"}
        </span>
-       <span>{lead.departureDate ?? "A confirmer"}</span>
+       <span>{lead.departureDate ?? "À confirmer"}</span>
        <span>
         <StatusBadge status={lead.status} />
        </span>

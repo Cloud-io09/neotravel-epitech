@@ -4,17 +4,24 @@ import { LeadRouteMap } from "./LeadRouteMap";
 import styles from "./lead-detail.module.css";
 
 export function LeadMessages({ lead }: { lead: Lead }) {
- const confidenceValue = lead.confidence;
- const confidence = typeof confidenceValue === "number" ? Math.round(confidenceValue * 100) : null;
+ const routeLabel =
+  lead.departureCity && lead.arrivalCity
+   ? `${lead.departureCity} → ${lead.arrivalCity}`
+   : "Trajet à compléter";
+ const tripTypeLabel =
+  lead.tripType === "round_trip"
+   ? "Aller-retour"
+   : lead.tripType === "one_way"
+    ? "Aller simple"
+    : "À confirmer";
 
  return (
   <section className={styles.mapCard} aria-labelledby="route-map-title">
    <div className={styles.mapHeader}>
     <div>
-     <h2 id="route-map-title">Trajet détecté</h2>
-     <p>{lead.rawMessage}</p>
+     <h2 id="route-map-title">Résumé de la demande</h2>
+     <p className={styles.routeTitle}>{routeLabel}</p>
     </div>
-    <span className={styles.confidence}>{confidence === null ? "Fiabilite a confirmer" : `${confidence}% fiable`}</span>
    </div>
 
    <LeadRouteMap departureCity={lead.departureCity} arrivalCity={lead.arrivalCity} />
@@ -23,6 +30,10 @@ export function LeadMessages({ lead }: { lead: Lead }) {
     <div className={styles.metric}>
      <span>Passagers</span>
      <strong>{lead.passengerCount ?? "À confirmer"}</strong>
+    </div>
+    <div className={styles.metric}>
+     <span>Type de trajet</span>
+     <strong>{tripTypeLabel}</strong>
     </div>
     <div className={styles.metric}>
      <span>Options</span>

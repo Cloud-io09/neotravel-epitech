@@ -121,15 +121,15 @@ export async function getRgpdAuditData(): Promise<RgpdAuditData> {
 
   const exposedSecrets = sensitivePayloadCount + brevoClientCalls.length + n8nClientCalls.length;
   const securityChecks: RgpdSecurityCheck[] = [
-    statusCheck(exposedSecrets === 0, "Secrets affiches dans l'interface", "Critique", "Ne jamais exposer d'identifiant technique cote client."),
-    statusCheck(brevoClientCalls.length === 0, "Cle Brevo cote client", "Critique", "Conserver la cle Brevo uniquement cote serveur."),
-    statusCheck(n8nClientCalls.length === 0, "URL webhook n8n cote client", "Critique", "Appeler n8n uniquement via les routes serveur NeoTravel."),
-    statusCheck(brevoClientCalls.length === 0, "Appels Brevo depuis le frontend", "Eleve", "Router les envois email via une action serveur ou API interne."),
-    statusCheck(n8nClientCalls.length === 0, "Appels n8n depuis le frontend", "Eleve", "Garder les webhooks n8n derriere une validation serveur."),
-    { control: "PDF devis protege", status: "A verifier", severity: "Moyen", recommendation: "Confirmer le niveau d'acces et la duree de disponibilite des PDF." },
-    { control: "Donnees sensibles dans localStorage", status: "A verifier", severity: "Moyen", recommendation: "Limiter localStorage aux preferences non sensibles." },
-    statusCheck(sensitivePayloadCount === 0, "Logs sans payload sensible", "Eleve", "Ne journaliser que les metadonnees utiles, jamais les payloads complets."),
-    { control: "Dashboard protege", status: "OK", severity: "Faible", recommendation: "La page est protegee par permission compliance et session staff." }
+    statusCheck(exposedSecrets === 0, "Secrets affichés dans l'interface", "Critique", "Ne jamais exposer d'identifiant technique côté client."),
+    statusCheck(brevoClientCalls.length === 0, "Clé Brevo côté client", "Critique", "Conserver la clé Brevo uniquement côté serveur."),
+    statusCheck(n8nClientCalls.length === 0, "URL webhook n8n côté client", "Critique", "Appeler n8n uniquement via les routes serveur NeoTravel."),
+    statusCheck(brevoClientCalls.length === 0, "Appels Brevo depuis le frontend", "Élevé", "Router les envois email via une action serveur ou API interne."),
+    statusCheck(n8nClientCalls.length === 0, "Appels n8n depuis le frontend", "Élevé", "Garder les webhooks n8n derrière une validation serveur."),
+    { control: "PDF devis protégé", status: "À vérifier", severity: "Moyen", recommendation: "Confirmer le niveau d'accès et la durée de disponibilité des PDF." },
+    { control: "Données sensibles dans localStorage", status: "À vérifier", severity: "Moyen", recommendation: "Limiter localStorage aux préférences non sensibles." },
+    statusCheck(sensitivePayloadCount === 0, "Logs sans payload sensible", "Élevé", "Ne journaliser que les métadonnées utiles, jamais les payloads complets."),
+    { control: "Dashboard protégé", status: "OK", severity: "Faible", recommendation: "La page est protégée par permission compliance et session staff." }
   ];
 
   return {
@@ -156,10 +156,10 @@ export async function getRgpdAuditData(): Promise<RgpdAuditData> {
     })),
     securityChecks,
     notes: [
-      "n8n ne doit jamais etre appele directement depuis le frontend.",
-      "Brevo ne doit jamais etre appele directement depuis le frontend.",
-      "Les cles API doivent rester cote serveur.",
-      "Les donnees envoyees aux services externes doivent etre minimisees."
+      "n8n ne doit jamais être appelé directement depuis le frontend.",
+      "Brevo ne doit jamais être appelé directement depuis le frontend.",
+      "Les clés API doivent rester côté serveur.",
+      "Les données envoyées aux services externes doivent être minimisées."
     ]
   };
 }

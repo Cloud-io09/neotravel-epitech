@@ -180,6 +180,19 @@ const QUALIFIED_STATUSES = new Set(["QUALIFIED", "HIGH_VALUE", "QUOTE_READY", "Q
 const SENT_QUOTE_STATUSES = new Set(["QUOTE_SENT", "ACCEPTED", "REFUSED"]);
 const WON_QUOTE_STATUSES = new Set(["ACCEPTED"]);
 const LOST_QUOTE_STATUSES = new Set(["REFUSED"]);
+
+// Finalized quotes are stored as CLOSED; the won/lost truth lives on the lead (WON/LOST).
+// Reflect the lead outcome back onto the quote status so every metric below is correct
+// against real Supabase data (demo ACCEPTED/REFUSED fixtures pass through unchanged).
+function applyLeadOutcome(quotes: Quote[], leads: Lead[]): Quote[] {
+ const statusByLead = new Map(leads.map((lead) => [lead.id, lead.status]));
+ return quotes.map((quote) => {
+  const leadStatus = statusByLead.get(quote.leadId);
+  if (leadStatus === "WON") return { ...quote, status: "ACCEPTED" as const };
+  if (leadStatus === "LOST") return { ...quote, status: "REFUSED" as const };
+  return quote;
+ });
+}
 const GROWTH_METRICS: GrowthMetricKey[] = [
  "requests_received",
  "qualified_leads",
@@ -233,7 +246,7 @@ function parsePeriod(filters: GrowthFilters) {
  } else if (period === "custom" && filters.from && filters.to) {
   from = startOfDay(new Date(filters.from));
   to = endOfDay(new Date(filters.to));
-  label = "Periode personnalisee";
+  label = "Période personnalisée";
  } else {
   from.setDate(now.getDate() - 29);
   from = startOfDay(from);
@@ -286,11 +299,11 @@ function quoteAmount(quote: Quote) {
 }
 
 function leadClient(lead?: Lead) {
- return lead?.organization ?? lead?.email ?? "Client non renseigne";
+ return lead?.organization ?? lead?.email ?? "Client non renseigné";
 }
 
 function leadSource(lead: Lead) {
- return lead.source?.trim() || "Non renseigne";
+ return lead.source?.trim() || "Non renseigné";
 }
 
 function isUrgentLead(lead: Lead) {
@@ -355,7 +368,8 @@ function isRecurringLead(lead: Lead, leads: Lead[]) {
 }
 
 async function getGrowthContext(filters: GrowthFilters = {}) {
- const [leads, quotes, followups] = await Promise.all([listLeads(), listQuotes(), listFollowups()]);
+ const [leads, rawQuotes, followups] = await Promise.all([listLeads(), listQuotes(), listFollowups()]);
+ const quotes = applyLeadOutcome(rawQuotes, leads);
  const period = parsePeriod(filters);
  const normalized = {
   period: period.key,
@@ -416,15 +430,15 @@ function leadStatusLabel(status: string) {
  const labels: Record<string, string> = {
   NEW: "Nouveau",
   INCOMPLETE: "Incomplet",
-  QUALIFIED: "Qualifie",
+  QUALIFIED: "Qualifié",
   HIGH_VALUE: "Prioritaire",
   HUMAN_REVIEW: "Reprise humaine",
-  QUOTE_READY: "Devis pret",
-  QUOTE_SENT: "Devis envoye",
+  QUOTE_READY: "Devis prêt",
+  QUOTE_SENT: "Devis envoyé",
   FOLLOWUP_1: "Relance 1",
   FOLLOWUP_2: "Relance 2",
-  FOLLOWUP_SCHEDULED: "Relance planifiee",
-  WON: "Gagne",
+  FOLLOWUP_SCHEDULED: "Relance planifiée",
+  WON: "Gagné",
   LOST: "Perdu",
   CLOSED: "Clos"
  };
@@ -433,27 +447,27 @@ function leadStatusLabel(status: string) {
 
 function quoteStatusLabel(status: string) {
  const labels: Record<string, string> = {
-  QUOTE_READY: "Pret",
-  QUOTE_SENT: "Envoye",
-  ACCEPTED: "Accepte",
-  REFUSED: "Refuse"
+  QUOTE_READY: "Prêt",
+  QUOTE_SENT: "Envoyé",
+  ACCEPTED: "Accepté",
+  REFUSED: "Refusé"
  };
  return labels[status] ?? status;
 }
 
 function followupStatusLabel(status: string) {
  const labels: Record<string, string> = {
-  SCHEDULED: "Planifiee",
-  SENT: "Envoyee",
+  SCHEDULED: "Planifiée",
+  SENT: "Envoyée",
   OPENED: "Ouverte",
-  REPLIED: "Repondue"
+  REPLIED: "Répondue"
  };
  return labels[status] ?? status;
 }
 
 function clientTypeLabel(lead?: Lead, leads: Lead[] = []) {
- if (!lead) return "Non renseigne";
- return isRecurringLead(lead, leads) ? "Client recurrent" : "Client nouveau";
+ if (!lead) return "Non renseigné";
+ return isRecurringLead(lead, leads) ? "Client récurrent" : "Client nouveau";
 }
 
 function chartGroupLabel(
@@ -464,7 +478,7 @@ function chartGroupLabel(
  leads: Lead[]
 ) {
  if (["day", "week", "month"].includes(groupBy)) return date ? chartTimeLabel(date, groupBy) : "Sans date";
- if (groupBy === "source") return lead ? leadSource(lead) : "Non renseigne";
+ if (groupBy === "source") return lead ? leadSource(lead) : "Non renseigné";
  if (groupBy === "client_type") return clientTypeLabel(lead, leads);
  return status;
 }
@@ -599,7 +613,7 @@ export async function getGrowthChartData(filters: GrowthChartFilters = {}): Prom
   chartType,
   data,
   empty: !hasSignal,
-  note: hasSignal ? undefined : "Aucune donnee disponible pour cet indicateur sur la periode selectionnee."
+  note: hasSignal ? undefined : "Aucune donnée disponible pour cet indicateur sur la période sélectionnée."
  };
 }
 
@@ -627,13 +641,13 @@ export async function getGrowthDetailsData(filters: GrowthDetailsFilters = {}): 
     id: event.id,
     date: event.date ? event.date.toISOString() : "",
     client: leadClient(lead),
-    source: lead ? leadSource(lead) : "Non renseigne",
+    source: lead ? leadSource(lead) : "Non renseigné",
     status: quote ? quoteStatusLabel(quote.status) : event.status,
     quoteReference: quote?.calculation.quoteNumber ?? "Sans devis",
     amount: quote ? quoteAmount(quote) : null,
     lastAction: event.date ? event.date.toISOString() : "",
     nextFollowup: nextFollowup ? nextFollowup.toISOString() : null,
-    href: quote ? `/devis/${quote.id}` : lead ? `/dashboard/demandes/${lead.id}` : "/dashboard/croissance",
+    href: quote ? `/client/devis/${quote.id}` : lead ? `/dashboard/demandes/${lead.id}` : "/dashboard/croissance",
     action: "Voir",
     sortDate: date.getTime()
    };
@@ -659,18 +673,19 @@ export async function getGrowthDetailsData(filters: GrowthDetailsFilters = {}): 
   period: context.period.key,
   data: rows,
   empty: rows.length === 0,
-  note: rows.length === 0 ? "Aucune donnee disponible pour cet indicateur sur la periode selectionnee." : undefined
+  note: rows.length === 0 ? "Aucune donnée disponible pour cet indicateur sur la période sélectionnée." : undefined
  };
 }
 
 export async function getGrowthDashboardData(filters: GrowthFilters = {}): Promise<GrowthDashboardData> {
- const [leads, quotes, followups, auditLogs, modelRuns] = await Promise.all([
+ const [leads, rawQuotes, followups, auditLogs, modelRuns] = await Promise.all([
   listLeads(),
   listQuotes(),
   listFollowups(),
   getAuditLogs(),
   getModelRuns()
  ]);
+ const quotes = applyLeadOutcome(rawQuotes, leads);
 
  const period = parsePeriod(filters);
  const normalized = {
@@ -726,14 +741,14 @@ export async function getGrowthDashboardData(filters: GrowthFilters = {}): Promi
  const quotesAmount = periodQuotes.reduce((sum, quote) => sum + quoteAmount(quote), 0);
 
  const stageData = [
-  { stage: "Demandes recues", volume: periodLeads.length, revenue: 0, averageDelayMinutes: null, href: "/dashboard/demandes" },
-  { stage: "Demandes completes", volume: completeLeads.length, revenue: 0, averageDelayMinutes: null, href: "/dashboard/demandes" },
-  { stage: "Leads qualifies", volume: qualifiedLeads.length, revenue: 0, averageDelayMinutes: average(leadToQuoteMinutes), href: "/dashboard/demandes" },
-  { stage: "Devis prets", volume: quoteReady.length, revenue: quoteReady.reduce((sum, quote) => sum + quoteAmount(quote), 0), averageDelayMinutes: average(leadToQuoteMinutes), href: "/dashboard/devis" },
-  { stage: "Devis envoyes", volume: sentQuotes.length, revenue: sentQuotes.reduce((sum, quote) => sum + quoteAmount(quote), 0), averageDelayMinutes: average(leadToQuoteMinutes), href: "/dashboard/devis" },
-  { stage: "Relances planifiees", volume: periodFollowups.filter((followup) => followup.status === "SCHEDULED").length, revenue: 0, averageDelayMinutes: null, href: "/dashboard/relances" },
-  { stage: "Devis acceptes", volume: wonQuotes.length, revenue: wonRevenue, averageDelayMinutes: average(leadToQuoteMinutes), href: "/dashboard/devis" },
-  { stage: "Dossiers perdus / refuses", volume: lostQuotes.length + periodLeads.filter((lead) => lead.status === "LOST" || lead.status === "CLOSED").length, revenue: lostQuotes.reduce((sum, quote) => sum + quoteAmount(quote), 0), averageDelayMinutes: null, href: "/dashboard/devis" }
+  { stage: "Demandes reçues", volume: periodLeads.length, revenue: 0, averageDelayMinutes: null, href: "/dashboard/demandes" },
+  { stage: "Demandes complètes", volume: completeLeads.length, revenue: 0, averageDelayMinutes: null, href: "/dashboard/demandes" },
+  { stage: "Leads qualifiés", volume: qualifiedLeads.length, revenue: 0, averageDelayMinutes: average(leadToQuoteMinutes), href: "/dashboard/demandes" },
+  { stage: "Devis prêts", volume: quoteReady.length, revenue: quoteReady.reduce((sum, quote) => sum + quoteAmount(quote), 0), averageDelayMinutes: average(leadToQuoteMinutes), href: "/dashboard/devis" },
+  { stage: "Devis envoyés", volume: sentQuotes.length, revenue: sentQuotes.reduce((sum, quote) => sum + quoteAmount(quote), 0), averageDelayMinutes: average(leadToQuoteMinutes), href: "/dashboard/devis" },
+  { stage: "Relances planifiées", volume: periodFollowups.filter((followup) => followup.status === "SCHEDULED").length, revenue: 0, averageDelayMinutes: null, href: "/dashboard/relances" },
+  { stage: "Devis acceptés", volume: wonQuotes.length, revenue: wonRevenue, averageDelayMinutes: average(leadToQuoteMinutes), href: "/dashboard/devis" },
+  { stage: "Dossiers perdus / refusés", volume: lostQuotes.length + periodLeads.filter((lead) => lead.status === "LOST" || lead.status === "CLOSED").length, revenue: lostQuotes.reduce((sum, quote) => sum + quoteAmount(quote), 0), averageDelayMinutes: null, href: "/dashboard/devis" }
  ];
 
  const funnel = stageData.map((stage, index) => {
@@ -775,11 +790,11 @@ export async function getGrowthDashboardData(filters: GrowthFilters = {}): Promi
    type: "overdue_followup",
    label: "Relance en retard",
    severity: "critical" as const,
-   message: `${leadClient(leadById.get(followup.leadId))} a une relance prevue depassee.`,
+   message: `${leadClient(leadById.get(followup.leadId))} a une relance prévue dépassée.`,
    targetType: "followup" as const,
    targetId: followup.id,
-   href: `/dashboard/demandes/${followup.leadId}`,
-   actionLabel: "Voir le lead"
+   href: `/dashboard/relances/${followup.id}`,
+   actionLabel: "Voir la relance"
   })),
   ...sentQuotes
    .filter((quote) => {
@@ -790,12 +805,12 @@ export async function getGrowthDashboardData(filters: GrowthFilters = {}): Promi
    .map((quote) => ({
     id: quote.id,
     type: "quote_without_response",
-    label: "Devis sans reponse",
+    label: "Devis sans réponse",
     severity: "warning" as const,
-    message: `${leadClient(leadById.get(quote.leadId))} n'a pas encore repondu au devis ${quote.calculation.quoteNumber}.`,
+    message: `${leadClient(leadById.get(quote.leadId))} n'a pas encore répondu au devis ${quote.calculation.quoteNumber}.`,
     targetType: "quote" as const,
     targetId: quote.id,
-    href: `/devis/${quote.id}`,
+    href: `/client/devis/${quote.id}`,
     actionLabel: "Voir le devis"
    })),
   ...periodLeads
@@ -806,7 +821,7 @@ export async function getGrowthDashboardData(filters: GrowthFilters = {}): Promi
     type: "urgent_without_quote",
     label: "Urgent sans devis",
     severity: "critical" as const,
-    message: `${leadClient(lead)} doit etre repris avant generation de devis.`,
+    message: `${leadClient(lead)} doit être repris avant génération de devis.`,
     targetType: "lead" as const,
     targetId: lead.id,
     href: `/dashboard/demandes/${lead.id}`,
@@ -887,7 +902,7 @@ export async function getGrowthDashboardData(filters: GrowthFilters = {}): Promi
      type: leadById.get(followup.leadId) && isUrgentLead(leadById.get(followup.leadId) as Lead) ? "J+2 urgente" : "Standard",
      dueAt: followup.dueAt,
      status: followup.status,
-     href: `/dashboard/demandes/${followup.leadId}`
+     href: `/dashboard/relances/${followup.id}`
     };
    })
   },
@@ -904,10 +919,10 @@ export async function getGrowthDashboardData(filters: GrowthFilters = {}): Promi
   charts: {
    evolution,
    statusDistribution: [
-    { label: "Qualifies", value: qualifiedLeads.length, tone: "blue" },
-    { label: "Devis envoyes", value: sentQuotes.length, tone: "gold" },
-    { label: "Acceptes", value: wonQuotes.length, tone: "green" },
-    { label: "Refuses", value: lostQuotes.length, tone: "red" }
+    { label: "Qualifiés", value: qualifiedLeads.length, tone: "blue" },
+    { label: "Devis envoyés", value: sentQuotes.length, tone: "gold" },
+    { label: "Acceptés", value: wonQuotes.length, tone: "green" },
+    { label: "Refusés", value: lostQuotes.length, tone: "red" }
    ]
   },
   empty: periodLeads.length === 0 && periodQuotes.length === 0 && periodFollowups.length === 0,
