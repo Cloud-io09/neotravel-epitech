@@ -87,21 +87,60 @@
 }
 
 .navSection {
- margin-bottom: 8px;
+ margin-bottom: 4px;
+}
+
+.navSectionToggle {
+ display: flex;
+ width: 100%;
+ align-items: center;
+ justify-content: space-between;
+ gap: 8px;
+ margin: 10px 0 4px;
+ padding: 6px 12px;
+ border: 0;
+ border-radius: 7px;
+ color: #8fa3c8;
+ background: transparent;
+ cursor: pointer;
+ transition: background 0.16s ease, color 0.16s ease;
+}
+
+.navSectionToggle:hover {
+ color: #ffffff;
+ background: rgba(22, 49, 92, 0.55);
+}
+
+.navSection:first-child .navSectionToggle {
+ margin-top: 0;
 }
 
 .navSectionTitle {
- margin: 12px 0 5px;
- padding: 0 14px;
- color: #6f86ad;
+ margin: 0;
+ padding: 0;
+ color: inherit;
  font-size: 9px;
  font-weight: 900;
  letter-spacing: 0.09em;
  text-transform: uppercase;
 }
 
-.navSection:first-child .navSectionTitle {
- margin-top: 2px;
+.navSectionChevron {
+ flex-shrink: 0;
+ color: #6f86ad;
+ transition: transform 0.2s ease, color 0.16s ease;
+}
+
+.navSectionToggle:hover .navSectionChevron {
+ color: #ffffff;
+}
+
+.navSection[data-expanded="false"] .navSectionChevron {
+ transform: rotate(-90deg);
+}
+
+.navGroup[hidden] {
+ display: none;
 }
 
 .navGroup {
@@ -149,6 +188,35 @@
  overflow: hidden;
  text-overflow: ellipsis;
  white-space: nowrap;
+}
+
+.navLinkLabel {
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ gap: 8px;
+ min-width: 0;
+ flex: 1;
+}
+
+.navLinkText {
+ overflow: hidden;
+ text-overflow: ellipsis;
+ white-space: nowrap;
+}
+
+.navAlphaBadge {
+ flex-shrink: 0;
+ border-radius: 4px;
+ padding: 1px 6px;
+ font-size: 9px;
+ font-weight: 800;
+ letter-spacing: 0.05em;
+ text-transform: uppercase;
+ color: #ddd6fe;
+ background: rgba(124, 58, 237, 0.22);
+ border: 1px solid rgba(167, 139, 250, 0.4);
+ line-height: 1.5;
 }
 
 .srOnly {

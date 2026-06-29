@@ -9,6 +9,7 @@ import {
   Bell,
   Bus,
   Calendar,
+  ChevronDown,
   Cpu,
   FileText,
   Gauge,
@@ -35,6 +36,8 @@ type Item = {
   perm?: PermissionKey;
   /** Visible uniquement pour les administrateurs (ex. gouvernance). */
   adminOnly?: boolean;
+  /** Badge « Alpha » — fonctionnalité en cours de développement. */
+  alpha?: boolean;
 };
 
 const groups: { title: string; items: Item[]; adminSection?: boolean }[] = [
@@ -57,10 +60,10 @@ const groups: { title: string; items: Item[]; adminSection?: boolean }[] = [
     items: [
       { label: "Vue admin", href: "/dashboard/admin", icon: Gauge, perm: "admin_view" },
       { label: "Tarification", href: "/dashboard/pricing", icon: FileText, perm: "pricing" },
-      { label: "Automatisations", href: "/dashboard/automatisations", icon: Workflow, perm: "automations" },
-      { label: "Croissance", href: "/dashboard/croissance", icon: TrendingUp, perm: "growth" },
-      { label: "Partenaires", href: "/dashboard/partenaires", icon: Bus, perm: "partners" },
-      { label: "Audit RGPD", href: "/dashboard/rgpd-audit", icon: ShieldCheck, perm: "compliance" },
+      { label: "Automatisations", href: "/dashboard/automatisations", icon: Workflow, perm: "automations", alpha: true },
+      { label: "Croissance", href: "/dashboard/croissance", icon: TrendingUp, perm: "growth", alpha: true },
+      { label: "Partenaires", href: "/dashboard/partenaires", icon: Bus, perm: "partners", alpha: true },
+      { label: "Audit RGPD", href: "/dashboard/rgpd-audit", icon: ShieldCheck, perm: "compliance", alpha: true },
       { label: "Logs système", href: "/dashboard/couts-logs", icon: ScrollText, perm: "costs_logs" },
       { label: "Coûts IA", href: "/dashboard/couts-ia-admin", icon: Cpu, perm: "costs_ai" }
     ]
@@ -71,6 +74,22 @@ const groups: { title: string; items: Item[]; adminSection?: boolean }[] = [
     items: [{ label: "Équipe & accès", href: "/dashboard/gouvernance", icon: UserCog, adminOnly: true }]
   }
 ];
+
+const NAV_EXPANDED_STORAGE_KEY = "neotravel.dashboard.navExpanded.v1";
+
+function groupHasActive(pathname: string, items: Item[]) {
+  return items.some((item) => isActive(pathname, item.href));
+}
+
+function readStoredExpanded(): Record<string, boolean> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(NAV_EXPANDED_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+  } catch {
+    return {};
+  }
+}
 
 function isActive(pathname: string, href: string) {
   if (href === "/dashboard") return pathname === href;
@@ -91,6 +110,7 @@ export function DashboardSidebar({
   const pathname = usePathname();
   const isAdmin = role === "admin";
   const [open, setOpen] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setOpen(false);
@@ -112,6 +132,30 @@ export function DashboardSidebar({
     .filter((group) => !group.adminSection || isAdmin)
     .map((group) => ({ ...group, items: group.items.filter(canSee) }))
     .filter((group) => group.items.length > 0);
+
+  useEffect(() => {
+    const stored = readStoredExpanded();
+    const next: Record<string, boolean> = {};
+
+    for (const group of visibleGroups) {
+      const wasStored = Object.prototype.hasOwnProperty.call(stored, group.title);
+      next[group.title] = wasStored ? Boolean(stored[group.title]) : groupHasActive(pathname, group.items);
+    }
+
+    setExpandedSections(next);
+  }, [pathname, isAdmin, permissions.join("|")]);
+
+  function toggleSection(title: string) {
+    setExpandedSections((prev) => {
+      const next = { ...prev, [title]: !prev[title] };
+      try {
+        window.localStorage.setItem(NAV_EXPANDED_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
+  }
 
   return (
     <>
@@ -146,7 +190,7 @@ export function DashboardSidebar({
         aria-label="Navigation du tableau de bord"
       >
         <div className={styles.navTop}>
-          <Link className={styles.brand} href="/" aria-label="NeoTravel - retour accueil">
+          <Link className={styles.brand} href="/dashboard" aria-label="NeoTravel - tableau de bord">
             <img
               className={styles.brandLogo}
               src="/logo-neotravel-v12.svg"
@@ -166,26 +210,50 @@ export function DashboardSidebar({
         </div>
 
         <div className={styles.navScroll}>
-          {visibleGroups.map((group) => (
-            <div key={group.title} className={styles.navSection}>
-              <p className={styles.navSectionTitle}>{group.title}</p>
-              <div className={styles.navGroup}>
-                {group.items.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      aria-current={isActive(pathname, item.href) ? "page" : undefined}
-                    >
-                      <Icon className={styles.navIcon} aria-hidden="true" size={16} strokeWidth={2.2} />
-                      <span>{item.label}</span>
-                    </Link>
-                  );
-                })}
+          {visibleGroups.map((group) => {
+            const isExpanded = expandedSections[group.title] ?? groupHasActive(pathname, group.items);
+
+            return (
+              <div key={group.title} className={styles.navSection} data-expanded={isExpanded ? "true" : "false"}>
+                <button
+                  type="button"
+                  className={styles.navSectionToggle}
+                  aria-expanded={isExpanded}
+                  aria-controls={`nav-section-${group.title}`}
+                  onClick={() => toggleSection(group.title)}
+                >
+                  <span className={styles.navSectionTitle}>{group.title}</span>
+                  <ChevronDown className={styles.navSectionChevron} aria-hidden="true" size={14} strokeWidth={2.4} />
+                </button>
+                <div
+                  id={`nav-section-${group.title}`}
+                  className={styles.navGroup}
+                  hidden={!isExpanded}
+                >
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        aria-current={isActive(pathname, item.href) ? "page" : undefined}
+                      >
+                        <Icon className={styles.navIcon} aria-hidden="true" size={16} strokeWidth={2.2} />
+                        <span className={styles.navLinkLabel}>
+                          <span className={styles.navLinkText}>{item.label}</span>
+                          {item.alpha && isAdmin ? (
+                            <span className={styles.navAlphaBadge} title="Fonctionnalité en cours de développement">
+                              Alpha
+                            </span>
+                          ) : null}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className={styles.userCard}>
