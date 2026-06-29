@@ -16,6 +16,7 @@ import {
   Inbox,
   LayoutDashboard,
   Menu,
+  Plug,
   ScrollText,
   ShieldCheck,
   TrendingUp,
@@ -66,6 +67,7 @@ const groups: { title: string; items: Item[]; adminSection?: boolean; defaultExp
       { label: "Croissance", href: "/dashboard/croissance", icon: TrendingUp, perm: "growth", alpha: true },
       { label: "Partenaires", href: "/dashboard/partenaires", icon: Bus, perm: "partners", alpha: true },
       { label: "Audit RGPD", href: "/dashboard/rgpd-audit", icon: ShieldCheck, perm: "compliance", alpha: true },
+      { label: "Connexions", href: "/dashboard/connexions", icon: Plug, perm: "admin_view" },
       { label: "Logs système", href: "/dashboard/couts-logs", icon: ScrollText, perm: "costs_logs" },
       { label: "Coûts IA", href: "/dashboard/couts-ia-admin", icon: Cpu, perm: "costs_ai" }
     ]

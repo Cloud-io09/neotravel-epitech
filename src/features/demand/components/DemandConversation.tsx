@@ -736,7 +736,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
       if (!quoteResponse.ok) throw new Error("QUOTE_GENERATION_FAILED");
       const quote = (await quoteResponse.json()) as { id: string };
       clearDemandSession();
-      router.push(`/client/devis/${quote.id}`);
+      router.push(`/connexion/inscription?quoteId=${encodeURIComponent(quote.id)}`);
     } catch {
       setWorkflowError("Nous n’avons pas pu préparer le devis pour l’instant. Vous pouvez réessayer ou nous contacter.");
     } finally {
@@ -1144,7 +1144,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
               Encore besoin de : {missingRequirementLabels.join(", ")}.
             </p>
           ) : formReady ? (
-            <p className={styles.workflowReady}>Trajet complet — vous pouvez recevoir votre devis.</p>
+            <p className={styles.workflowReady}>Trajet complet - creez votre compte pour acceder au devis.</p>
           ) : null}
           {workflowError ? <p className={styles.workflowError}>{workflowError}</p> : null}
           {humanReviewQueued ? (

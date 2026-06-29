@@ -26,10 +26,17 @@ const STATUS_OPTIONS = [
 
 const OPTION_CHOICES = [
  { code: "guide", label: "Guide / accompagnateur" },
- { code: "driver_overnight", label: "Nuit chauffeur" }
+ { code: "driver_overnight", label: "Nuit chauffeur" },
+ { code: "tolls", label: "Péages" }
 ];
 
 const OPTION_ALIASES = new Map<string, string>([
+ ["peage", "tolls"],
+ ["peages", "tolls"],
+ ["péage", "tolls"],
+ ["péages", "tolls"],
+ ["toll", "tolls"],
+ ["tolls", "tolls"],
  ["guide", "guide"],
  ["accompagnateur", "guide"],
  ["driver_overnight", "driver_overnight"],

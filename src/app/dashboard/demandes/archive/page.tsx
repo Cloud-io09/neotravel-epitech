@@ -2,6 +2,6 @@ import { ArchivedLeadsPage } from "@/features/dashboard/components/DashboardView
 import { requirePermission } from "@/shared/lib/auth/requireAdmin";
 
 export default async function LeadArchivesRoute() {
- await requirePermission("leads");
- return <ArchivedLeadsPage />;
+  await requirePermission("leads");
+  return <ArchivedLeadsPage />;
 }

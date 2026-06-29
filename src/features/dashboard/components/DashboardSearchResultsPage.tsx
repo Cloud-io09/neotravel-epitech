@@ -154,9 +154,9 @@ export async function DashboardSearchResultsPage({ query }: { query: string }) {
     }
    >
     {!query ? (
-     <Note>Aucune recherche lancee.</Note>
+     <Note>Aucune recherche lancée.</Note>
     ) : rows.length === 0 ? (
-     <Note>Aucun resultat pour cette recherche.</Note>
+     <Note>Aucun résultat pour cette recherche.</Note>
     ) : (
      <DataTable
       columns={["Type", "Résultat", "Détail", "Statut", "Action"]}
