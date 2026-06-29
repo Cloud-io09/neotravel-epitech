@@ -10,7 +10,7 @@ export function PipelineStats() {
  const kpis = [
   ["Demandes", mockLeads.length],
   ["Human review", mockLeads.filter((lead) => lead.status === "HUMAN_REVIEW").length],
-  ["Devis envoyes", mockQuotes.filter((quote) => quote.status === "QUOTE_SENT").length],
+  ["Devis envoyés", mockQuotes.filter((quote) => quote.status === "QUOTE_SENT").length],
   ["Relances", mockFollowups.filter((followup) => followup.status === "SCHEDULED").length]
  ];
  const hotLeads = mockLeads.slice(0, 5);

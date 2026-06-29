@@ -125,7 +125,7 @@ export function ClientsManager({ initialClients }: { initialClients: ClientRow[]
         });
         const json = await response.json();
         if (!response.ok) {
-          setError(json?.error?.message ?? "Mise a jour impossible.");
+          setError(json?.error?.message ?? "Mise à jour impossible.");
           return;
         }
         const updated = json.client as Client;
@@ -139,7 +139,7 @@ export function ClientsManager({ initialClients }: { initialClients: ClientRow[]
   }
 
   async function handleDelete(client: ClientRow) {
-    if (!confirm(`Supprimer definitivement le compte client "${client.organization ?? client.email}" ?`)) return;
+    if (!confirm(`Supprimer définitivement le compte client "${client.organization ?? client.email}" ?`)) return;
     try {
       const response = await fetch(`/api/clients/${client.id}`, { method: "DELETE" });
       if (!response.ok) {
@@ -163,7 +163,7 @@ export function ClientsManager({ initialClients }: { initialClients: ClientRow[]
       });
       const json = await response.json();
       if (!response.ok) {
-        alert(json?.error?.message ?? "Mise a jour impossible.");
+        alert(json?.error?.message ?? "Mise à jour impossible.");
         return;
       }
       const updated = json.client as Client;
@@ -181,7 +181,7 @@ export function ClientsManager({ initialClients }: { initialClients: ClientRow[]
           <p className={dashStyles.eyebrow}>Administration</p>
           <h1>Comptes clients</h1>
           <p>
-            Gestion centralisee des comptes clients NeoTravel : creation, mise a jour, desactivation et suppression
+            Gestion centralisée des comptes clients NeoTravel : création, mise à jour, désactivation et suppression
             conformes RGPD.
           </p>
         </div>
@@ -211,18 +211,18 @@ export function ClientsManager({ initialClients }: { initialClients: ClientRow[]
           <span>Organisation</span>
           <span>Contact</span>
           <span>Email</span>
-          <span>Telephone</span>
+          <span>Téléphone</span>
           <span>Statut</span>
           <span style={{ textAlign: "right" }}>Actions</span>
         </div>
         {filtered.length === 0 ? (
-          <div className={styles.empty}>Aucun compte client {search ? "ne correspond a la recherche." : "pour le moment."}</div>
+          <div className={styles.empty}>Aucun compte client {search ? "ne correspond à la recherche." : "pour le moment."}</div>
         ) : (
           filtered.map((client) => (
             <div key={client.id} className={styles.tableRow}>
               <div>
                 <strong>{client.organization ?? "(sans organisation)"}</strong>
-                <small>Cree le {formatDate(client.createdAt)}</small>
+                <small>Créé le {formatDate(client.createdAt)}</small>
               </div>
               <div>
                 <strong>{client.contactName ?? "-"}</strong>
@@ -263,8 +263,8 @@ export function ClientsManager({ initialClients }: { initialClients: ClientRow[]
                 <h2>{editor.kind === "create" ? "Nouveau compte client" : "Modifier le compte client"}</h2>
                 <p>
                   {editor.kind === "create"
-                    ? "Ajoutez un client professionnel a la base NeoTravel."
-                    : "Mettez a jour les informations du compte client."}
+                    ? "Ajoutez un client professionnel à la base NeoTravel."
+                    : "Mettez à jour les informations du compte client."}
                 </p>
               </div>
               <button type="button" className={styles.modalClose} onClick={closeEditor} aria-label="Fermer">
@@ -303,7 +303,7 @@ export function ClientsManager({ initialClients }: { initialClients: ClientRow[]
                 />
               </div>
               <div className={styles.field}>
-                <label htmlFor="client-phone">Telephone</label>
+                <label htmlFor="client-phone">Téléphone</label>
                 <input
                   id="client-phone"
                   value={form.phone}
@@ -325,7 +325,7 @@ export function ClientsManager({ initialClients }: { initialClients: ClientRow[]
                 Annuler
               </button>
               <button type="submit" className={dashStyles.primary}>
-                {editor.kind === "create" ? "Creer le client" : "Enregistrer"}
+                {editor.kind === "create" ? "Créer le client" : "Enregistrer"}
               </button>
             </div>
           </form>

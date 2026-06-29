@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
+    "dev:supabase": "npx supabase start",
+    "db:reset": "npx supabase db reset",
+    "db:seed": "npx tsx scripts/seed-demo-data.ts",
     "build": "next build",
     "test": "vitest run",
     "test:watch": "vitest",

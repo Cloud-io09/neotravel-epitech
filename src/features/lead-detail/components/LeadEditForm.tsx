@@ -194,7 +194,7 @@ export function LeadEditForm({ lead }: { lead: Lead }) {
       <input type="email" value={form.email} onChange={(event) => set("email", event.target.value)} />
      </label>
      <label>
-      Telephone
+      Téléphone
       <input type="tel" value={form.phone} onChange={(event) => set("phone", event.target.value)} />
      </label>
      <label>

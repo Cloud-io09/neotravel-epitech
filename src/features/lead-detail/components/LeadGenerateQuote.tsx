@@ -10,11 +10,11 @@ export function LeadGenerateQuote({ status }: { leadId: string; status: string }
  if (status === "QUALIFIED" || status === "HIGH_VALUE") {
   return (
    <p className={styles.genHint}>
-    Demande qualifiee sans devis : le flux automatique doit creer le devis ou transmettre le dossier en
+    Demande qualifiée sans devis : le flux automatique doit créer le devis ou transmettre le dossier en
     validation humaine.
    </p>
   );
  }
 
- return <p className={styles.genHint}>Le devis sera prepare automatiquement une fois la demande qualifiee.</p>;
+ return <p className={styles.genHint}>Le devis sera préparé automatiquement une fois la demande qualifiée.</p>;
 }

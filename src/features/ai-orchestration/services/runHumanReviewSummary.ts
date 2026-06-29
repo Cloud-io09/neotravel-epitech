@@ -5,7 +5,7 @@ export async function runHumanReviewSummary(input: unknown) {
   const summary =
     input && typeof input === "object" && "options" in input
       ? summarizeDemand(input as Parameters<typeof summarizeDemand>[0])
-      : "Demande a reprendre par un commercial.";
+      : "Demande à reprendre par un commercial.";
   const output = {
     summary,
     input

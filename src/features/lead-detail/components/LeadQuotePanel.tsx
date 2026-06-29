@@ -49,7 +49,7 @@ export function LeadQuotePanel({ lead, quote, followup }: { lead: Lead; quote?: 
      Email <strong>{lead.email ?? "À confirmer"}</strong>
     </li>
     <li>
-     Telephone <strong>{lead.phone ?? "À confirmer"}</strong>
+     Téléphone <strong>{lead.phone ?? "À confirmer"}</strong>
     </li>
     <li>
      Départ <strong>{lead.departureCity ?? "À confirmer"}</strong>

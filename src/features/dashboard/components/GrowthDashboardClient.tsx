@@ -11,6 +11,7 @@ import type {
  GrowthGroupBy,
  GrowthMetricKey
 } from "@/features/dashboard/services/getGrowthDashboardData";
+import alphaStyles from "./alphaDashboard.module.css";
 import styles from "./dashboard.module.css";
 
 type LoadState =
@@ -27,24 +28,24 @@ type RemoteState<T> =
 type GrowthTab = "summary" | "chart" | "details";
 
 const tabs: Array<{ value: GrowthTab; label: string }> = [
- { value: "summary", label: "Vue synthese" },
+ { value: "summary", label: "Vue synthèse" },
  { value: "chart", label: "Vue graphique" },
- { value: "details", label: "Detail des donnees" }
+ { value: "details", label: "Détail des données" }
 ];
 
 const metricOptions: Array<{ value: GrowthMetricKey; label: string }> = [
- { value: "requests_received", label: "Demandes recues" },
- { value: "qualified_leads", label: "Leads qualifies" },
- { value: "quotes_generated", label: "Devis generes" },
- { value: "quotes_sent", label: "Devis envoyes" },
- { value: "quotes_accepted", label: "Devis acceptes" },
+ { value: "requests_received", label: "Demandes reçues" },
+ { value: "qualified_leads", label: "Leads qualifiés" },
+ { value: "quotes_generated", label: "Devis générés" },
+ { value: "quotes_sent", label: "Devis envoyés" },
+ { value: "quotes_accepted", label: "Devis acceptés" },
  { value: "potential_revenue", label: "CA potentiel" },
- { value: "won_revenue", label: "CA gagne" },
- { value: "followups_planned", label: "Relances planifiees" },
- { value: "followups_sent", label: "Relances envoyees" },
+ { value: "won_revenue", label: "CA gagné" },
+ { value: "followups_planned", label: "Relances planifiées" },
+ { value: "followups_sent", label: "Relances envoyées" },
  { value: "followups_overdue", label: "Relances en retard" },
  { value: "conversion_rate", label: "Taux de conversion" },
- { value: "average_lead_to_quote_minutes", label: "Delai moyen lead -> devis" }
+ { value: "average_lead_to_quote_minutes", label: "Délai moyen lead -> devis" }
 ];
 
 const chartTypeOptions: Array<{ value: GrowthChartType; label: string }> = [
@@ -68,26 +69,26 @@ const periodOptions = [
  { value: "7d", label: "7 jours" },
  { value: "30d", label: "30 jours" },
  { value: "month", label: "Mois en cours" },
- { value: "custom", label: "Personnalise" }
+ { value: "custom", label: "Personnalisé" }
 ];
 
 const sourceOptions = [
  { value: "all", label: "Toutes sources" },
  { value: "Site web", label: "Site web" },
  { value: "Formulaire", label: "Formulaire" },
- { value: "Telephone", label: "Telephone" },
+ { value: "Telephone", label: "Téléphone" },
  { value: "Campagne Ads", label: "Campagne Ads" },
  { value: "Partenaire", label: "Partenaire" },
- { value: "Client recurrent", label: "Client recurrent" },
- { value: "Non renseigne", label: "Non renseigne" }
+ { value: "Client recurrent", label: "Client récurrent" },
+ { value: "Non renseigné", label: "Non renseigné" }
 ];
 
 const statusOptions = [
  { value: "all", label: "Tous statuts" },
- { value: "qualified", label: "Qualifie" },
- { value: "quote_sent", label: "Devis envoye" },
- { value: "accepted", label: "Accepte" },
- { value: "refused", label: "Refuse" },
+ { value: "qualified", label: "Qualifié" },
+ { value: "quote_sent", label: "Devis envoyé" },
+ { value: "accepted", label: "Accepté" },
+ { value: "refused", label: "Refusé" },
  { value: "followup_pending", label: "Relance en attente" },
  { value: "human_review", label: "Reprise humaine" }
 ];
@@ -100,7 +101,7 @@ const urgencyOptions = [
 
 const clientTypeOptions = [
  { value: "all", label: "Tous clients" },
- { value: "recurring", label: "Client recurrent" }
+ { value: "recurring", label: "Client récurrent" }
 ];
 
 function euro(value: number) {
@@ -289,7 +290,7 @@ function GrowthFunnel({ data }: { data: GrowthDashboardData }) {
    <div className={styles.growthPanelHeader}>
     <div>
      <h2>Entonnoir commercial</h2>
-     <p>Conversion et valeur associee a chaque etape du pipeline.</p>
+     <p>Conversion et valeur associée à chaque étape du pipeline.</p>
     </div>
    </div>
    <div className={styles.growthFunnel}>
@@ -302,7 +303,7 @@ function GrowthFunnel({ data }: { data: GrowthDashboardData }) {
       <div className={styles.growthFunnelTrack} aria-hidden="true">
        <span style={{ width: `${Math.max(4, (stage.volume / max) * 100)}%` }} />
       </div>
-      <span>{stage.stepConversionRate}% etape</span>
+      <span>{stage.stepConversionRate}% étape</span>
       <span>{stage.globalConversionRate}% global</span>
       <span>{stage.revenue ? euro(stage.revenue) : "-"}</span>
       <span>{duration(stage.averageDelayMinutes)}</span>
@@ -322,10 +323,10 @@ function GrowthFunnel({ data }: { data: GrowthDashboardData }) {
 
 function GrowthPerformanceTable({ data }: { data: GrowthDashboardData }) {
  const rows = [
-  ["Devis envoyes / leads qualifies", percent(data.performance.quoteSentRate)],
-  ["Devis acceptes / devis envoyes", percent(data.performance.quoteAcceptedRate)],
+  ["Devis envoyés / leads qualifiés", percent(data.performance.quoteSentRate)],
+  ["Devis acceptés / devis envoyés", percent(data.performance.quoteAcceptedRate)],
   ["Panier moyen devis", euro(data.performance.averageQuoteAmount)],
-  ["CA moyen par dossier gagne", euro(data.performance.averageWonAmount)],
+  ["CA moyen par dossier gagné", euro(data.performance.averageWonAmount)],
   ["Leads chauds", data.performance.hotLeads],
   ["Leads sans action 24h", data.performance.leadsWithoutAction24h],
   ["Demandes en reprise humaine", data.performance.humanReviewCount]
@@ -336,7 +337,7 @@ function GrowthPerformanceTable({ data }: { data: GrowthDashboardData }) {
    <div className={styles.growthPanelHeader}>
     <div>
      <h2>Performance commerciale</h2>
-     <p>Qualite de transformation des demandes et valeur moyenne.</p>
+     <p>Qualité de transformation des demandes et valeur moyenne.</p>
     </div>
    </div>
    <div className={styles.growthMetricList}>
@@ -356,13 +357,13 @@ function GrowthFollowups({ data }: { data: GrowthDashboardData }) {
   <section className={styles.growthPanel}>
    <div className={styles.growthPanelHeader}>
     <div>
-     <h2>Relances automatisees</h2>
-     <p>Relances issues du planning interne ou des webhooks n8n branches au back-office.</p>
+     <h2>Relances automatisées</h2>
+     <p>Relances issues du planning interne ou des webhooks n8n branchés au back-office.</p>
     </div>
    </div>
    <div className={styles.growthMiniStats}>
-    <span>Planifiees <strong>{data.followups.planned}</strong></span>
-    <span>Envoyees <strong>{data.followups.sent}</strong></span>
+    <span>Planifiées <strong>{data.followups.planned}</strong></span>
+    <span>Envoyées <strong>{data.followups.sent}</strong></span>
     <span>En retard <strong>{data.followups.overdue}</strong></span>
     <span>J+2 <strong>{data.followups.urgentJ2}</strong></span>
     <span>J+7 <strong>{data.followups.finalJ7}</strong></span>
@@ -371,9 +372,9 @@ function GrowthFollowups({ data }: { data: GrowthDashboardData }) {
     <div className={styles.growthTable}>
      <div className={styles.growthTableHead}>
       <span>Client</span>
-      <span>Reference devis</span>
+      <span>Référence devis</span>
       <span>Type relance</span>
-      <span>Date prevue</span>
+      <span>Date prévue</span>
       <span>Statut</span>
       <span>Action</span>
      </div>
@@ -389,7 +390,7 @@ function GrowthFollowups({ data }: { data: GrowthDashboardData }) {
      ))}
     </div>
    ) : (
-    <p className={styles.growthEmptyLine}>Aucune relance sur cette periode.</p>
+    <p className={styles.growthEmptyLine}>Aucune relance sur cette période.</p>
    )}
   </section>
  );
@@ -412,7 +413,7 @@ function GrowthSources({ data }: { data: GrowthDashboardData }) {
       <span>Qualification</span>
       <span>Conversion</span>
       <span>CA potentiel</span>
-      <span>CA gagne</span>
+      <span>CA gagné</span>
      </div>
      {data.sources.map((source) => (
       <div className={styles.growthTableRow} key={source.source}>
@@ -426,7 +427,7 @@ function GrowthSources({ data }: { data: GrowthDashboardData }) {
      ))}
     </div>
    ) : (
-    <p className={styles.growthEmptyLine}>Aucune source disponible pour cette periode.</p>
+    <p className={styles.growthEmptyLine}>Aucune source disponible pour cette période.</p>
    )}
   </section>
  );
@@ -438,7 +439,7 @@ function GrowthAlerts({ data }: { data: GrowthDashboardData }) {
    <div className={styles.growthPanelHeader}>
     <div>
      <h2>Alertes croissance</h2>
-     <p>Opportunites a risque a reprendre commercialement.</p>
+     <p>Opportunités à risque à reprendre commercialement.</p>
     </div>
    </div>
    <div className={styles.growthAlerts}>
@@ -464,7 +465,7 @@ function GrowthAlerts({ data }: { data: GrowthDashboardData }) {
       </article>
      ))
     ) : (
-     <p className={styles.growthEmptyLine}>Aucune alerte active sur cette periode.</p>
+     <p className={styles.growthEmptyLine}>Aucune alerte active sur cette période.</p>
     )}
    </div>
   </section>
@@ -477,28 +478,28 @@ function GrowthAutomationGain({ data }: { data: GrowthDashboardData }) {
    <div className={styles.growthPanelHeader}>
     <div>
      <h2>Gain d'automatisation</h2>
-     <p>Temps libere pour les cas complexes, pas une reduction d'effectif.</p>
+     <p>Temps libéré pour les cas complexes, pas une réduction d'effectif.</p>
     </div>
    </div>
    <div className={styles.growthMetricList}>
     <div>
-     <span>Leads standards traites automatiquement</span>
+     <span>Leads standards traités automatiquement</span>
      <strong>{data.automationGain.automatedStandardLeads}</strong>
     </div>
     <div>
-     <span>Relances automatisees envoyees</span>
+     <span>Relances automatisées envoyées</span>
      <strong>{data.automationGain.automatedFollowupsSent}</strong>
     </div>
     <div>
-     <span>Temps estime economise</span>
+     <span>Temps estimé économisé</span>
      <strong>{data.automationGain.estimatedHoursSaved} h</strong>
     </div>
     <div>
-     <span>Cout IA estime</span>
+     <span>Coût IA estimé</span>
      <strong>{euro(data.automationGain.estimatedAiCost)}</strong>
     </div>
     <div>
-     <span>Cout moyen IA par devis</span>
+     <span>Coût moyen IA par devis</span>
      <strong>{data.automationGain.averageAiCostPerQuote === null ? "n/a" : euro(data.automationGain.averageAiCostPerQuote)}</strong>
     </div>
    </div>
@@ -515,8 +516,8 @@ function GrowthCharts({ data }: { data: GrowthDashboardData }) {
    <section className={styles.growthPanel}>
     <div className={styles.growthPanelHeader}>
      <div>
-      <h2>Evolution demandes / devis</h2>
-      <p>Volume sur la periode filtree.</p>
+      <h2>Évolution demandes / devis</h2>
+      <p>Volume sur la période filtrée.</p>
      </div>
     </div>
     <div className={styles.growthChartBars}>
@@ -601,8 +602,8 @@ function GrowthDateRangePicker({
 
  return (
   <div className={styles.growthDatePicker}>
-   <span>Periode</span>
-   <div className={styles.growthDatePresets} aria-label="Periodes rapides">
+   <span>Période</span>
+   <div className={styles.growthDatePresets} aria-label="Périodes rapides">
     {periodOptions.filter((option) => option.value !== "custom").map((option) => (
      <button
       aria-pressed={period === option.value}
@@ -726,7 +727,7 @@ function GrowthDynamicChart({ data }: { data: GrowthChartData }) {
  ).stops.join(", ");
 
  if (data.empty || data.data.length === 0) {
-  return <p className={styles.growthEmptyLine}>Aucune donnee disponible pour cet indicateur sur la periode selectionnee.</p>;
+  return <p className={styles.growthEmptyLine}>Aucune donnée disponible pour cet indicateur sur la période sélectionnée.</p>;
  }
 
  if (data.chartType === "pie") {
@@ -801,7 +802,7 @@ function GrowthChartTab({
        <div className={styles.growthPanelHeader}>
         <div>
          <h2>{metricLabel(item.metric)}</h2>
-         <p>Graphique calcule par le backend selon l'indicateur, la periode et le groupement choisis.</p>
+         <p>Graphique calculé par le backend selon l'indicateur, la période et le groupement choisis.</p>
         </div>
        </div>
        <GrowthDynamicChart data={item} />
@@ -823,11 +824,11 @@ function GrowthDetailsTable({ item }: { item: GrowthDetailsData }) {
    <div className={styles.growthPanelHeader}>
     <div>
      <h2>{metricLabel(item.metric)}</h2>
-     <p>Detail filtre depuis le backend.</p>
+     <p>Détail filtré depuis le backend.</p>
     </div>
    </div>
    {item.empty ? (
-    <p className={styles.growthEmptyLine}>Aucune donnee disponible pour cet indicateur sur la periode selectionnee.</p>
+    <p className={styles.growthEmptyLine}>Aucune donnée disponible pour cet indicateur sur la période sélectionnée.</p>
    ) : null}
    {!item.empty ? (
     <div className={styles.growthDetailsTable}>
@@ -836,10 +837,10 @@ function GrowthDetailsTable({ item }: { item: GrowthDetailsData }) {
       <span>Client</span>
       <span>Source</span>
       <span>Statut</span>
-      <span>Reference devis</span>
+      <span>Référence devis</span>
       <span>Montant</span>
-      <span>Derniere action</span>
-      <span>Relance prevue</span>
+      <span>Dernière action</span>
+      <span>Relance prévue</span>
       <span>Action</span>
      </div>
      {item.data.map((row) => (
@@ -872,7 +873,7 @@ function GrowthDetailsTab({
   <div className={styles.growthChartStack}>
    {detailsState.status === "loading" && !detailsState.data ? (
     <section className={styles.growthPanel}>
-     <p className={styles.growthEmptyLine}>Chargement des donnees...</p>
+     <p className={styles.growthEmptyLine}>Chargement des données...</p>
     </section>
    ) : null}
    {detailsState.status === "error" ? (
@@ -1001,7 +1002,7 @@ export function GrowthDashboardClient() {
    detailsMetrics.map((metric) => {
     const queryString = buildQuery({ ...detailsBaseParams, metric });
     return fetch(`/api/dashboard/growth/details?${queryString}`, { signal: controller.signal }).then(async (response) => {
-     if (!response.ok) throw new Error("Impossible de charger le detail des donnees.");
+     if (!response.ok) throw new Error("Impossible de charger le détail des données.");
      return (await response.json()) as GrowthDetailsData;
     });
    })
@@ -1027,9 +1028,12 @@ export function GrowthDashboardClient() {
   <main className={styles.page} data-no-translate>
    <header className={styles.growthHero}>
     <div>
-     <p className={styles.eyebrow}>Dashboard NeoTravel</p>
+     <p className={styles.eyebrow}>
+      Pilotage commercial
+      <span className={alphaStyles.alphaBadge}>Alpha</span>
+     </p>
      <h1>Croissance commerciale</h1>
-     <p>Suivi de la conversion des demandes, du premier contact au devis accepte.</p>
+     <p>Suivi de la conversion des demandes, du premier contact au devis accepté.</p>
     </div>
     <div className={styles.growthHeroBadge}>
      <TrendingUp aria-hidden="true" size={20} />
@@ -1041,7 +1045,7 @@ export function GrowthDashboardClient() {
       <section className={styles.growthObjective}>
         <strong>Objectif</strong>
         <span>
-          Piloter la performance commerciale, suivre la conversion des demandes et prioriser les opportunites generant
+          Piloter la performance commerciale, suivre la conversion des demandes et prioriser les opportunités générant
           le plus de valeur.
         </span>
       </section>
@@ -1066,10 +1070,10 @@ export function GrowthDashboardClient() {
     <>
      {data.empty ? (
       <section className={styles.growthEmptyState}>
-       <h2>Aucune donnee commerciale disponible sur cette periode.</h2>
+       <h2>Aucune donnée commerciale disponible sur cette période.</h2>
        <p>
-        Les indicateurs se mettront a jour automatiquement des que des demandes, devis ou relances seront
-        enregistres.
+        Les indicateurs se mettront à jour automatiquement dès que des demandes, devis ou relances seront
+        enregistrés.
        </p>
       </section>
      ) : null}
@@ -1078,28 +1082,28 @@ export function GrowthDashboardClient() {
       <>
        <section className={styles.growthKpiGrid} aria-label="KPI croissance">
         <GrowthKpiCard
-         label="Demandes recues"
+         label="Demandes reçues"
          value={data.kpis.requestsReceived}
-         detail={data.kpis.requestsEvolutionRate === null ? "Pas de periode precedente" : `${percent(data.kpis.requestsEvolutionRate)} vs precedent`}
+         detail={data.kpis.requestsEvolutionRate === null ? "Pas de période précédente" : `${percent(data.kpis.requestsEvolutionRate)} vs précédent`}
          tone="blue"
          href="/dashboard/demandes?status=received"
         />
         <GrowthKpiCard
-         label="Leads qualifies"
+         label="Leads qualifiés"
          value={data.kpis.qualifiedLeads}
          detail={`${percent(data.kpis.qualificationRate)} des demandes`}
          tone="green"
          href="/dashboard/demandes?status=qualified"
         />
         <GrowthKpiCard
-         label="Delai lead -> devis"
+         label="Délai lead -> devis"
          value={duration(data.kpis.averageLeadToQuoteMinutes)}
-         detail="Moyenne sur devis generes"
+         detail="Moyenne sur devis générés"
          tone="gold"
          onShowDetails={() => showDetails("average_lead_to_quote_minutes")}
         />
         <GrowthKpiCard
-         label="Devis generes"
+         label="Devis générés"
          value={data.kpis.quotesGenerated}
          detail={euro(data.kpis.quotesAmount)}
          tone="blue"
@@ -1108,21 +1112,21 @@ export function GrowthDashboardClient() {
         <GrowthKpiCard
          label="Taux de conversion"
          value={percent(data.kpis.conversionRate)}
-         detail="Acceptes / envoyes"
+         detail="Acceptés / envoyés"
          tone="green"
          onShowDetails={() => showDetails("conversion_rate")}
         />
         <GrowthKpiCard
          label="CA potentiel"
          value={euro(data.kpis.potentialRevenue)}
-         detail="Devis ouverts non refuses"
+         detail="Devis ouverts non refusés"
          tone="blue"
          href="/dashboard/devis?status=open"
         />
         <GrowthKpiCard
-         label="CA gagne"
+         label="CA gagné"
          value={euro(data.kpis.wonRevenue)}
-         detail="Devis acceptes"
+         detail="Devis acceptés"
          tone="green"
          href="/dashboard/devis?status=accepted"
         />
@@ -1143,15 +1147,15 @@ export function GrowthDashboardClient() {
         <section className={styles.growthPanel}>
          <div className={styles.growthPanelHeader}>
           <div>
-           <h2>Reactivite commerciale</h2>
-           <p>Delais moyens et dossiers en attente d'action.</p>
+           <h2>Réactivité commerciale</h2>
+           <p>Délais moyens et dossiers en attente d'action.</p>
           </div>
          </div>
          <div className={styles.growthMetricList}>
-          <div><span>Delai moyen premiere reponse</span><strong>{duration(data.reactivity.averageFirstResponseMinutes)}</strong></div>
-          <div><span>Delai moyen qualification</span><strong>{duration(data.reactivity.averageQualificationMinutes)}</strong></div>
-          <div><span>Delai moyen generation devis</span><strong>{duration(data.reactivity.averageQuoteGenerationMinutes)}</strong></div>
-          <div><span>Leads traites rapidement</span><strong>{data.reactivity.fastHandledLeads}</strong></div>
+          <div><span>Délai moyen première réponse</span><strong>{duration(data.reactivity.averageFirstResponseMinutes)}</strong></div>
+          <div><span>Délai moyen qualification</span><strong>{duration(data.reactivity.averageQualificationMinutes)}</strong></div>
+          <div><span>Délai moyen génération devis</span><strong>{duration(data.reactivity.averageQuoteGenerationMinutes)}</strong></div>
+          <div><span>Leads traités rapidement</span><strong>{data.reactivity.fastHandledLeads}</strong></div>
           <div><span>En attente qualification</span><strong>{data.reactivity.pendingQualification}</strong></div>
           <div><span>Devis en attente d'envoi</span><strong>{data.reactivity.pendingQuoteSend}</strong></div>
          </div>
@@ -1183,7 +1187,7 @@ export function GrowthDashboardClient() {
 
      {activeTab === "details" ? (
       <>
-       <section className={styles.growthChartControls} aria-label="Filtres detail croissance">
+       <section className={styles.growthChartControls} aria-label="Filtres détail croissance">
         <GrowthMetricMultiPicker metrics={detailsMetrics} setMetrics={setDetailsMetrics} />
        </section>
        <GrowthDetailsTab detailsState={detailsState} metrics={detailsMetrics} />

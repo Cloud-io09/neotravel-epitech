@@ -9,8 +9,8 @@ export function LeadTable() {
    <header className={styles.header}>
     <div>
      <p className={styles.eyebrow}>Parcours pro apres landing</p>
-     <h1>Demandes qualifiees</h1>
-     <p>Vue operationnelle des prospects : statut, trajet, prochaine action et acces fiche detaillee.</p>
+     <h1>Demandes qualifiées</h1>
+     <p>Vue opérationnelle des prospects : statut, trajet, prochaine action et accès fiche détaillée.</p>
     </div>
     <Link className={styles.primary} href="/client/demande">
      Nouvelle demande demo
@@ -21,7 +21,7 @@ export function LeadTable() {
     <div className={styles.panelHeader}>
      <div>
       <h2 id="lead-table-title">Pipeline demandes</h2>
-      <p>Les cas complexes restent en human review, les demandes completes avancent vers devis et relances.</p>
+      <p>Les cas complexes restent en human review, les demandes complètes avancent vers devis et relances.</p>
      </div>
      <Link className={styles.secondary} href="/dashboard/human-review">
       File human review

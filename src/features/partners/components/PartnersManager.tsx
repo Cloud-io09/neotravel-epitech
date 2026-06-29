@@ -199,7 +199,7 @@ export function PartnersManager({ selectedPartnerId }: { selectedPartnerId?: str
           <span className={styles.pill}>{partner.zones.join(" / ")}</span>
           <span className={styles.pill}>{partner.capacity}</span>
           <span className={statusClass(partner.status)}>{partner.status}</span>
-          <span className={styles.pill}>{partner.source === "custom" ? "Ajoute" : "Defaut"}</span>
+          <span className={styles.pill}>{partner.source === "custom" ? "Ajouté" : "Défaut"}</span>
          </div>
          <p className={styles.score}>Score interne : {partner.internalScore}/100. {partner.note}</p>
         </div>

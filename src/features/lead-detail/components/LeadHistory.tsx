@@ -8,7 +8,7 @@ export function LeadHistory({ lead }: { lead: Lead }) {
    <p>{lead.aiSummary ?? "Qualification en cours."}</p>
 
    <div className={styles.guard}>
-    Prix non calcule par l&apos;IA. Cas complexe ou donnees faibles : reprise humaine obligatoire.
+    Prix non calculé par l&apos;IA. Cas complexe ou données faibles : reprise humaine obligatoire.
    </div>
 
    <ol className={styles.timeline}>

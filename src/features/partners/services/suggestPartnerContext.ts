@@ -6,6 +6,6 @@ export async function suggestPartnerContext(input: unknown) {
   return {
     ...suggestion,
     context:
-      "Contexte indicatif genere pour le commercial. Le statut Confirme par commercial doit provenir d'une action humaine ou d'une donnee deja validee."
+      "Contexte indicatif généré pour le commercial. Le statut Confirmé par commercial doit provenir d'une action humaine ou d'une donnée déjà validée."
   };
 }

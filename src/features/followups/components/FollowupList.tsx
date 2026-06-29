@@ -49,13 +49,13 @@ export function FollowupList({ followups }: { followups: Followup[] }) {
       <section className={styles.panel} aria-labelledby="followups-title">
         <div className={styles.panelHeader}>
           <div>
-            <h2 id="followups-title">Relances planifiees et envoyees</h2>
+            <h2 id="followups-title">Relances planifiées et envoyées</h2>
             <p>Standard : J+3 puis J+7. Urgent traitable : J+2. Demo rapide : +2 minutes si activee.</p>
           </div>
           <span className={styles.badge}>Apres 2 sans reponse : CLOSED apres delai</span>
         </div>
         {followups.length === 0 ? (
-          <p className={styles.empty}>Aucune relance planifiee pour le moment.</p>
+          <p className={styles.empty}>Aucune relance planifiée pour le moment.</p>
         ) : (
           <div className={styles.table}>
             <div className={styles.tableHead}>
