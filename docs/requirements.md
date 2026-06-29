@@ -165,7 +165,7 @@ sequenceDiagram
   participant AI as AI SDK
   participant Rules as Regles locales
   participant DB as Supabase
-  participant Price as calculer_devis()
+  participant Price as calculer_devis
   participant N8N as n8n
   participant Dash as Dashboard
 
@@ -374,7 +374,7 @@ flowchart TD
   Multi -- Oui --> Review
   Multi -- Non --> Route{Distance controlee ?}
   Route -- Non --> Review
-  Route -- Oui --> Calc[calculer_devis()]
+  Route -- Oui --> Calc["calculer_devis"]
   Calc --> Ready[QUOTE_READY]
 ```
 

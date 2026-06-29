@@ -60,7 +60,7 @@ flowchart LR
   LeadAPI --> DB[(Supabase)]
   Rules --> QuoteService[Quote service]
   QuoteService --> Distance[route_pricing + ORS/OSRM]
-  QuoteService --> Pricing[calculer_devis()]
+  QuoteService --> Pricing["calculer_devis"]
   Pricing --> Quotes[(quotes)]
   QuoteService --> Email[Templates email]
   Email --> N8N[n8n webhooks]
@@ -152,7 +152,7 @@ flowchart TD
   G -- Non --> J[Resolution distance controlee]
   J --> K{Distance disponible ?}
   K -- Non --> H
-  K -- Oui --> L[calculer_devis()]
+  K -- Oui --> L["calculer_devis"]
   L --> M[QUOTE_READY]
   M --> N[Envoi ou simulation n8n]
   N --> O[QUOTE_SENT]
@@ -172,7 +172,7 @@ sequenceDiagram
   participant API as /api/chat
   participant IA as Agent AI SDK
   participant DB as Supabase
-  participant DEV as calculer_devis()
+  participant DEV as calculer_devis
   participant N8N as n8n
   participant DASH as Dashboard
 
