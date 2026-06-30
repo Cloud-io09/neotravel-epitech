@@ -7,6 +7,9 @@ import { PublicPageHeader } from "@/app/client/PublicPageShell";
 import { routePricing } from "@/data/route-pricing";
 import { validateDemandCompleteness } from "@/features/demand/services/validateDemandCompleteness";
 import { localizedSendError } from "@/lib/ai/chat-locale";
+import { canonicalizeCity } from "@/lib/ai/canonicalize-city";
+import { extractTurnFacts } from "@/lib/ai/extract-turn-facts";
+import type { LeadQualification } from "@/lib/domain/schemas";
 import { useSiteLanguage } from "@/shared/i18n/useSiteLanguage";
 import {
   PAX_MAX,
@@ -243,6 +246,83 @@ type DemandSessionCache = {
   driverNights?: number | null;
 };
 
+function qualificationFromChatExtracted(extracted: ChatExtracted): LeadQualification {
+  return {
+    client_type: extracted.clientType ?? undefined,
+    contact_name: extracted.contactName ?? undefined,
+    organization: extracted.organization ?? undefined,
+    departure_city: extracted.departureCity ?? undefined,
+    arrival_city: extracted.arrivalCity ?? undefined,
+    departure_date: extracted.departureDate ?? undefined,
+    return_date: extracted.returnDate ?? undefined,
+    passenger_count: extracted.passengerCount ?? undefined,
+    trip_type: extracted.tripType ?? undefined,
+    phone: extracted.phone ?? undefined,
+  };
+}
+
+function mergeTurnFactsIntoChatExtracted(
+  previous: ChatExtracted,
+  facts: Partial<LeadQualification>,
+): ChatExtracted {
+  return {
+    clientType: facts.client_type ?? previous.clientType,
+    contactName: facts.contact_name ?? facts.name ?? previous.contactName,
+    organization: facts.organization ?? previous.organization,
+    departureCity: canonicalizeCity(facts.departure_city) ?? facts.departure_city ?? previous.departureCity,
+    arrivalCity: canonicalizeCity(facts.arrival_city) ?? facts.arrival_city ?? previous.arrivalCity,
+    departureDate: facts.departure_date ?? previous.departureDate,
+    returnDate: facts.return_date ?? previous.returnDate,
+    passengerCount: facts.passenger_count ?? previous.passengerCount,
+    tripType: facts.trip_type ?? previous.tripType,
+    phone: facts.phone ?? previous.phone,
+  };
+}
+
+function sameChatExtracted(left: ChatExtracted, right: ChatExtracted) {
+  return (
+    left.clientType === right.clientType &&
+    left.contactName === right.contactName &&
+    left.organization === right.organization &&
+    left.departureCity === right.departureCity &&
+    left.arrivalCity === right.arrivalCity &&
+    left.departureDate === right.departureDate &&
+    left.returnDate === right.returnDate &&
+    left.passengerCount === right.passengerCount &&
+    left.tripType === right.tripType &&
+    left.phone === right.phone
+  );
+}
+
+function inferChatExtractedFromMessages(
+  messages: { role: "user" | "assistant"; content: string }[],
+  current: ChatExtracted,
+  referenceDate: Date,
+): ChatExtracted {
+  let next = current;
+  let lastAssistantText = "";
+
+  for (const message of messages) {
+    if (message.role === "assistant") {
+      lastAssistantText = message.content;
+      continue;
+    }
+
+    const facts = extractTurnFacts(
+      message.content,
+      qualificationFromChatExtracted(next),
+      referenceDate,
+      lastAssistantText,
+    );
+
+    if (Object.keys(facts).length > 0) {
+      next = mergeTurnFactsIntoChatExtracted(next, facts);
+    }
+  }
+
+  return next;
+}
+
 function useDebouncedValue<T>(value: T, delayMs: number) {
   const [debounced, setDebounced] = useState(value);
 
@@ -432,6 +512,15 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
     });
   }, [chatMessages, currentLeadId, qualifiedLeadId, chatHumanReview, chatEmail, chatClientType, chatContactName, chatOrganization, chatPhone, chatExtracted, selectedOptions, multiDestination, stops, guideDays, driverNights]);
 
+  useEffect(() => {
+    if (!hydratedRef.current || chatMessages.length === 0) return;
+
+    setChatExtracted((previous) => {
+      const next = inferChatExtractedFromMessages(chatMessages, previous, new Date());
+      return sameChatExtracted(previous, next) ? previous : next;
+    });
+  }, [chatMessages]);
+
   // activeDemand: fusionne URL params + ce que le chat a extrait + éditions manuelles
   const activeDemand = useMemo(() => ({
     clientType: chatClientType || chatExtracted.clientType || null,
@@ -610,8 +699,18 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
     const text = userInput.trim();
     if (!text || isSending) return;
 
+    const lastAssistantText = [...chatMessages].reverse().find((message) => message.role === "assistant")?.content ?? "";
+    const localFacts = extractTurnFacts(
+      text,
+      qualificationFromChatExtracted(chatExtracted),
+      new Date(),
+      lastAssistantText,
+    );
     const nextMessages = [...chatMessages, { role: "user" as const, content: text }];
     setChatMessages(nextMessages);
+    if (Object.keys(localFacts).length > 0) {
+      setChatExtracted((prev) => mergeTurnFactsIntoChatExtracted(prev, localFacts));
+    }
     setUserInput("");
     setIsSending(true);
     setWorkflowError(null);
@@ -872,6 +971,20 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   }, [activeDemand.departureCity, activeDemand.arrivalCity, stops]);
   const debouncedRouteInput = useDebouncedValue(routeInput, ROUTE_PREVIEW_DEBOUNCE_MS);
   const selectedOptionLabels = optionLabels(selectedOptions);
+  const routePreviewDeparture = routePreview?.labels?.[0] ?? null;
+  const routePreviewArrival = routePreview?.labels?.at(-1) ?? null;
+  const displayDepartureCity = activeDemand.departureCity || routePreviewDeparture;
+  const displayArrivalCity = activeDemand.arrivalCity || routePreviewArrival;
+  const hasDisplayRoute = Boolean(displayDepartureCity && displayArrivalCity);
+  const fallbackDistanceKm = knownRouteDistanceKm(displayDepartureCity, displayArrivalCity);
+  const displayDistance = routeStatus === "loading"
+    ? "Calcul..."
+    : formatDistance(routePreview?.distanceKm ?? fallbackDistanceKm) ?? "Distance à confirmer";
+  const displayDuration = routePreview?.durationMinutes
+    ? formatDuration(routePreview.durationMinutes)
+    : fallbackDistanceKm
+      ? formatDuration(Math.round((fallbackDistanceKm / 70) * 60), true)
+      : "Durée à confirmer";
 
   useEffect(() => {
     if (!isRouteLabelReady(debouncedRouteInput.departure) || !isRouteLabelReady(debouncedRouteInput.arrival)) {
@@ -881,6 +994,8 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
     }
 
     const controller = new AbortController();
+    const expectedDeparture = debouncedRouteInput.departure;
+    const expectedArrival = debouncedRouteInput.arrival;
 
     async function loadRoutePreview() {
       setRouteStatus("loading");
@@ -898,6 +1013,8 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
 
         if (!response.ok) throw new Error("ROUTE_PREVIEW_FAILED");
         const payload = (await response.json()) as RoutePreview;
+        if (controller.signal.aborted) return;
+        if (payload.labels?.[0] !== expectedDeparture || payload.labels?.at(-1) !== expectedArrival) return;
         setRoutePreview(payload);
         setRouteStatus("ready");
       } catch {
@@ -1198,12 +1315,12 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
               <div>
                 <p>Votre trajet</p>
                 <h2 id="trip-panel-title">
-                  {activeDemand.departureCity && activeDemand.arrivalCity
-                    ? `${activeDemand.departureCity} vers ${activeDemand.arrivalCity}`
+                  {hasDisplayRoute
+                    ? `${displayDepartureCity} vers ${displayArrivalCity}`
                     : "Trajet en attente"}
                 </h2>
               </div>
-              <span>{routeStatus === "loading" ? "Calcul..." : routePreview ? `${routePreview.distanceKm} km` : "À confirmer"}</span>
+              <span>{displayDistance}</span>
             </div>
 
             <div
@@ -1211,7 +1328,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
               aria-label="Carte du trajet"
             >
               <div className={styles.leafletMap} ref={mapContainerRef} />
-              {activeDemand.departureCity && activeDemand.arrivalCity ? (
+              {hasDisplayRoute ? (
                 <>
                   <div className={styles.mapControls} aria-label="Contrôle carte">
                     <button type="button" onClick={() => changeMapZoom(1)}>
@@ -1237,7 +1354,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
               <div>
                 <dt>Départ</dt>
                 <dd>
-                  {activeDemand.departureCity || "En attente"}
+                  {displayDepartureCity || "En attente"}
                   {activeDemand.departureDate ? ` - ${formatDate(activeDemand.departureDate)}` : ""}
                 </dd>
               </div>
@@ -1250,7 +1367,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
               <div>
                 <dt>Arrivée</dt>
                 <dd>
-                  {activeDemand.arrivalCity || "En attente"}
+                  {displayArrivalCity || "En attente"}
                   {activeDemand.tripType === "round_trip" && demand.returnDate
                     ? ` - retour le ${demand.returnDate}`
                     : ""}
@@ -1258,7 +1375,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
               </div>
               <div>
                 <dt>Durée</dt>
-                <dd>{formatDuration(routePreview?.durationMinutes)}</dd>
+                <dd>{displayDuration}</dd>
               </div>
             </dl>
 
