@@ -137,8 +137,8 @@ export function getLeadCommercialAction({
    detail: "Demande validée : lancer le calcul déterministe du devis.",
    cta: "Générer",
    href: leadHref,
-   priority: 3,
-   tone: "info"
+   priority: 0,
+   tone: "critical"
   };
  }
 

@@ -466,9 +466,9 @@ export async function ArchivedLeadsPage() {
  return (
   <main className={styles.page}>
    <DashboardHeader
-    title="Archives demandes"
-    subtitle="Demandes non traitables, refusées ou clôturées après absence de réponse."
-    actionHref="/dashboard/demandes"
+   title="Archives demandes"
+   subtitle="Demandes non traitables, refusées ou clôturées après absence de réponse."
+   actionHref="/dashboard/demandes"
     actionLabel="Retour demandes"
    />
    <KpiGrid

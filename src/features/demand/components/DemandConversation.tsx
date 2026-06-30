@@ -1481,6 +1481,76 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
             </div>
           </aside>
 
+          <details className={`${styles.sidePanel} ${styles.collapsiblePanel}`}>
+            <summary className={styles.collapsibleSummary}>
+              <span id="contact-panel-title">Vos coordonnées</span>
+              <small>
+                {chatEmail || activeDemand.phone || activeDemand.contactName
+                  ? "Coordonnées renseignées — modifier"
+                  : "À compléter avant l'envoi"}
+              </small>
+            </summary>
+
+            <div className={styles.manualForm}>
+              <div className={styles.manualFields}>
+                <label>
+                  <span>Type de client</span>
+                  <select
+                    value={activeDemand.clientType ?? ""}
+                    onChange={(event) => setChatClientType(event.target.value || null)}
+                  >
+                    <option value="">--</option>
+                    <option value="Particulier">Particulier</option>
+                    <option value="Entreprise">Entreprise</option>
+                    <option value="Association">Association</option>
+                    <option value="Agence">Agence</option>
+                    <option value="École">École</option>
+                    <option value="Collectivité">Collectivité</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Organisation</span>
+                  <input
+                    type="text"
+                    placeholder="ex: Alpha Conseil"
+                    value={activeDemand.organization ?? ""}
+                    onChange={(event) => setChatOrganization(event.target.value.trim() ? event.target.value : null)}
+                  />
+                </label>
+                <label>
+                  <span>Nom du contact</span>
+                  <input
+                    type="text"
+                    placeholder="ex: Marie Dupont"
+                    value={activeDemand.contactName ?? ""}
+                    onChange={(event) => setChatContactName(event.target.value.trim() ? event.target.value : null)}
+                  />
+                </label>
+                <label>
+                  <span>Téléphone</span>
+                  <input
+                    type="tel"
+                    placeholder="ex: 06 12 34 56 78"
+                    value={activeDemand.phone ?? ""}
+                    onChange={(event) => setChatPhone(event.target.value.trim() ? event.target.value : null)}
+                  />
+                </label>
+                <label className={qualifiedLeadId && !chatEmail && !hasInitialDemand ? styles.fieldInvalid : undefined}>
+                  <span>Email de contact {qualifiedLeadId && !hasInitialDemand ? <strong aria-hidden="true"> *</strong> : null}</span>
+                  <input
+                    type="email"
+                    placeholder="votre@email.fr"
+                    value={chatEmail ?? ""}
+                    onChange={(event) => setChatEmail(event.target.value.trim() || null)}
+                  />
+                  {qualifiedLeadId && !chatEmail && !hasInitialDemand ? (
+                    <small className={styles.fieldWarning}>Requis pour recevoir le devis.</small>
+                  ) : null}
+                </label>
+              </div>
+            </div>
+          </details>
+
         </div>
       </div>
     </main>
