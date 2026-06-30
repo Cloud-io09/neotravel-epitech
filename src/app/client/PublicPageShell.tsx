@@ -15,6 +15,7 @@ export function PublicPageHeader() {
           <Link href="/client/partenaires">Partenaires</Link>
           <Link href="/client/contact">Contact</Link>
           <Link href="/client/notre-equipe">Notre équipe</Link>
+          <Link href="/compte">Mon espace</Link>
         </nav>
         <LanguageSelector />
         <AccessibilityWidget />

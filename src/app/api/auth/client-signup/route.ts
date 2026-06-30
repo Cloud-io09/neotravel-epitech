@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { registerClientAccount } from "@/features/clients/services/registerClientAccount";
-import { CLIENT_SESSION_COOKIE, createClientSessionToken } from "@/shared/lib/auth/clientAuth";
+import { createAuthServerClient } from "@/shared/lib/supabase/auth-server";
 import { handleApiError, jsonError } from "@/shared/lib/utils/apiResponse";
+
+export const runtime = "nodejs";
 
 const ClientSignupSchema = z
   .object({
@@ -27,15 +29,18 @@ export async function POST(request: Request) {
       quoteId: input.quoteId ?? null
     });
 
-    const response = NextResponse.json({ ok: true, clientId: client.id, redirectTo });
-    response.cookies.set(CLIENT_SESSION_COOKIE, createClientSessionToken(client.email), {
-      httpOnly: true,
-      sameSite: "strict",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 14
+    // Open the Supabase session (sets the auth cookies via the SSR cookie adapter).
+    const supabase = await createAuthServerClient();
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: input.email.trim().toLowerCase(),
+      password: input.password
     });
-    return response;
+    if (signInError) {
+      // Account exists but session couldn't open — let the client log in manually.
+      return NextResponse.json({ ok: true, clientId: client.id, redirectTo: "/connexion" });
+    }
+
+    return NextResponse.json({ ok: true, clientId: client.id, redirectTo });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return jsonError("VALIDATION_ERROR", error.issues[0]?.message ?? "Données invalides.", 400);

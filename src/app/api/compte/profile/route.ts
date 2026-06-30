@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { updateClientAccountName } from "@/shared/lib/auth/clientAuth";
 import { requireClientForApi } from "@/shared/lib/auth/requireClient";
 import { updateClient } from "@/shared/lib/data/clientRepository";
+import { createAuthServerClient } from "@/shared/lib/supabase/auth-server";
 import { handleApiError, jsonError, jsonOk } from "@/shared/lib/utils/apiResponse";
 
 export const runtime = "nodejs";
@@ -14,14 +14,13 @@ const ProfileBodySchema = z.object({
 });
 
 export async function PATCH(request: Request) {
-  const session = await requireClientForApi();
-  const parsed = ProfileBodySchema.safeParse(await request.json().catch(() => null));
-
-  if (!parsed.success) {
-    return jsonError("VALIDATION_ERROR", "Profil invalide.", 400, parsed.error.flatten());
-  }
-
   try {
+    const session = await requireClientForApi();
+    const parsed = ProfileBodySchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) {
+      return jsonError("VALIDATION_ERROR", "Profil invalide.", 400, parsed.error.flatten());
+    }
+
     const contactName = [parsed.data.firstName, parsed.data.lastName].filter(Boolean).join(" ").trim() || null;
     const updated = await updateClient(session.clientId, {
       contactName,
@@ -33,8 +32,10 @@ export async function PATCH(request: Request) {
       return jsonError("NOT_FOUND", "Compte client introuvable.", 404);
     }
 
+    // Keep the Supabase display name in sync.
     if (contactName) {
-      updateClientAccountName(session.email, contactName);
+      const supabase = await createAuthServerClient();
+      await supabase.auth.updateUser({ data: { name: contactName } }).catch(() => undefined);
     }
 
     return jsonOk({

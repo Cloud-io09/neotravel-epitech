@@ -1,9 +1,13 @@
 import { getQuoteById } from "@/features/quote/services/getQuoteById";
 import { sendAccountCreationEmail } from "@/features/emails/services/customerEmailService";
 import { auditActions, createAuditLog } from "@/shared/lib/audit";
-import { createClientAccountRecord, getClientAccount } from "@/shared/lib/auth/clientAuth";
-import { createClient, getClientByEmail } from "@/shared/lib/data/clientRepository";
+import {
+  createClient as createClientRow,
+  getClientByEmail,
+  linkClientAuthUser
+} from "@/shared/lib/data/clientRepository";
 import { getLeadById, updateLeadRecord } from "@/shared/lib/data/leadRepository";
+import { createSupabaseAdminClient } from "@/shared/lib/supabase/admin";
 
 export type RegisterClientInput = {
   name: string;
@@ -12,6 +16,11 @@ export type RegisterClientInput = {
   quoteId?: string | null;
 };
 
+/**
+ * Creates a Supabase Auth user tagged role=client, links (or creates) its `clients` row, and
+ * optionally attaches an existing quote's lead. Identity lives in Supabase Auth; data stays
+ * server-side via service_role. The caller is responsible for opening the session afterwards.
+ */
 export async function registerClientAccount(input: RegisterClientInput) {
   const name = input.name.trim();
   const email = input.email.trim().toLowerCase();
@@ -20,19 +29,28 @@ export async function registerClientAccount(input: RegisterClientInput) {
   if (!email) throw new Error("L'email est obligatoire.");
   if (input.password.length < 8) throw new Error("Le mot de passe doit contenir au moins 8 caractères.");
 
-  if (getClientAccount(email)) {
-    throw new Error("Un compte existe déjà avec cet email.");
+  const admin = createSupabaseAdminClient();
+  const { data: created, error } = await admin.auth.admin.createUser({
+    email,
+    password: input.password,
+    email_confirm: true,
+    app_metadata: { role: "client" },
+    user_metadata: { name }
+  });
+
+  if (error || !created?.user) {
+    const message = error?.message ?? "";
+    if (/already|registered|exists/i.test(message)) {
+      throw new Error("Un compte existe déjà avec cet email.");
+    }
+    throw new Error(message || "Création du compte impossible.");
   }
+
+  const authUserId = created.user.id;
 
   let client = await getClientByEmail(email);
   if (!client) {
-    client = await createClient({
-      organization: name,
-      contactName: name,
-      email,
-      active: true
-    });
-
+    client = await createClientRow({ organization: name, contactName: name, email, active: true });
     await createAuditLog({
       entityType: "client",
       entityId: client.id,
@@ -43,7 +61,7 @@ export async function registerClientAccount(input: RegisterClientInput) {
     }).catch(() => undefined);
   }
 
-  createClientAccountRecord(email, input.password, { name, clientId: client.id });
+  await linkClientAuthUser(client.id, authUserId);
 
   let redirectTo = "/compte";
   if (input.quoteId) {
@@ -56,12 +74,12 @@ export async function registerClientAccount(input: RegisterClientInput) {
           organization: lead.organization ?? name,
           contactName: lead.contactName ?? name
         }).catch(() => undefined);
-        // Non-blocking: account-creation email (idempotent per lead+scenario).
+        // Non-blocking account-creation email (idempotent per lead+scenario).
         void sendAccountCreationEmail({ leadId: quote.leadId }).catch(() => undefined);
       }
       redirectTo = `/client/devis/${quote.id}`;
     }
   }
 
-  return { client, redirectTo };
+  return { client, authUserId, redirectTo };
 }

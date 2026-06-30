@@ -297,6 +297,13 @@ export async function QuoteClientView({ quoteId, viewer = "client" }: { quoteId:
             initialOutcome={quoteOutcome(storedQuote.status, lead?.status, lead?.humanReviewReason)}
             viewer={viewer}
           />
+
+          {!isAdmin ? (
+            <div className={styles.accountCta}>
+              <p>Suivez ce devis et vos demandes depuis votre espace client.</p>
+              <Link href={`/connexion/inscription?quoteId=${storedQuote.id}`}>Créer mon compte</Link>
+            </div>
+          ) : null}
         </article>
       </div>
     </main>

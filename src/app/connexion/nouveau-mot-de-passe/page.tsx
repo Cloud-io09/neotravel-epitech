@@ -1,14 +1,14 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ClientResetForm } from "../ClientResetForm";
+import { ClientNewPasswordForm } from "../ClientNewPasswordForm";
 import styles from "../connexion.module.css";
 
 export const metadata = {
-  title: "Reinitialisation mot de passe - NeoTravel",
-  description: "Reinitialisation du mot de passe client NeoTravel."
+  title: "Nouveau mot de passe - NeoTravel",
+  description: "Définir un nouveau mot de passe pour votre compte client NeoTravel."
 };
 
-export default function ClientPasswordResetPage() {
+export default function ClientNewPasswordPage() {
   return (
     <main className={styles.page}>
       <header className={styles.header}>
@@ -20,17 +20,14 @@ export default function ClientPasswordResetPage() {
         </Link>
       </header>
 
-      <section className={styles.hero} aria-labelledby="password-reset-title">
+      <section className={styles.hero} aria-labelledby="new-password-title">
         <div className={styles.copy}>
           <p className={styles.kicker}>Espace client</p>
-          <h1 id="password-reset-title">Reinitialiser votre mot de passe</h1>
-          <p>
-            Indiquez l'email associe a votre compte client pour recevoir les instructions de
-            reinitialisation.
-          </p>
+          <h1 id="new-password-title">Choisir un nouveau mot de passe</h1>
+          <p>Définissez votre nouveau mot de passe pour accéder à votre espace client.</p>
         </div>
 
-        <ClientResetForm />
+        <ClientNewPasswordForm />
       </section>
     </main>
   );

@@ -1,6 +1,7 @@
+import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import { updateClientPassword } from "@/shared/lib/auth/clientAuth";
 import { requireClientForApi } from "@/shared/lib/auth/requireClient";
+import { createAuthServerClient } from "@/shared/lib/supabase/auth-server";
 import { handleApiError, jsonError, jsonOk } from "@/shared/lib/utils/apiResponse";
 
 export const runtime = "nodejs";
@@ -17,20 +18,35 @@ const PasswordBodySchema = z
   });
 
 export async function POST(request: Request) {
-  const session = await requireClientForApi();
-  const parsed = PasswordBodySchema.safeParse(await request.json().catch(() => null));
-
-  if (!parsed.success) {
-    return jsonError("VALIDATION_ERROR", "Mot de passe invalide.", 400, parsed.error.flatten());
-  }
-
   try {
-    updateClientPassword(session.email, parsed.data.currentPassword, parsed.data.newPassword);
+    const session = await requireClientForApi();
+    const parsed = PasswordBodySchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) {
+      return jsonError("VALIDATION_ERROR", "Mot de passe invalide.", 400, parsed.error.flatten());
+    }
+
+    // Verify the current password with a throwaway client (no cookie/session side effects).
+    const verifier = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+    const { error: verifyError } = await verifier.auth.signInWithPassword({
+      email: session.email,
+      password: parsed.data.currentPassword,
+    });
+    if (verifyError) {
+      return jsonError("INVALID_PASSWORD", "Mot de passe actuel incorrect.", 401);
+    }
+
+    const supabase = await createAuthServerClient();
+    const { error } = await supabase.auth.updateUser({ password: parsed.data.newPassword });
+    if (error) {
+      return jsonError("PASSWORD_UPDATE_FAILED", error.message, 400);
+    }
+
     return jsonOk({ ok: true });
   } catch (error) {
-    if (error instanceof Error && error.message.includes("incorrect")) {
-      return jsonError("INVALID_PASSWORD", error.message, 401);
-    }
     return handleApiError(error);
   }
 }

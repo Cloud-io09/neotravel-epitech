@@ -123,6 +123,24 @@ export async function getClientByEmail(email: string): Promise<Client | null> {
   return data ? toClient(data as ClientRow) : null;
 }
 
+export async function getClientByAuthUserId(authUserId: string): Promise<Client | null> {
+  if (!authUserId || shouldUseDemoData()) return null;
+
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase.from("clients").select(SELECT).eq("auth_user_id", authUserId).maybeSingle();
+  if (error && isMissingColumnError(error)) return null;
+  if (error) throw error;
+  return data ? toClient(data as ClientRow) : null;
+}
+
+export async function linkClientAuthUser(clientId: string, authUserId: string): Promise<void> {
+  if (shouldUseDemoData()) return;
+
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase.from("clients").update({ auth_user_id: authUserId }).eq("id", clientId);
+  if (error && !isMissingColumnError(error)) throw error;
+}
+
 export async function updateClient(
   id: string,
   patch: Partial<{ organization: string | null; contactName: string | null; email: string; phone: string | null; active: boolean }>
