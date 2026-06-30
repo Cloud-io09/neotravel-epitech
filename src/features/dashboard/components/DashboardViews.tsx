@@ -42,6 +42,7 @@ function tokens(value: number) {
  return new Intl.NumberFormat("fr-FR").format(value);
 }
 
+const AI_RUNS_PREVIEW = 15;
 const PRIORITY_STATUSES = new Set(["NEW", "INCOMPLETE", "HUMAN_REVIEW"]);
 const ARCHIVED_LEAD_STATUSES = new Set<Lead["status"]>(["LOST", "CLOSED"]);
 const QUALIFIED_LEAD_STATUSES = new Set<Lead["status"]>([
@@ -850,11 +851,18 @@ export async function AdminAiCostsDashboardPage() {
      { label: "Appels en erreur", value: errors, tone: errors > 0 ? "red" : "green" }
     ]}
    />
-   <Panel title="Détail des appels" subtitle="Usage, modèle, coût et issue de chaque appel.">
+   <Panel
+    collapsible
+    title="Détail des appels"
+    subtitle={`Usage, modèle, coût et issue de chaque appel — ${Math.min(runs.length, AI_RUNS_PREVIEW)} derniers sur ${runs.length}.`}
+   >
     <DataTable
      columns={["Heure", "Usage", "Modèle", "Tokens", "Coût", "Statut"]}
      columnsTemplate="1fr 1.1fr 1.2fr .9fr .8fr .8fr"
-     rows={runs.map((run) => ({
+     rows={[...runs]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, AI_RUNS_PREVIEW)
+      .map((run) => ({
       cells: [
        new Date(run.createdAt).toLocaleTimeString("fr-FR"),
        run.purpose,
