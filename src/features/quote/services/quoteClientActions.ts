@@ -40,9 +40,6 @@ function assertQuoteOpenForClientIntent(status: StoredQuote["status"]) {
   if (status !== "QUOTE_READY" && status !== "QUOTE_SENT") {
     throw new AppError("Devis déjà finalisé.", "QUOTE_FINALIZED");
   }
-  if (status !== "QUOTE_SENT") {
-    throw new AppError("Le devis doit être envoyé avant de recueillir une intention client.", "QUOTE_NOT_SENT");
-  }
 }
 
 async function suspendScheduledFollowups(quote: StoredQuote, reason: "QUOTE_ACCEPTED_INTENT" | "QUOTE_REFUSED_INTENT") {
