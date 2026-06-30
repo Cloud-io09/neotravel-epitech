@@ -74,8 +74,12 @@ export async function registerClientAccount(input: RegisterClientInput) {
           organization: lead.organization ?? name,
           contactName: lead.contactName ?? name
         }).catch(() => undefined);
-        // Non-blocking account-creation email (idempotent per lead+scenario).
-        void sendAccountCreationEmail({ leadId: quote.leadId }).catch(() => undefined);
+        // Awaited (NOT fire-and-forget): on serverless the function terminates as soon as it
+        // responds, so a non-awaited email POST never reaches n8n. Email send is non-fatal
+        // (it never throws on a webhook failure) so awaiting can't break signup.
+        await sendAccountCreationEmail({ leadId: quote.leadId }).catch((error) =>
+          console.error("[account-email] envoi échoué", error),
+        );
       }
       redirectTo = `/client/devis/${quote.id}`;
     }
