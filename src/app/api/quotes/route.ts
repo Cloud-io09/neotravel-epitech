@@ -22,6 +22,16 @@ const QuoteRequestSchema = z.object({
   autoSend: z.boolean().optional().default(false),
 });
 
+function isDemoFastFollowupEnabled() {
+  return process.env.DEMO_FAST_FOLLOWUP === "true";
+}
+
+function quoteSendStatus(email: Awaited<ReturnType<typeof sendQuoteAvailableEmail>>, fallbackStatus: string) {
+  if (email.reason === "URGENT_DEPARTURE_REQUIRES_HUMAN_REVIEW") return "HUMAN_REVIEW";
+  if (email.skipped && email.reason !== "QUOTE_ALREADY_SENT") return fallbackStatus;
+  return "QUOTE_SENT";
+}
+
 export async function POST(request: Request): Promise<Response> {
   const parsed = QuoteRequestSchema.safeParse(await request.json().catch(() => null));
 
@@ -57,16 +67,26 @@ export async function POST(request: Request): Promise<Response> {
         await markHumanReview(parsed.data.leadId, "URGENT_DEPARTURE_UNDER_48H");
         return Response.json({ id: result.quoteId, status: "HUMAN_REVIEW" }, { status: 201 });
       }
+
+      if (isDemoFastFollowupEnabled() && lead?.email) {
+        const email = await sendQuoteAvailableEmail({ quoteId: result.quoteId, triggeredBy: "system" });
+
+        return Response.json(
+          {
+            id: result.quoteId,
+            status: quoteSendStatus(email, result.status),
+            email,
+            demoFastFollowup: true,
+          },
+          { status: 201 },
+        );
+      }
+
       return Response.json({ id: result.quoteId, status: result.status }, { status: 201 });
     }
 
     const email = await sendQuoteAvailableEmail({ quoteId: result.quoteId, triggeredBy: "system" });
-    const status =
-      email.reason === "URGENT_DEPARTURE_REQUIRES_HUMAN_REVIEW"
-        ? "HUMAN_REVIEW"
-        : email.skipped && email.reason !== "QUOTE_ALREADY_SENT"
-          ? result.status
-          : "QUOTE_SENT";
+    const status = quoteSendStatus(email, result.status);
 
     return Response.json(
       {
