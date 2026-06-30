@@ -113,12 +113,17 @@ export async function sendLeadStatusEmail(input: {
 
 export async function sendAccountCreationEmail(input: {
   leadId: string;
+  quoteId?: string | null;
   triggeredBy?: "system" | "dashboard";
 }) {
   const lead = await loadLead(input.leadId);
+  // Load the quote when known so the welcome email links straight to the devis (the account
+  // already exists at this point — the email gives access, it does not ask to re-create).
+  const quote = input.quoteId ? await loadQuote(input.quoteId).catch(() => undefined) : undefined;
   return sendEmail({
     scenario: "ACCOUNT_CREATION",
     lead,
+    quote: quote ?? undefined,
     triggeredBy: input.triggeredBy ?? "system",
     dedupeEntity: { entityType: "lead", entityId: lead.id },
   });

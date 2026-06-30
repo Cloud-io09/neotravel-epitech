@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   Menu,
   MessageSquare,
+  PlusCircle,
   ShieldCheck,
   UserRound,
   X,
@@ -29,6 +30,7 @@ const groups: { title: string; items: Item[]; defaultExpanded?: boolean }[] = [
     defaultExpanded: true,
     items: [
       { label: "Accueil", href: "/compte", icon: LayoutDashboard },
+      { label: "Nouvelle demande", href: "/client/demande", icon: PlusCircle },
       { label: "Mes demandes", href: "/compte/demandes", icon: Inbox },
       { label: "Mes devis", href: "/compte/devis", icon: FileText },
       { label: "Documents", href: "/compte/documents", icon: FolderOpen },

@@ -832,9 +832,10 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
 
       if (!quoteResponse.ok || !quote?.id) {
         if (quote?.status === "HUMAN_REVIEW") {
-          setChatHumanReview(true);
-          setHumanReviewQueued(true);
-          setWorkflowError("Votre demande nécessite une vérification par un conseiller, qui vous recontactera rapidement.");
+          // No devis is generated, but the prospect still creates an account so the request is
+          // tracked and a conseiller follows up from there (account forced before any answer).
+          clearDemandSession();
+          router.push(`/connexion/inscription?leadId=${sync.leadId}`);
           return;
         }
         setWorkflowError("Nous n’avons pas pu préparer le devis pour l’instant. Vous pouvez réessayer ou nous contacter.");

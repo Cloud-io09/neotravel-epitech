@@ -8,6 +8,7 @@ export function ClientSignupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const quoteId = searchParams.get("quoteId");
+  const leadId = searchParams.get("leadId");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -32,7 +33,7 @@ export function ClientSignupForm() {
       const response = await fetch("/api/auth/client-signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password, passwordConfirm, quoteId })
+        body: JSON.stringify({ name, email, password, passwordConfirm, quoteId, leadId })
       });
       const payload = (await response.json().catch(() => null)) as
         | { ok?: boolean; redirectTo?: string; error?: { message?: string } }

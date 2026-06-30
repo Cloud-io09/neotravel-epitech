@@ -94,7 +94,7 @@ export function buildReplyPrompt(ctx: ReplyContext): string {
 
   const objective =
     ctx.status === "QUALIFIED"
-      ? `Toutes les informations necessaires sont reunies. Confirme-le brievement et invite le client a cliquer sur le bouton "Recevoir mon devis" pour generer son estimation. Le devis n'est PAS encore genere : ne dis pas qu'il est pret ni qu'il se prepare.`
+      ? `Toutes les informations necessaires sont reunies. Confirme-le brievement, mentionne en UNE phrase que des options facultatives sont possibles (guide/accompagnateur, nuit chauffeur) sans insister, puis invite le client a cliquer sur le bouton "Recevoir mon devis" pour generer son estimation. Le devis n'est PAS encore genere : ne dis pas qu'il est pret ni qu'il se prepare.`
       : `Il manque des informations. Termine ta réponse en demandant UNIQUEMENT la première information manquante : "${ctx.missingFields.map(labelFor)[0] ?? ""}".`;
 
   return `Tu es l'assistant NeoTravel, tu qualifies par chat une demande de transport de groupe en autocar.
