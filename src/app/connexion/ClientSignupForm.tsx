@@ -96,11 +96,11 @@ export function ClientSignupForm() {
       {error ? <p className={styles.formError}>{error}</p> : null}
 
       <button className={styles.primaryButton} type="submit" disabled={isSubmitting}>
-        {isSubmitting ? "Création en cours..." : "Créer mon compte et voir mon devis"}
+        {isSubmitting ? "Création en cours..." : quoteId ? "Créer mon compte et voir mon devis" : "Créer mon compte"}
       </button>
 
       <p className={styles.note}>
-        Compte client uniquement. Aucun accès au dashboard interne NeoTravel.
+        Déjà inscrit ? Connectez-vous avec l&apos;email utilisé pour votre demande.
       </p>
     </form>
   );

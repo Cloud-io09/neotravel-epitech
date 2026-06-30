@@ -55,12 +55,15 @@
   linear-gradient(112deg, rgba(7, 27, 64, 0.96) 0%, rgba(11, 47, 107, 0.92) 52%, rgba(234, 242, 255, 0.9) 100%),
   url("/images/landing-carousel/car-route-cotiere.webp") center / cover no-repeat;
  box-shadow: 0 22px 54px rgba(15, 23, 42, 0.14);
+ align-items: start;
 }
 
 .copy {
  display: grid;
  gap: 20px;
  max-width: 640px;
+ grid-row: 1 / span 2;
+ align-self: center;
 }
 
 .kicker {
@@ -93,6 +96,7 @@
 .loginCard {
  display: grid;
  gap: 18px;
+ grid-column: 2;
  border: 1px solid #d7e0ed;
  border-radius: 8px;
  padding: 26px;
@@ -103,6 +107,7 @@
 .signupCard {
  display: grid;
  gap: 16px;
+ grid-column: 2;
  border: 1px solid #d7e0ed;
  border-radius: 8px;
  padding: 22px;
@@ -202,6 +207,13 @@
  .header,
  .hero {
   grid-template-columns: 1fr;
+ }
+
+ .copy,
+ .loginCard,
+ .signupCard {
+  grid-column: auto;
+  grid-row: auto;
  }
 
  .header {

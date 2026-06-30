@@ -25,11 +25,15 @@ export function ClientLoginForm() {
         body: JSON.stringify({ email, password })
       });
       const payload = (await response.json().catch(() => null)) as
-        | { ok?: boolean; redirectTo?: string; error?: { message?: string } }
+        | { ok?: boolean; redirectTo?: string; error?: { code?: string; message?: string } }
         | null;
 
       if (!response.ok) {
-        setError(payload?.error?.message ?? "Identifiants invalides.");
+        setError(
+          payload?.error?.code === "INVALID_CREDENTIALS"
+            ? "Email ou mot de passe incorrect. Si vous n'avez pas encore de compte, créez votre espace client."
+            : (payload?.error?.message ?? "Connexion impossible.")
+        );
         setIsSubmitting(false);
         return;
       }
@@ -72,7 +76,7 @@ export function ClientLoginForm() {
       </button>
 
       <p className={styles.note}>
-        Cette connexion est réservée au suivi client. Elle ne donne pas accès au dashboard interne NeoTravel.
+        Pas encore de compte ? Créez votre espace client pour retrouver vos devis et demandes.
       </p>
     </form>
   );

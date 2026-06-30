@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PublicPageHeader } from "@/app/client/PublicPageShell";
+import { routePricing } from "@/data/route-pricing";
 import { validateDemandCompleteness } from "@/features/demand/services/validateDemandCompleteness";
 import { localizedSendError } from "@/lib/ai/chat-locale";
 import { useSiteLanguage } from "@/shared/i18n/useSiteLanguage";
@@ -151,13 +152,36 @@ function formatDate(value: string | undefined, fallback = "") {
   return new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" }).format(date);
 }
 
-function formatDuration(minutes: number | null | undefined) {
+function formatDistance(value: number | null | undefined) {
+  if (!Number.isFinite(value)) return null;
+  return `${value} km`;
+}
+
+function formatDuration(minutes: number | null | undefined, estimated = false) {
   if (!minutes) return "Durée à confirmer";
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
-  if (!hours) return `${rest} min`;
+  const prefix = estimated ? "≈ " : "";
+  if (!hours) return `${prefix}${rest} min`;
 
-  return `${hours} h ${String(rest).padStart(2, "0")}`;
+  return `${prefix}${hours} h ${String(rest).padStart(2, "0")}`;
+}
+
+function routeKey(city: string) {
+  return city
+    .trim()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function knownRouteDistanceKm(departure: string | null, arrival: string | null) {
+  if (!departure || !arrival) return null;
+  const direct = `${routeKey(departure)}__${routeKey(arrival)}`;
+  const reverse = `${routeKey(arrival)}__${routeKey(departure)}`;
+  return routePricing[direct]?.distanceKm ?? routePricing[reverse]?.distanceKm ?? null;
 }
 
 function loadLeaflet() {
@@ -485,9 +509,9 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   const hasAnyDemand = Boolean(activeDemand.departureCity || activeDemand.arrivalCity || activeDemand.passengerCount || activeDemand.departureDate);
   const requiresHumanReview = hasAnyDemand && demoBlockingMissingFields.length > 0;
 
-  // Quote readiness is decided form-side, from the side-panel fields — NOT from the AI's
-  // qualification status. Email is required here because the MVP flow sends the quote
-  // immediately after generation.
+  // Quote readiness is decided form-side, from the trip fields — NOT from the AI's
+  // qualification status. The email is NOT required here: it is captured at account creation
+  // (the prospect creates an account to receive the generated devis).
   const criticalLabels: Record<string, string> = {
     departureCity: "ville de départ",
     arrivalCity: "ville d'arrivée",
@@ -502,11 +526,9 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
     return value === null || value === undefined || value === "";
   });
   const missingReturnDate = activeDemand.tripType === "round_trip" && !activeDemand.returnDate;
-  const missingEmail = !normalizeEmailForApi(chatEmail);
   const missingRequirementLabels = [
     ...criticalMissing.map((key) => criticalLabels[key]),
     ...(missingReturnDate ? ["date de retour"] : []),
-    ...(missingEmail ? ["email de contact"] : []),
   ];
   const formReady = missingRequirementLabels.length === 0 && !hasBlockingWarning;
   const mapContainerRef = useRef<HTMLDivElement | null>(null);

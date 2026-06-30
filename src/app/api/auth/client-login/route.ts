@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     // Only client accounts may use the client space. Staff/admin must use the dashboard login.
     if ((data.user.app_metadata as { role?: string } | null)?.role !== CLIENT_ROLE) {
       await supabase.auth.signOut();
-      return jsonError("NOT_A_CLIENT", "Ce compte n'est pas un compte client.", 403);
+      return jsonError("INVALID_CREDENTIALS", "Email ou mot de passe incorrect.", 401);
     }
 
     return NextResponse.json({ ok: true, redirectTo: "/compte" });

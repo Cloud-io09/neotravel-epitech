@@ -124,7 +124,7 @@ export function ClientAccountSidebar({
   return (
     <>
       <div className={styles.mobileBar}>
-        <Link className={styles.mobileBrand} href="/compte" aria-label="NeoTravel - espace client">
+        <Link className={styles.mobileBrand} href="/" aria-label="NeoTravel - accueil">
           <img className={styles.brandLogo} src="/logo-neotravel-v12.svg" alt="NeoTravel" width={250} height={72} />
         </Link>
         <button
@@ -148,7 +148,7 @@ export function ClientAccountSidebar({
         aria-label="Navigation espace client"
       >
         <div className={styles.navTop}>
-          <Link className={styles.brand} href="/compte" aria-label="NeoTravel - espace client">
+          <Link className={styles.brand} href="/" aria-label="NeoTravel - accueil">
             <img className={styles.brandLogo} src="/logo-neotravel-v12.svg" alt="NeoTravel" width={250} height={72} />
           </Link>
           <button type="button" className={styles.navClose} onClick={() => setOpen(false)} aria-label="Fermer le menu">
