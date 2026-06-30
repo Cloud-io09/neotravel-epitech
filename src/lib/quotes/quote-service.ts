@@ -57,7 +57,7 @@ export async function calculateQuoteForLead(
     throw new Error(`Lead ${leadId} not found.`);
   }
 
-  if (lead.has_intermediate_stop || lead.intermediate_stops.length > 0) {
+  if (hasIntermediateStops(lead)) {
     const reason = "INTERMEDIATE_STOP_REQUIRES_MANUAL_ROUTE";
     await deps.markHumanReview(leadId, reason);
 
@@ -228,6 +228,10 @@ function hasText(value: string | null): boolean {
 
 function isTripType(value: string | null): value is TripType {
   return value === "one_way" || value === "round_trip";
+}
+
+function hasIntermediateStops(lead: LeadRecord): boolean {
+  return lead.intermediate_stops.some((stop) => stop.trim().length > 0);
 }
 
 function normalizeQuoteOptions(options: QuoteOptions | Record<string, unknown> | null): QuoteOptions | undefined {

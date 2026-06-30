@@ -139,6 +139,22 @@ describe("calculateQuoteForLead", () => {
     expect(dependencies.saveQuote).not.toHaveBeenCalled();
   });
 
+  it("ignore le flag escale quand aucune ville intermediaire n'est renseignee", async () => {
+    const dependencies = buildDependencies(
+      baseLead({ has_intermediate_stop: true, intermediate_stops: [] }),
+    );
+
+    const result = await calculateQuoteForLead(leadId, dependencies);
+
+    expect(result).toMatchObject({ ok: true, quoteId, status: "QUOTE_READY" });
+    expect(dependencies.markHumanReview).not.toHaveBeenCalled();
+    expect(dependencies.resolveDistance).toHaveBeenCalledWith({
+      departureCity: "Paris",
+      arrivalCity: "Lyon",
+    });
+    expect(dependencies.saveQuote).toHaveBeenCalledOnce();
+  });
+
   it("marque le lead HUMAN_REVIEW si calculer_devis refuse plus de 85 passagers", async () => {
     const dependencies = buildDependencies(baseLead({ passenger_count: 86 }));
 

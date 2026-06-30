@@ -25,7 +25,7 @@ export function FollowupList({ followups }: { followups: Followup[] }) {
             reste calcule par le moteur metier.
           </p>
         </div>
-        <span className={styles.badge}>Maximum 2 relances auto</span>
+        <span className={styles.badge}>J+1 / J+3 / J+7 standard</span>
       </header>
 
       <section className={styles.kpiGrid} aria-label="Indicateurs relances">
@@ -43,7 +43,7 @@ export function FollowupList({ followups }: { followups: Followup[] }) {
         </article>
         <article>
           <span>Regle standard</span>
-          <strong>J+3 / J+7</strong>
+          <strong>J+1 / J+3 / J+7</strong>
         </article>
         <article>
           <span>Urgent traitable</span>
@@ -55,9 +55,9 @@ export function FollowupList({ followups }: { followups: Followup[] }) {
         <div className={styles.panelHeader}>
           <div>
             <h2 id="followups-title">Relances planifiees et envoyees</h2>
-            <p>Standard : J+3 puis J+7. Urgent traitable : J+1. Demo rapide : minutes compressees si activee.</p>
+            <p>Standard : J+1, J+3 puis J+7. Urgent traitable : J+1. Demo rapide : 1, 2 et 3 minutes si activee.</p>
           </div>
-          <span className={styles.badge}>Apres 2 sans reponse : CLOSED apres delai</span>
+          <span className={styles.badge}>Apres 3 sans reponse : CLOSED apres delai</span>
         </div>
         {followups.length === 0 ? (
           <p className={styles.empty}>Aucune relance planifiee pour le moment.</p>
@@ -93,9 +93,9 @@ export function FollowupList({ followups }: { followups: Followup[] }) {
         <h2 id="rule-title">Chronologie sans reponse</h2>
         <ol>
           <li>QUOTE_SENT declenche la sequence.</li>
-          <li>Relance 1 selon contexte : J+1 urgent traitable, J+3 standard.</li>
-          <li>Relance 2 standard a J+7 maximum.</li>
-          <li>Sans reponse apres delai de grace : CLOSED.</li>
+          <li>Relance 1 selon contexte : J+1 urgent traitable ou standard.</li>
+          <li>Relance 2 standard a J+3.</li>
+          <li>Relance 3 standard a J+7, puis sans reponse apres delai de grace : CLOSED.</li>
         </ol>
       </section>
     </main>

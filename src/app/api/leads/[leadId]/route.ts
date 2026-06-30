@@ -59,8 +59,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ le
   const previousStatus = existing.status;
 
   const patch = LeadPatchSchema.parse(await request.json()) as Partial<Lead>;
+  normalizeIntermediateStopPatch(patch);
+  const merged = { ...existing, ...patch } as Lead;
+  const missingFields = getMissingQualificationFields(merged);
+
   if (patch.status === "QUALIFIED" || patch.status === "HIGH_VALUE") {
-   const missingFields = getMissingQualificationFields({ ...existing, ...patch });
    if (missingFields.length > 0) {
     return jsonError(
      "LEAD_INCOMPLETE",
@@ -69,6 +72,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ le
      { missingFields },
     );
    }
+  }
+
+  if (shouldRefreshMissingFields(patch)) {
+   patch.missingFields = missingFields;
+  }
+
+  if (patch.status && patch.status !== "HUMAN_REVIEW") {
+   patch.humanReviewReason = null;
   }
 
   const updated = await updateLeadRecord(leadId, patch);
@@ -108,4 +119,29 @@ function getMissingQualificationFields(lead: Lead) {
 
 function hasText(value: string | null | undefined) {
  return typeof value === "string" && value.trim().length > 0;
+}
+
+function shouldRefreshMissingFields(patch: Partial<Lead>) {
+ return (
+  patch.status !== undefined ||
+  patch.email !== undefined ||
+  patch.departureCity !== undefined ||
+  patch.arrivalCity !== undefined ||
+  patch.departureDate !== undefined ||
+  patch.passengerCount !== undefined ||
+  patch.tripType !== undefined ||
+  patch.hasIntermediateStop !== undefined ||
+  patch.intermediateStops !== undefined
+ );
+}
+
+function normalizeIntermediateStopPatch(patch: Partial<Lead>) {
+ if (patch.intermediateStops !== undefined) {
+  patch.intermediateStops = patch.intermediateStops.map((stop) => stop.trim()).filter(Boolean);
+  patch.hasIntermediateStop = patch.intermediateStops.length > 0;
+ }
+
+ if (patch.hasIntermediateStop === false) {
+  patch.intermediateStops = [];
+ }
 }
