@@ -82,9 +82,11 @@ export type LeadWarningCode =
   | "DEPARTURE_DATE_INVALID"
   | "DEPARTURE_DATE_PAST"
   | "RETURN_BEFORE_DEPARTURE"
-  | "PASSENGER_COUNT_INVALID";
+  | "PASSENGER_COUNT_INVALID"
+  | "DEPARTURE_CITY_UNRECOGNIZED"
+  | "ARRIVAL_CITY_UNRECOGNIZED";
 
-export type LeadWarningField = "departureDate" | "returnDate" | "passengerCount";
+export type LeadWarningField = "departureDate" | "returnDate" | "passengerCount" | "departureCity" | "arrivalCity";
 
 export type LeadWarning = {
   field: LeadWarningField;
