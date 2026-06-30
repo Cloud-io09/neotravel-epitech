@@ -327,7 +327,6 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   const [routeStatus, setRouteStatus] = useState<"idle" | "loading" | "ready" | "fallback">("idle");
   const [mapZoom, setMapZoom] = useState(1);
   const [isMapExpanded, setIsMapExpanded] = useState(false);
-  const [contactOpen, setContactOpen] = useState(true);
   const [isGeneratingQuote, setIsGeneratingQuote] = useState(false);
   const [isRequestingHumanReview, setIsRequestingHumanReview] = useState(false);
   const [humanReviewQueued, setHumanReviewQueued] = useState(false);
@@ -754,8 +753,11 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
         return;
       }
 
+      // To receive the devis, the prospect creates (or signs into) their account. Account
+      // creation captures the email and redirects straight to the generated devis. Already
+      // logged-in clients are bounced to the devis by the inscription page itself.
       clearDemandSession();
-      router.push(`/client/devis/${quote.id}`);
+      router.push(`/connexion/inscription?quoteId=${quote.id}`);
     } catch {
       setWorkflowError("Nous n’avons pas pu préparer le devis pour l’instant. Vous pouvez réessayer ou nous contacter.");
     } finally {
@@ -1368,79 +1370,6 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
             </div>
           </aside>
 
-          <details
-            className={`${styles.sidePanel} ${styles.collapsiblePanel}`}
-            open={contactOpen}
-            onToggle={(e) => setContactOpen((e.target as HTMLDetailsElement).open)}
-          >
-            <summary className={styles.collapsibleSummary}>
-              <span id="contact-panel-title">Vos coordonnées</span>
-              <small>
-                {chatEmail || activeDemand.phone || activeDemand.contactName
-                  ? "Coordonnées renseignées — modifier"
-                  : "Recommandé : email pour recevoir le devis et créer votre compte"}
-              </small>
-            </summary>
-
-            <div className={styles.manualForm}>
-              <div className={styles.manualFields}>
-                <label>
-                  <span>Type de client</span>
-                  <select
-                    value={activeDemand.clientType ?? ""}
-                    onChange={(e) => setChatClientType(e.target.value || null)}
-                  >
-                    <option value="">--</option>
-                    <option value="Particulier">Particulier</option>
-                    <option value="Entreprise">Entreprise</option>
-                    <option value="Association">Association</option>
-                    <option value="Agence">Agence</option>
-                    <option value="École">École</option>
-                    <option value="Collectivité">Collectivité</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Organisation</span>
-                  <input
-                    type="text"
-                    placeholder="ex: Alpha Conseil"
-                    value={activeDemand.organization ?? ""}
-                    onChange={(e) => setChatOrganization(e.target.value.trim() ? e.target.value : null)}
-                  />
-                </label>
-                <label>
-                  <span>Nom du contact</span>
-                  <input
-                    type="text"
-                    placeholder="ex: Marie Dupont"
-                    value={activeDemand.contactName ?? ""}
-                    onChange={(e) => setChatContactName(e.target.value.trim() ? e.target.value : null)}
-                  />
-                </label>
-                <label>
-                  <span>Téléphone</span>
-                  <input
-                    type="tel"
-                    placeholder="ex: 06 12 34 56 78"
-                    value={activeDemand.phone ?? ""}
-                    onChange={(e) => setChatPhone(e.target.value.trim() ? e.target.value : null)}
-                  />
-                </label>
-                <label className={hasAnyDemand && !chatEmail && !hasInitialDemand ? styles.fieldInvalid : undefined}>
-                  <span>Email de contact {hasAnyDemand && !hasInitialDemand ? <strong aria-hidden="true"> *</strong> : null}</span>
-                  <input
-                    type="email"
-                    placeholder="votre@email.fr"
-                    value={chatEmail ?? ""}
-                    onChange={(e) => setChatEmail(e.target.value.trim() || null)}
-                  />
-                  {hasAnyDemand && !chatEmail && !hasInitialDemand ? (
-                    <small className={styles.fieldWarning}>Requis pour recevoir le devis.</small>
-                  ) : null}
-                </label>
-              </div>
-            </div>
-          </details>
         </div>
       </div>
     </main>

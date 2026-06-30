@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getLeadDetail } from "@/features/lead-detail/services/getLeadDetail";
 import { getQuoteOptionLines } from "@/shared/lib/quotes/quoteOptionLines";
+import { getClientSession } from "@/shared/lib/auth/requireClient";
 import { getQuoteById } from "../services/getQuoteById";
 import { QuoteAdminSendPanel } from "./QuoteAdminSendPanel";
 import { QuoteClientActions } from "./QuoteClientActions";
@@ -51,6 +52,8 @@ export async function QuoteClientView({ quoteId, viewer = "client" }: { quoteId:
   const storedQuote = await getQuoteById(quoteId);
   const lead = storedQuote ? await getLeadDetail(storedQuote.leadId) : null;
   const isAdmin = viewer === "admin";
+  // Hide the "create account" CTA for an already-logged-in client.
+  const clientLoggedIn = isAdmin ? false : Boolean(await getClientSession());
 
   if (!storedQuote) {
     return (
@@ -299,7 +302,7 @@ export async function QuoteClientView({ quoteId, viewer = "client" }: { quoteId:
             commercialFollowup={lead?.status === "HUMAN_REVIEW"}
           />
 
-          {!isAdmin ? (
+          {!isAdmin && !clientLoggedIn ? (
             <div className={styles.accountCta}>
               <p>Suivez ce devis et vos demandes depuis votre espace client.</p>
               <Link href={`/connexion/inscription?quoteId=${storedQuote.id}`}>Créer mon compte</Link>
