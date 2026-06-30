@@ -72,9 +72,10 @@ export async function QuoteClientView({ quoteId, viewer = "client" }: { quoteId:
   const clientEmail = lead?.email ?? "Email à confirmer";
   const passengerLabel = lead?.passengerCount ? `${lead.passengerCount} passagers` : "À confirmer";
   const tripDates = formatTripDates(lead?.departureDate, lead?.returnDate);
+  const routeStops = lead?.intermediateStops ?? [];
   const routeLabel =
     lead?.departureCity && lead?.arrivalCity
-      ? `${lead.departureCity} -> ${lead.arrivalCity}`
+      ? [lead.departureCity, ...routeStops, lead.arrivalCity].join(" -> ")
       : calculation.breakdown.routeLabel;
   // Priced option lines from the engine — each carries a label, a note, and an amount that
   // is 0 € only as a placeholder when no official price exists (never shown as free).

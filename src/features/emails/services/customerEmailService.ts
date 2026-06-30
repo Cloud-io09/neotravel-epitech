@@ -22,6 +22,7 @@ type LeadEmailRow = {
   return_date: string | null;
   passenger_count: number | null;
   trip_type: string | null;
+  intermediate_stops: string[] | null;
   missing_fields: string[] | null;
   human_review_reason: string | null;
   clients?: ClientJoin;
@@ -89,7 +90,7 @@ export type SendCustomerEmailResult = {
 };
 
 const LEAD_SELECTION =
-  "id, status, departure_city, arrival_city, departure_date, return_date, passenger_count, trip_type, missing_fields, human_review_reason, clients(name, organization, email)";
+  "id, status, departure_city, arrival_city, departure_date, return_date, passenger_count, trip_type, intermediate_stops, missing_fields, human_review_reason, clients(name, organization, email)";
 
 const QUOTE_SELECTION =
   `id, lead_id, quote_number, price_ttc, status, breakdown, leads(${LEAD_SELECTION})`;
@@ -429,7 +430,7 @@ async function sendEmail(input: {
     lead: {
       id: input.lead.id,
       status: input.lead.status,
-      route: `${display(input.lead.departure_city)} → ${display(input.lead.arrival_city)}`,
+      route: [display(input.lead.departure_city), ...(input.lead.intermediate_stops ?? []), display(input.lead.arrival_city)].join(" → "),
       departureDate: displayDate(input.lead.departure_date),
       passengerCount: displayPassengers(input.lead.passenger_count),
       tripType: displayTripType(input.lead.trip_type),
