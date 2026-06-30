@@ -27,7 +27,11 @@ export function LeadMessages({ lead }: { lead: Lead }) {
     </div>
    </div>
 
-   <LeadRouteMap departureCity={lead.departureCity} arrivalCity={lead.arrivalCity} />
+   <LeadRouteMap
+    key={`${lead.departureCity ?? ""}__${lead.arrivalCity ?? ""}`}
+    departureCity={lead.departureCity}
+    arrivalCity={lead.arrivalCity}
+   />
 
    <div className={styles.metrics}>
     <div className={styles.metric}>

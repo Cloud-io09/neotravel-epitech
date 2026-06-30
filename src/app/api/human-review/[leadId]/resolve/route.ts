@@ -148,7 +148,9 @@ async function ensureQuoteForLead(
   if (quoteError) throw new Error(`Impossible de lire le devis existant : ${quoteError.message}`);
   if (existingQuote?.id) return existingQuote.id as string;
 
-  const result = await calculateQuoteForLead(leadId);
+  // The commercial has manually reviewed and validated the itinerary here, so the
+  // intermediate-stop guardrail (which only protects the automatic/client paths) is lifted.
+  const result = await calculateQuoteForLead(leadId, {}, { allowIntermediateStop: true });
   if (!result.ok) {
     throw new Error(`Devis automatique impossible après validation : ${result.reason}`);
   }
