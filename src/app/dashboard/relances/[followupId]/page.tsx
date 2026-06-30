@@ -80,6 +80,7 @@ function buildTimeline({
   const sorted = [...relatedFollowups].sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
   const first = sorted[0];
   const second = sorted[1];
+  const third = sorted[2];
   const kind = sequenceKind(lead, sorted);
   const quoteSent = quote?.status === "QUOTE_SENT" || lead?.status === "QUOTE_SENT" || sorted.length > 0;
   const closed = lead?.status === "CLOSED";
@@ -147,19 +148,26 @@ function buildTimeline({
     },
     {
       index: 2,
-      title: "Relance 1 — J+3",
-      detail: followupLabel(first, "Première relance standard, trois jours après l'envoi."),
+      title: "Relance 1 — J+1",
+      detail: followupLabel(first, "Première relance, un jour après l'envoi."),
       badge: first?.status ?? "SCHEDULED",
       state: stepStateForFollowup(first, currentFollowup.id),
     },
     {
       index: 3,
-      title: "Relance 2 — J+7 puis clôture",
-      detail: second
-        ? `${followupLabel(second, "Deuxième relance")}. Sans réponse, clôture ou reprise commerciale après ${GRACE_DAYS_AFTER_SECOND_FOLLOWUP} jours.`
-        : `Deuxième relance standard à J+7, puis clôture ou reprise commerciale après ${GRACE_DAYS_AFTER_SECOND_FOLLOWUP} jours sans réponse.`,
-      badge: closed ? "CLOSED" : second?.status ?? "à venir",
-      state: closed ? "done" : stepStateForFollowup(second, currentFollowup.id),
+      title: "Relance 2 — J+3",
+      detail: followupLabel(second, "Deuxième relance, trois jours après l'envoi."),
+      badge: second?.status ?? "à venir",
+      state: stepStateForFollowup(second, currentFollowup.id),
+    },
+    {
+      index: 4,
+      title: "Relance 3 — J+7 puis clôture",
+      detail: third
+        ? `${followupLabel(third, "Troisième relance")}. Sans réponse, clôture ou reprise commerciale après ${GRACE_DAYS_AFTER_SECOND_FOLLOWUP} jours.`
+        : `Troisième relance standard à J+7, puis clôture ou reprise commerciale après ${GRACE_DAYS_AFTER_SECOND_FOLLOWUP} jours sans réponse.`,
+      badge: closed ? "CLOSED" : third?.status ?? "à venir",
+      state: closed ? "done" : stepStateForFollowup(third, currentFollowup.id),
     },
   ];
 }
@@ -220,7 +228,7 @@ export default async function FollowupDetailPage({ params }: { params: Promise<{
       <section className={styles.kpiGrid} aria-label="Résumé relance">
         <article className={styles.kpi}><span>Statut</span><strong>{statusLabel(followup.status)}</strong></article>
         <article className={styles.kpi}><span>Échéance</span><strong>{formatDateTime(followup.dueAt)}</strong></article>
-        <article className={styles.kpi}><span>Scénario</span><strong>{kind === "urgent" ? "Urgent J+1" : kind === "very_urgent" ? "Très urgent" : "Standard J+3/J+7"}</strong></article>
+        <article className={styles.kpi}><span>Scénario</span><strong>{kind === "urgent" ? "Urgent J+1" : kind === "very_urgent" ? "Très urgent" : "Standard J+1/J+3/J+7"}</strong></article>
         <article className={styles.kpi}><span>Action</span><strong>{nextAction(followup, lead)}</strong></article>
       </section>
 

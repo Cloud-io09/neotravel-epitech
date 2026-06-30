@@ -233,7 +233,7 @@ export async function sendFollowupEmail(input: {
 }
 
 const FOLLOWUP_CLOSURE_GRACE_DAYS = 7;
-const FOLLOWUP_SEQUENCE_LENGTH = 2;
+const FOLLOWUP_SEQUENCE_LENGTH = 3;
 
 // Grace before auto-closing a lead that stayed silent after the final relance. Compressed in
 // demo mode so the full cycle (… → CLOSED) is observable within a few minutes.
@@ -291,8 +291,8 @@ async function updateLeadAfterFollowupSent(input: {
 
   if (sentCount <= 0) return;
 
-  // Standard sequence (J3/J7) → FOLLOWUP_1/2. Urgent sequence has one followup then human review.
-  const status = sentCount === 1 ? "FOLLOWUP_1" : "FOLLOWUP_2";
+  // Standard sequence (J1/J3/J7) → FOLLOWUP_1/2/3. Urgent has one followup then human review.
+  const status = sentCount === 1 ? "FOLLOWUP_1" : sentCount === 2 ? "FOLLOWUP_2" : "FOLLOWUP_3";
   await updateLeadStatus(input.leadId, status, {
     quoteId: input.quoteId,
     sentFollowupsWithoutResponse: sentCount,
@@ -320,7 +320,7 @@ async function closeLeadsAfterSecondFollowupGracePeriod(input: { now: Date }) {
   const closed: string[] = [];
   for (const followup of latestByLead.values()) {
     const lead = one(followup.leads);
-    if (!lead || lead.status !== "FOLLOWUP_2") continue;
+    if (!lead || lead.status !== "FOLLOWUP_3") continue;
 
     const { count, error: countError } = await supabase
       .from("followups")
