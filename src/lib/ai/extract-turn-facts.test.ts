@@ -96,8 +96,30 @@ describe("extractTurnFacts", () => {
     expect(extractTurnFacts("un aller simple svp", {}, referenceDate)).toEqual({ trip_type: "one_way" });
   });
 
-  it("does not override an already-known trip_type", () => {
-    expect(extractTurnFacts("un aller-retour", { trip_type: "one_way" }, referenceDate)).toEqual({});
+  it("lets an explicit user trip type override a previous value", () => {
+    expect(extractTurnFacts("un aller-retour", { trip_type: "one_way" }, referenceDate)).toEqual({
+      trip_type: "round_trip",
+    });
+  });
+
+  it("extracts a return date from a round-trip answer when departure is known", () => {
+    expect(
+      extractTurnFacts(
+        "aller - retour le 13 septembre",
+        { departure_date: "2026-09-11", trip_type: "one_way" },
+        referenceDate,
+      ),
+    ).toEqual({
+      return_date: "2026-09-13",
+      trip_type: "round_trip",
+    });
+  });
+
+  it("does not treat a first round-trip date as return date without a known departure", () => {
+    expect(extractTurnFacts("aller-retour le 13 septembre", {}, referenceDate)).toEqual({
+      departure_date: "2026-09-13",
+      trip_type: "round_trip",
+    });
   });
 
   it("interprets a standalone number as passengers only after the date is known", () => {

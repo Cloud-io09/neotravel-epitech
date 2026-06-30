@@ -44,11 +44,19 @@ export function mergeLead(
     if (key === "has_intermediate_stop") {
       if (value === true) {
         merged.has_intermediate_stop = true;
+      } else if (value === false) {
+        merged.has_intermediate_stop = false;
+        merged.intermediate_stops = [];
       }
       continue;
     }
 
     if (key === "intermediate_stops" && Array.isArray(value)) {
+      if (value.length === 0) {
+        merged.intermediate_stops = [];
+        continue;
+      }
+
       const knownStops = Array.isArray(merged.intermediate_stops)
         ? merged.intermediate_stops
         : [];

@@ -795,6 +795,9 @@ export function ClientAccountPage({ section }: { section: Section }) {
             <Mail size={16} aria-hidden="true" />
             Connecté en tant que {client.email}
           </div>
+          <Link className={generalStyles.primaryCta} href="/client/demande">
+            Nouvelle demande <ArrowRight size={16} aria-hidden="true" />
+          </Link>
         </div>
       </header>
       {renderSection(section)}

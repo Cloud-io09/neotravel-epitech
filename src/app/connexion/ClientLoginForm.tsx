@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import styles from "./connexion.module.css";
@@ -74,6 +75,10 @@ export function ClientLoginForm() {
       <button className={styles.primaryButton} type="submit" disabled={isSubmitting}>
         {isSubmitting ? "Connexion..." : "Se connecter"}
       </button>
+
+      <Link className={styles.forgotLink} href="/connexion/reinitialisation">
+        Mot de passe oublié ?
+      </Link>
 
       <p className={styles.note}>
         Pas encore de compte ? Créez votre espace client pour retrouver vos devis et demandes.

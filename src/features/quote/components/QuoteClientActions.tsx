@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   defaultLanguage,
@@ -32,6 +33,7 @@ export function QuoteClientActions({
   viewer?: QuoteViewer;
   commercialFollowup?: boolean;
 }) {
+  const router = useRouter();
   const outcome = initialOutcome ?? (initialStatus === "CLOSED" ? "closed" : "pending");
   const isAdmin = viewer === "admin";
 
@@ -63,6 +65,10 @@ export function QuoteClientActions({
     try {
       await postQuoteAction(quoteId, action);
       setState(action === "accept" ? "interested" : "notInterested");
+      if (!isAdmin) {
+        router.push("/compte");
+        router.refresh();
+      }
     } catch {
       setState("error");
       setErrorMessage("Action non finalisée. Réessayez ou contactez notre équipe.");

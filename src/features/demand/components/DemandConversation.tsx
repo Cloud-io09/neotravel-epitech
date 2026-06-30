@@ -366,7 +366,12 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
     const arrival = clean(initialDemand.arrival);
     const departureDate = formatDate(initialDemand.departureDate);
     const returnDate = formatDate(initialDemand.returnDate);
-    const tripType = initialDemand.tripType === "one_way" ? "Aller simple" : "Aller-retour";
+    const tripType =
+      initialDemand.tripType === "one_way"
+        ? "Aller simple"
+        : initialDemand.tripType === "round_trip"
+          ? "Aller-retour"
+          : "";
 
     return {
       departure,
@@ -482,8 +487,8 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
         ? "one_way"
         : initialDemand.tripType
           ? "round_trip"
-          : departureDate && !returnDate
-            ? "one_way"
+          : returnDate
+            ? "round_trip"
             : null);
 
     return {

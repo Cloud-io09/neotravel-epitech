@@ -2,7 +2,7 @@ import type { LeadQualification } from "../domain/schemas";
 import { canonicalizeCity, isKnownCity } from "./canonicalize-city";
 
 const ROUND_TRIP_PATTERN =
-  /\baller[- /]retour\b|\baller\s+et\s+retour\b|\bon\s+reviendra\b|\btrajet\s+retour\b|\bvoyage\s+aller[- ]retour\b/iu;
+  /\baller\s*(?:[-/ ]|et)\s*retour\b|\bon\s+reviendra\b|\btrajet\s+retour\b|\bvoyage\s+aller\s*[- ]\s*retour\b/iu;
 
 const ONE_WAY_PATTERN =
   /\baller\s+simple\b|\bsans\s+retour\b|\bjuste\s+l['']aller\b|\btrajet\s+simple\b/iu;
@@ -12,6 +12,32 @@ function parseTripType(message: string): LeadQualification["trip_type"] | undefi
   if (ROUND_TRIP_PATTERN.test(normalized)) return "round_trip";
   if (ONE_WAY_PATTERN.test(normalized)) return "one_way";
   return undefined;
+}
+
+function parseReturnDate(
+  message: string,
+  referenceDate: Date,
+  departureDate: string | undefined,
+  lastAssistantText: string,
+): string | undefined {
+  const normalized = normalizeUserText(message);
+  const messageWithoutTripType = normalized.replace(ROUND_TRIP_PATTERN, " ");
+  const hasRoundTrip = ROUND_TRIP_PATTERN.test(normalized);
+  const hasDirectReturnIntent =
+    /\b(?:retour|reviens|revient|reviendra|rentr[eé]e?|rentrer|repart(?:ir|ons)?)\b/iu.test(
+      messageWithoutTripType,
+    );
+  const returnIntent =
+    (hasRoundTrip && Boolean(departureDate)) ||
+    hasDirectReturnIntent ||
+    asksForReturnDate(lastAssistantText);
+
+  if (!returnIntent) return undefined;
+
+  const parsed = parseDepartureDate(normalized, departureDate ? new Date(`${departureDate}T12:00:00.000Z`) : referenceDate);
+  if (!parsed) return undefined;
+
+  return parsed;
 }
 
 function parsePhone(message: string): string | undefined {
@@ -143,9 +169,20 @@ export function extractTurnFacts(
     }
   }
 
-  if (!existing.trip_type) {
-    const tripType = parseTripType(message);
-    if (tripType) facts.trip_type = tripType;
+  const tripType = parseTripType(message);
+  if (tripType && tripType !== existing.trip_type) {
+    facts.trip_type = tripType;
+  }
+
+  const returnDate = parseReturnDate(
+    message,
+    referenceDate,
+    existing.departure_date,
+    lastAssistantText,
+  );
+  if (returnDate && returnDate !== existing.return_date) {
+    facts.return_date = returnDate;
+    facts.trip_type = "round_trip";
   }
 
   return facts;
@@ -325,6 +362,12 @@ function parsePassengerCountWithUnit(message: string): number | undefined {
 
 function asksForPassengers(message: string) {
   return /combien\s+de\s+(?:passagers?|personnes?|voyageurs?)|nombre\s+de\s+(?:passagers?|personnes?)|passagers?\s+(?:serez|seront|à\s+bord)/iu.test(
+    message,
+  );
+}
+
+function asksForReturnDate(message: string) {
+  return /date\s+de\s+retour|quand\s+(?:souhaitez-vous\s+)?(?:revenir|rentrer)|(?:pour\s+)?l['’]aller-retour.*quelle\s+date|à\s+quelle\s+date.*retour/iu.test(
     message,
   );
 }

@@ -46,6 +46,21 @@ describe("detectIntermediateStops", () => {
     });
   });
 
+  it("extracts common stop synonyms with accented words", () => {
+    expect(detectIntermediateStops("Paris à Lyon avec une escale à Dijon")).toEqual({
+      has_intermediate_stop: true,
+      intermediate_stops: ["Dijon"],
+    });
+    expect(detectIntermediateStops("Paris à Lyon, étape à Dijon")).toEqual({
+      has_intermediate_stop: true,
+      intermediate_stops: ["Dijon"],
+    });
+    expect(detectIntermediateStops("un arrêt intermédiaire à Dijon")).toEqual({
+      has_intermediate_stop: true,
+      intermediate_stops: ["Dijon"],
+    });
+  });
+
   it("does not flag a normal single-arrow A→B route", () => {
     expect(detectIntermediateStops("Paris → Lyon")).toEqual({});
   });
