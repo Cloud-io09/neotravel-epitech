@@ -399,8 +399,21 @@ async function sendEmail(input: {
   };
 
   const n8n = await triggerCustomerEmail(payload);
+
+  // Non-fatal: a down/misconfigured email webhook must NOT block the business flow (devis
+  // status update + relance scheduling). We log the failure and report it back without
+  // throwing; the "sent" dedup marker is skipped so a later retry can still deliver.
   if (!n8n.simulated && n8n.ok === false) {
-    throw new AppError("Webhook n8n email en échec.", "N8N_EMAIL_FAILED");
+    console.error(
+      `[customer-email] échec livraison n8n (scénario ${input.scenario}, lead ${input.lead.id}, status ${n8n.status ?? "?"})`,
+    );
+    await logAuditEvent({
+      entityType: input.quote ? "quote" : input.followup ? "followup" : "lead",
+      entityId: input.quote?.id ?? input.followup?.id ?? input.lead.id,
+      action: "CUSTOMER_EMAIL_FAILED",
+      metadata: { scenario: input.scenario, leadId: input.lead.id, recipient: email, status: n8n.status, triggeredBy: input.triggeredBy },
+    }).catch(() => undefined);
+    return { scenario: input.scenario, recipient: email, n8n, skipped: true, reason: "N8N_DELIVERY_FAILED" };
   }
 
   await logAuditEvent({
