@@ -486,8 +486,8 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   const requiresHumanReview = hasAnyDemand && demoBlockingMissingFields.length > 0;
 
   // Quote readiness is decided form-side, from the side-panel fields — NOT from the AI's
-  // qualification status. These are exactly the 5 fields the server needs to price.
-  // returnDate and email are intentionally optional (server doesn't require them).
+  // qualification status. Email is required here because the MVP flow sends the quote
+  // immediately after generation.
   const criticalLabels: Record<string, string> = {
     departureCity: "ville de départ",
     arrivalCity: "ville d'arrivée",
@@ -502,9 +502,11 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
     return value === null || value === undefined || value === "";
   });
   const missingReturnDate = activeDemand.tripType === "round_trip" && !activeDemand.returnDate;
+  const missingEmail = !normalizeEmailForApi(chatEmail);
   const missingRequirementLabels = [
     ...criticalMissing.map((key) => criticalLabels[key]),
     ...(missingReturnDate ? ["date de retour"] : []),
+    ...(missingEmail ? ["email de contact"] : []),
   ];
   const formReady = missingRequirementLabels.length === 0 && !hasBlockingWarning;
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -731,10 +733,18 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
       const quoteResponse = await fetch("/api/quotes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadId: sync.leadId }),
+        body: JSON.stringify({ leadId: sync.leadId, autoSend: true }),
       });
       if (!quoteResponse.ok) throw new Error("QUOTE_GENERATION_FAILED");
-      const quote = (await quoteResponse.json()) as { id: string };
+      const quote = (await quoteResponse.json()) as { id: string; status?: string };
+      if (quote.status === "HUMAN_REVIEW") {
+        setChatHumanReview(true);
+        setHumanReviewQueued(true);
+        setWorkflowError(
+          "Votre demande est très urgente. Un commercial doit vérifier la disponibilité avant d'envoyer le devis.",
+        );
+        return;
+      }
       clearDemandSession();
       router.push(`/client/devis/${quote.id}`);
     } catch {
@@ -808,7 +818,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
         ...prev,
         {
           role: "assistant",
-          content: "Votre demande est transmise à un conseiller. Elle apparaît maintenant dans le tableau de suivi commercial.",
+          content: "Votre demande nécessite une vérification par notre équipe. Nous vous recontacterons rapidement.",
         },
       ]);
     } catch {
@@ -1147,9 +1157,6 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
             <p className={styles.workflowReady}>Trajet complet — vous pouvez recevoir votre devis.</p>
           ) : null}
           {workflowError ? <p className={styles.workflowError}>{workflowError}</p> : null}
-          {humanReviewQueued ? (
-            <p className={styles.workflowReady}>Un commercial peut reprendre cette demande dans le dashboard.</p>
-          ) : null}
         </section>
 
         <div className={styles.sideStack}>
@@ -1224,17 +1231,6 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
 
             <div className={styles.manualForm}>
               <div className={styles.manualFields}>
-                <label>
-                  <span>Départ</span>
-                  <input
-                    type="text"
-                    placeholder="ex: Paris"
-                    value={activeDemand.departureCity ?? ""}
-                    onChange={(e) =>
-                      setChatExtracted((p) => ({ ...p, departureCity: e.target.value.trim() ? e.target.value : null }))
-                    }
-                  />
-                </label>
                 {multiDestination ? (
                   <label>
                     <span>Ville inter.</span>
@@ -1246,17 +1242,6 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
                     />
                   </label>
                 ) : null}
-                <label>
-                  <span>Arrivée</span>
-                  <input
-                    type="text"
-                    placeholder="ex: Lyon"
-                    value={activeDemand.arrivalCity ?? ""}
-                    onChange={(e) =>
-                      setChatExtracted((p) => ({ ...p, arrivalCity: e.target.value.trim() ? e.target.value : null }))
-                    }
-                  />
-                </label>
                 <label className={warningFor("departureDate") ? styles.fieldInvalid : undefined}>
                   <span>Date de départ</span>
                   <input
@@ -1428,15 +1413,15 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
                     onChange={(e) => setChatPhone(e.target.value.trim() ? e.target.value : null)}
                   />
                 </label>
-                <label className={qualifiedLeadId && !chatEmail && !hasInitialDemand ? styles.fieldInvalid : undefined}>
-                  <span>Email de contact {qualifiedLeadId && !hasInitialDemand ? <strong aria-hidden="true"> *</strong> : null}</span>
+                <label className={hasAnyDemand && !chatEmail && !hasInitialDemand ? styles.fieldInvalid : undefined}>
+                  <span>Email de contact {hasAnyDemand && !hasInitialDemand ? <strong aria-hidden="true"> *</strong> : null}</span>
                   <input
                     type="email"
                     placeholder="votre@email.fr"
                     value={chatEmail ?? ""}
                     onChange={(e) => setChatEmail(e.target.value.trim() || null)}
                   />
-                  {qualifiedLeadId && !chatEmail && !hasInitialDemand ? (
+                  {hasAnyDemand && !chatEmail && !hasInitialDemand ? (
                     <small className={styles.fieldWarning}>Requis pour recevoir le devis.</small>
                   ) : null}
                 </label>

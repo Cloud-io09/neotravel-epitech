@@ -100,7 +100,7 @@ export function LeadQuotePanel({ lead, quote, followup }: { lead: Lead; quote?: 
    <div className={styles.cardActions}>
     {quote ? (
      <>
-      <Link className={styles.secondary} href={`/client/devis/${quote.id}`}>
+      <Link className={styles.secondary} href={`/dashboard/devis/${quote.id}`}>
        Ouvrir le devis
       </Link>
       <LeadSendQuoteEmail quoteId={quote.id} status={quote.status} />

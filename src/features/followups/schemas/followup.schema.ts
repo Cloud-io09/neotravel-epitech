@@ -4,7 +4,7 @@ export const FollowupSchema = z.object({
   leadId: z.string().min(1),
   quoteId: z.string().optional(),
   channel: z.literal("email"),
-  status: z.enum(["SCHEDULED", "SENT", "OPENED", "REPLIED"]).default("SCHEDULED"),
+  status: z.enum(["SCHEDULED", "SENT", "CANCELLED", "OPENED", "REPLIED"]).default("SCHEDULED"),
   dueAt: z.string().min(1)
 });
 

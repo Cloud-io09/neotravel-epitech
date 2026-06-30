@@ -48,12 +48,12 @@ export function getLeadActivity(lead: Lead): LeadActivity[] {
   seq.push({ type: "CLASSIFIED_AI", actor: "Système", label: "Demande qualifiée", detail: routing.reason, at: updatedAt });
  }
 
- if (lead.status === "WON") {
-  seq.push({ type: "WON", actor: "Commercial", label: "Demande gagnée", detail: "Devis accepté par le prospect", at: updatedAt });
- }
- if (lead.status === "LOST") {
-  seq.push({ type: "LOST", actor: "Commercial", label: "Demande perdue", detail: "Sans suite après relances", at: updatedAt });
- }
+if (lead.status === "WON") {
+  seq.push({ type: "WON", actor: "Commercial", label: "Devis accepté", detail: "Réponse positive du prospect", at: updatedAt });
+}
+if (lead.status === "LOST") {
+  seq.push({ type: "LOST", actor: "Commercial", label: "Devis refusé / sans suite", detail: "Réponse négative ou absence de suite après relances", at: updatedAt });
+}
 
  return seq
   .map((event, index) => ({

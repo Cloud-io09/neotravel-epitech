@@ -1,5 +1,5 @@
 import { logAuditEvent } from "../../../lib/audit/audit-service";
-import { markHumanReview, updateLeadStatus } from "../../../lib/leads/lead-service";
+import { markHumanReview, markLeadIncomplete, updateLeadStatus } from "../../../lib/leads/lead-service";
 import { createServerSupabaseClient } from "../../../lib/supabase/server";
 import { scheduleFollowups } from "../../followups/services/scheduleFollowups";
 import { triggerCustomerEmail } from "../../../shared/lib/n8n/triggerCustomerEmail";
@@ -131,6 +131,20 @@ export async function sendQuoteAvailableEmail(input: {
     return skippedResult("QUOTE_AVAILABLE", lead, "QUOTE_ALREADY_SENT");
   }
 
+  const missingFields = getMissingQuoteSendFields(lead);
+  if (missingFields.length > 0) {
+    await markLeadIncomplete(quote.lead_id, missingFields);
+    throw new AppError(
+      `Informations manquantes avant envoi du devis : ${missingFields.join(", ")}.`,
+      "QUOTE_SEND_INCOMPLETE_LEAD",
+    );
+  }
+
+  if ((input.triggeredBy ?? "dashboard") === "system" && isDepartureWithinHours(lead.departure_date, 48)) {
+    await markHumanReview(quote.lead_id, "URGENT_DEPARTURE_UNDER_48H");
+    return skippedResult("QUOTE_AVAILABLE", lead, "URGENT_DEPARTURE_REQUIRES_HUMAN_REVIEW");
+  }
+
   const result = await sendEmail({
     scenario: "QUOTE_AVAILABLE",
     lead,
@@ -206,7 +220,7 @@ export async function sendFollowupEmail(input: {
 }
 
 const FOLLOWUP_CLOSURE_GRACE_DAYS = 7;
-const FOLLOWUP_SEQUENCE_LENGTH = 3;
+const FOLLOWUP_SEQUENCE_LENGTH = 2;
 
 // Grace before auto-closing a lead that stayed silent after the final relance. Compressed in
 // demo mode so the full cycle (… → CLOSED) is observable within a few minutes.
@@ -264,8 +278,8 @@ async function updateLeadAfterFollowupSent(input: {
 
   if (sentCount <= 0) return;
 
-  // 3-step standard sequence (J1/J3/J7) → FOLLOWUP_1/2/3. Cap at FOLLOWUP_3.
-  const status = sentCount === 1 ? "FOLLOWUP_1" : sentCount === 2 ? "FOLLOWUP_2" : "FOLLOWUP_3";
+  // Standard sequence (J3/J7) → FOLLOWUP_1/2. Urgent sequence has one followup then human review.
+  const status = sentCount === 1 ? "FOLLOWUP_1" : "FOLLOWUP_2";
   await updateLeadStatus(input.leadId, status, {
     quoteId: input.quoteId,
     sentFollowupsWithoutResponse: sentCount,
@@ -293,7 +307,7 @@ async function closeLeadsAfterSecondFollowupGracePeriod(input: { now: Date }) {
   const closed: string[] = [];
   for (const followup of latestByLead.values()) {
     const lead = one(followup.leads);
-    if (!lead || lead.status !== "FOLLOWUP_3") continue;
+    if (!lead || lead.status !== "FOLLOWUP_2") continue;
 
     const { count, error: countError } = await supabase
       .from("followups")
@@ -443,10 +457,11 @@ async function resolveFollowupScenario(
     .eq("quote_id", followup.quote_id)
     .order("scheduled_at", { ascending: true });
 
-  // Position in the sequence drives the template: 1st = J1, 2nd = J3, 3rd (and beyond) = J7.
-  const index = (data ?? []).findIndex((item) => item.id === followup.id);
-  if (index <= 0) return "FOLLOWUP_J1";
-  if (index === 1) return "FOLLOWUP_J3";
+  const ordered = data ?? [];
+  // Position in the sequence drives the template: urgent single followup = J1; standard = J3 then J7.
+  const index = ordered.findIndex((item) => item.id === followup.id);
+  if (ordered.length <= 1) return "FOLLOWUP_J1";
+  if (index <= 0) return "FOLLOWUP_J3";
   return "FOLLOWUP_J7";
 }
 
@@ -484,6 +499,24 @@ function skippedResult(scenario: CustomerEmailScenario, lead: LeadEmailRow, reas
     reason,
     n8n: { workflow: "customer-email", simulated: true, payload: { skipped: true, reason } },
   };
+}
+
+function getMissingQuoteSendFields(lead: LeadEmailRow): string[] {
+  const client = one(lead.clients);
+  const missingFields: string[] = [];
+
+  if (!hasText(client?.email)) missingFields.push("email");
+  if (!hasText(lead.departure_city)) missingFields.push("departure_city");
+  if (!hasText(lead.arrival_city)) missingFields.push("arrival_city");
+  if (!hasText(lead.departure_date)) missingFields.push("departure_date");
+  if (!Number.isFinite(lead.passenger_count)) missingFields.push("passenger_count");
+  if (lead.trip_type !== "one_way" && lead.trip_type !== "round_trip") missingFields.push("trip_type");
+
+  return missingFields;
+}
+
+function hasText(value: string | null | undefined): boolean {
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 function one<T>(value: T | T[] | null | undefined): T | null {

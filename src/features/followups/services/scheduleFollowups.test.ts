@@ -3,12 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 import { getFollowupDelays, resolvePostFollowupOutcome } from "./scheduleFollowups";
 
 describe("followup scheduling rules", () => {
-  it("uses J+1, J+3 then J+7 for standard quote followups", () => {
+  it("uses J+3 then J+7 for standard quote followups", () => {
     vi.stubEnv("DEMO_FAST_FOLLOWUP", "false");
 
     const delays = getFollowupDelays({});
 
-    expect(delays.map((delay) => delay.label)).toEqual(["STANDARD_J1", "STANDARD_J3", "STANDARD_J7"]);
+    expect(delays.map((delay) => delay.label)).toEqual(["STANDARD_J3", "STANDARD_J7"]);
   });
 
   it("uses a single J+1 followup for urgent quote followups", () => {
@@ -24,15 +24,11 @@ describe("followup scheduling rules", () => {
 
     const delays = getFollowupDelays({});
 
-    expect(delays.map((delay) => delay.label)).toEqual([
-      "DEMO_STANDARD_J1",
-      "DEMO_STANDARD_J3",
-      "DEMO_STANDARD_J7",
-    ]);
+    expect(delays.map((delay) => delay.label)).toEqual(["DEMO_STANDARD_J3", "DEMO_STANDARD_J7"]);
   });
 
-  it("closes leads after three unanswered followups", () => {
-    expect(resolvePostFollowupOutcome({ sentFollowupsWithoutResponse: 2 })).toBe("PENDING");
-    expect(resolvePostFollowupOutcome({ sentFollowupsWithoutResponse: 3 })).toBe("CLOSED");
+  it("closes leads after two unanswered standard followups", () => {
+    expect(resolvePostFollowupOutcome({ sentFollowupsWithoutResponse: 1 })).toBe("PENDING");
+    expect(resolvePostFollowupOutcome({ sentFollowupsWithoutResponse: 2 })).toBe("CLOSED");
   });
 });

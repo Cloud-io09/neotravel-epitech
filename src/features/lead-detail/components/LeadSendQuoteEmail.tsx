@@ -28,7 +28,7 @@ export function LeadSendQuoteEmail({ quoteId, status }: { quoteId: string; statu
         return;
       }
 
-      setMessage(json?.skipped ? "Devis déjà envoyé." : "Email devis envoyé. Relances programmées.");
+      setMessage(json?.skipped ? "Devis déjà envoyé." : "Email devis envoyé ou simulé. Relances programmées.");
       router.refresh();
     } catch {
       setError("Erreur réseau, réessayez.");
@@ -50,7 +50,7 @@ export function LeadSendQuoteEmail({ quoteId, status }: { quoteId: string; statu
           </>
         ) : (
           <>
-            <Mail aria-hidden="true" size={16} /> Envoyer devis
+            <Mail aria-hidden="true" size={16} /> Envoyer le devis et démarrer les relances
           </>
         )}
       </button>

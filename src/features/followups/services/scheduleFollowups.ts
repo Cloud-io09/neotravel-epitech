@@ -14,13 +14,12 @@ export type ScheduleFollowupsInput = {
 
 export function getFollowupDelays(input: Pick<ScheduleFollowupsInput, "isUrgent">) {
   // Demo mode compresses the real cadence to minutes so the full sequence is observable
-  // during a live demo. Urgent keeps a single relance, standard keeps the 3-step sequence.
+  // during a live demo. Urgent keeps a single relance, standard keeps the 2-step sequence.
   if (process.env.DEMO_FAST_FOLLOWUP === "true") {
     if (input.isUrgent) {
       return [{ label: "DEMO_URGENT_J1", delayMs: 1 * MINUTE_MS }];
     }
     return [
-      { label: "DEMO_STANDARD_J1", delayMs: 1 * MINUTE_MS },
       { label: "DEMO_STANDARD_J3", delayMs: 2 * MINUTE_MS },
       { label: "DEMO_STANDARD_J7", delayMs: 3 * MINUTE_MS }
     ];
@@ -32,16 +31,15 @@ export function getFollowupDelays(input: Pick<ScheduleFollowupsInput, "isUrgent"
     return [{ label: "URGENT_J1", delayMs: 1 * DAY_MS }];
   }
 
-  // Standard (départ > 7j) : séquence J+1, J+3, J+7.
+  // Standard (départ > 7j) : séquence J+3 puis J+7.
   return [
-    { label: "STANDARD_J1", delayMs: 1 * DAY_MS },
     { label: "STANDARD_J3", delayMs: 3 * DAY_MS },
     { label: "STANDARD_J7", delayMs: 7 * DAY_MS }
   ];
 }
 
 export function resolvePostFollowupOutcome(input: { sentFollowupsWithoutResponse: number }) {
-  if (input.sentFollowupsWithoutResponse < 3) return "PENDING";
+  if (input.sentFollowupsWithoutResponse < 2) return "PENDING";
   return "CLOSED";
 }
 
@@ -65,9 +63,7 @@ export async function scheduleFollowups(input: ScheduleFollowupsInput) {
         quoteId: input.quoteId,
         quoteStatus: input.quoteStatus ?? "QUOTE_SENT",
         ruleSet: process.env.DEMO_FAST_FOLLOWUP === "true" ? "demo_fast" : input.isUrgent ? "urgent" : "standard",
-        nextOutcomeAfterTwoNoResponse: resolvePostFollowupOutcome({
-          sentFollowupsWithoutResponse: 3,
-        }),
+        nextOutcomeAfterTwoNoResponse: resolvePostFollowupOutcome({ sentFollowupsWithoutResponse: 2 }),
         followups: existing!.map((followup) => ({
           id: followup.id,
           leadId: followup.lead_id,

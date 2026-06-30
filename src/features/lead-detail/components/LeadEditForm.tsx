@@ -14,11 +14,6 @@ const STATUS_OPTIONS = [
  "QUALIFIED",
  "HIGH_VALUE",
  "HUMAN_REVIEW",
- "QUOTE_READY",
- "QUOTE_SENT",
- "FOLLOWUP_SCHEDULED",
- "FOLLOWUP_1",
- "FOLLOWUP_2",
  "WON",
  "LOST",
  "CLOSED"
@@ -76,6 +71,9 @@ export function LeadEditForm({ lead }: { lead: Lead }) {
   humanReviewReason: humanReviewReasonText(lead.humanReviewReason)
  });
  const [state, setState] = useState<SaveState>({ status: "idle" });
+ const statusOptions = (STATUS_OPTIONS as readonly string[]).includes(form.status)
+  ? STATUS_OPTIONS
+  : [form.status, ...STATUS_OPTIONS];
 
  function set(key: keyof typeof form, value: string) {
   setForm((prev) => ({ ...prev, [key]: value }));
@@ -133,14 +131,18 @@ export function LeadEditForm({ lead }: { lead: Lead }) {
    const response = await fetch(`/api/leads/${lead.id}`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(patch)
+   body: JSON.stringify(patch)
    });
-   if (!response.ok) throw new Error();
+   const json = await response.json().catch(() => null);
+   if (!response.ok) throw new Error(json?.error?.message ?? "Échec de l'enregistrement, réessayez.");
 
    setState({ status: "saved", message: "Modifications enregistrées." });
    router.refresh();
-  } catch {
-   setState({ status: "error", message: "Échec de l'enregistrement, réessayez." });
+  } catch (caught) {
+   setState({
+    status: "error",
+    message: caught instanceof Error ? caught.message : "Échec de l'enregistrement, réessayez."
+   });
   }
  }
 
@@ -276,7 +278,7 @@ export function LeadEditForm({ lead }: { lead: Lead }) {
      <label>
       Statut
       <select value={form.status} onChange={(event) => set("status", event.target.value)}>
-       {STATUS_OPTIONS.map((value) => (
+       {statusOptions.map((value) => (
         <option key={value} value={value}>
          {getStatusDisplay(value).label}
         </option>

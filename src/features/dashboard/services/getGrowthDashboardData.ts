@@ -69,7 +69,7 @@ export type GrowthDashboardData = {
   planned: number;
   sent: number;
   overdue: number;
-  urgentJ2: number;
+  urgentJ1: number;
   finalJ7: number;
   completionRate: number;
   responseAfterFollowupRate: number | null;
@@ -181,9 +181,9 @@ const SENT_QUOTE_STATUSES = new Set(["QUOTE_SENT", "ACCEPTED", "REFUSED"]);
 const WON_QUOTE_STATUSES = new Set(["ACCEPTED"]);
 const LOST_QUOTE_STATUSES = new Set(["REFUSED"]);
 
-// Finalized quotes are stored as CLOSED; the won/lost truth lives on the lead (WON/LOST).
-// Reflect the lead outcome back onto the quote status so every metric below is correct
-// against real Supabase data (demo ACCEPTED/REFUSED fixtures pass through unchanged).
+// Final commercial outcomes are still represented by the lead (WON/LOST), while client
+// interest/refusal is an intermediate HUMAN_REVIEW intent and must not count as final.
+// Demo ACCEPTED/REFUSED fixtures pass through unchanged.
 function applyLeadOutcome(quotes: Quote[], leads: Lead[]): Quote[] {
  const statusByLead = new Map(leads.map((lead) => [lead.id, lead.status]));
  return quotes.map((quote) => {
@@ -438,8 +438,8 @@ function leadStatusLabel(status: string) {
   FOLLOWUP_1: "Relance 1",
   FOLLOWUP_2: "Relance 2",
   FOLLOWUP_SCHEDULED: "Relance planifiee",
-  WON: "Gagne",
-  LOST: "Perdu",
+  WON: "Accepte",
+  LOST: "Refuse",
   CLOSED: "Clos"
  };
  return labels[status] ?? status;
@@ -459,6 +459,7 @@ function followupStatusLabel(status: string) {
  const labels: Record<string, string> = {
   SCHEDULED: "Planifiée",
   SENT: "Envoyée",
+  CANCELLED: "Suspendue",
   OPENED: "Ouverte",
   REPLIED: "Repondue"
  };
@@ -505,7 +506,7 @@ function metricEvents(context: Awaited<ReturnType<typeof getGrowthContext>>, met
   return context.periodFollowups
    .filter((followup) => {
     if (metric === "followups_planned") return followup.status === "SCHEDULED";
-    if (metric === "followups_sent") return followup.status !== "SCHEDULED";
+    if (metric === "followups_sent") return followup.status === "SENT";
     const dueAt = dateOrNull(followup.dueAt);
     return followup.status === "SCHEDULED" && Boolean(dueAt && dueAt < now);
    })
@@ -748,7 +749,7 @@ export async function getGrowthDashboardData(filters: GrowthFilters = {}): Promi
   { stage: "Devis envoyes", volume: sentQuotes.length, revenue: sentQuotes.reduce((sum, quote) => sum + quoteAmount(quote), 0), averageDelayMinutes: average(leadToQuoteMinutes), href: "/dashboard/devis" },
   { stage: "Relances planifiees", volume: periodFollowups.filter((followup) => followup.status === "SCHEDULED").length, revenue: 0, averageDelayMinutes: null, href: "/dashboard/relances" },
   { stage: "Devis acceptes", volume: wonQuotes.length, revenue: wonRevenue, averageDelayMinutes: average(leadToQuoteMinutes), href: "/dashboard/devis" },
-  { stage: "Dossiers perdus / refuses", volume: lostQuotes.length + periodLeads.filter((lead) => lead.status === "LOST" || lead.status === "CLOSED").length, revenue: lostQuotes.reduce((sum, quote) => sum + quoteAmount(quote), 0), averageDelayMinutes: null, href: "/dashboard/devis" }
+  { stage: "Dossiers refuses / sans suite", volume: lostQuotes.length + periodLeads.filter((lead) => lead.status === "LOST" || lead.status === "CLOSED").length, revenue: lostQuotes.reduce((sum, quote) => sum + quoteAmount(quote), 0), averageDelayMinutes: null, href: "/dashboard/devis" }
  ];
 
  const funnel = stageData.map((stage, index) => {
@@ -836,7 +837,7 @@ export async function getGrowthDashboardData(filters: GrowthFilters = {}): Promi
   quotes: periodQuotes.filter((quote) => inRange(quoteDate(quote, leadById.get(quote.leadId)), bucket.start, bucket.end)).length
  }));
 
- const sentFollowups = periodFollowups.filter((followup) => followup.status !== "SCHEDULED");
+ const sentFollowups = periodFollowups.filter((followup) => followup.status === "SENT");
  const standardAutomatedLeads = periodLeads.filter((lead) => lead.status !== "HUMAN_REVIEW" && isCompleteLead(lead)).length;
  const aiCost = modelRuns.reduce((sum, run) => sum + (run.costEur ?? 0), 0);
 
@@ -881,7 +882,7 @@ export async function getGrowthDashboardData(filters: GrowthFilters = {}): Promi
    planned: periodFollowups.filter((followup) => followup.status === "SCHEDULED").length,
    sent: sentFollowups.length,
    overdue: overdueFollowups.length,
-   urgentJ2: periodFollowups.filter((followup) => {
+   urgentJ1: periodFollowups.filter((followup) => {
     const quote = followup.quoteId ? quoteById.get(followup.quoteId) : null;
     const diff = minutesBetween(quote ? quoteDate(quote, leadById.get(quote.leadId)) : null, dateOrNull(followup.dueAt));
     return diff !== null && diff <= 2.5 * 1440;
@@ -899,7 +900,7 @@ export async function getGrowthDashboardData(filters: GrowthFilters = {}): Promi
      id: followup.id,
      client: leadClient(leadById.get(followup.leadId)),
      quoteReference: quote?.calculation.quoteNumber ?? followup.quoteId ?? "Sans devis",
-     type: leadById.get(followup.leadId) && isUrgentLead(leadById.get(followup.leadId) as Lead) ? "J+2 urgente" : "Standard",
+     type: leadById.get(followup.leadId) && isUrgentLead(leadById.get(followup.leadId) as Lead) ? "J+1 urgente" : "Standard",
      dueAt: followup.dueAt,
      status: followup.status,
      href: `/dashboard/relances/${followup.id}`

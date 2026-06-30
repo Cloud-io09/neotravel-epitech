@@ -113,7 +113,7 @@ function leadPriorityBucket(lead: Lead, quote?: Quote): LeadPriorityBucket {
  }
 
  if (lead.status === "LOST" || lead.status === "CLOSED" || quote?.status === "REFUSED" || quote?.status === "CLOSED") {
-  return { rank: 4, label: "4 - Perdu", tone: "muted" };
+  return { rank: 4, label: "4 - Refusé / clos", tone: "muted" };
  }
 
  return { rank: 5, label: "5 - Autres", tone: "info" };
@@ -283,7 +283,7 @@ export async function KpisDashboardPage() {
      { label: "Devis generes", value: generatedQuotes, tone: "blue", href: "/dashboard/devis" },
      { label: "Devis envoyes", value: sentQuotes, tone: "blue", href: "/dashboard/devis?status=sent" },
      { label: "Devis acceptes", value: acceptedQuotes, tone: "green", href: "/dashboard/devis?status=accepted" },
-     { label: "Refuses / perdus", value: refusedOrLostQuotes, tone: refusedOrLostQuotes > 0 ? "red" : "green", href: "/dashboard/devis?status=lost" },
+     { label: "Refusés / clos", value: refusedOrLostQuotes, tone: refusedOrLostQuotes > 0 ? "red" : "green", href: "/dashboard/devis?status=lost" },
      { label: "Conversion devis", value: percent(acceptedQuotes, sentQuotes), tone: "green" },
      { label: "Relances en attente", value: scheduledFollowups.length, tone: "gold", href: "/dashboard/relances?status=scheduled" },
      { label: "Relances en retard", value: overdueFollowups.length, tone: overdueFollowups.length > 0 ? "red" : "green", href: "/dashboard/relances?status=overdue" },
@@ -439,7 +439,7 @@ export async function CommercialLeadsPage({ status }: { status?: string }) {
 
 function archiveReason(lead: Lead, quote?: Quote) {
  if (lead.humanReviewReason) return lead.humanReviewReason;
- if (lead.status === "LOST" || quote?.status === "REFUSED") return "Demande perdue ou refusée.";
+ if (lead.status === "LOST" || quote?.status === "REFUSED") return "Demande refusée ou classée sans suite.";
  return "Demande clôturée : non traitable ou sans réponse après relances.";
 }
 
@@ -454,7 +454,7 @@ export async function ArchivedLeadsPage() {
   <main className={styles.page}>
    <DashboardHeader
     title="Archives demandes"
-    subtitle="Demandes non traitables, perdues ou clôturées après absence de réponse."
+    subtitle="Demandes non traitables, refusées ou clôturées après absence de réponse."
     actionHref="/dashboard/demandes"
     actionLabel="Retour demandes"
    />
@@ -462,7 +462,7 @@ export async function ArchivedLeadsPage() {
     kpis={[
      { label: "Archives", value: archivedLeads.length, tone: "gold" },
      { label: "Non traitables", value: archivedLeads.filter((lead) => lead.status === "CLOSED").length, tone: "blue" },
-     { label: "Perdues", value: archivedLeads.filter((lead) => lead.status === "LOST").length, tone: "red" },
+     { label: "Refusées", value: archivedLeads.filter((lead) => lead.status === "LOST").length, tone: "red" },
      { label: "Avec raison", value: archivedLeads.filter((lead) => Boolean(lead.humanReviewReason)).length, tone: "green" }
     ]}
    />
@@ -591,7 +591,7 @@ export async function QuotesDashboardPage({ status }: { status?: string }) {
          <StatusBadge key="s" status={outcome.status} />,
          "Ouvrir"
         ],
-        href: `/client/devis/${quote.id}`
+        href: `/dashboard/devis/${quote.id}`
        };
       })}
      />
@@ -615,7 +615,7 @@ export async function FollowupsDashboardPage({ status }: { status?: string }) {
     kpis={[
      { label: "Relances", value: followups.length, tone: "blue" },
      { label: "Programmées", value: scheduled, tone: "gold" },
-     { label: "Envoyées", value: followups.filter((followup) => followup.status !== "SCHEDULED").length, tone: "green" }
+     { label: "Envoyées", value: followups.filter((followup) => followup.status === "SENT").length, tone: "green" }
     ]}
    />
    <Panel title="Planning des relances" subtitle="Chaque relance apparaît aussi dans l'Agenda à sa date d'échéance.">
@@ -781,13 +781,13 @@ export async function AutomationsDashboardPage() {
  const integrations = getIntegrationsStatus();
  const n8nOn = Boolean(integrations.find((integration) => integration.id === "n8n")?.connected);
  const scheduled = followups.filter((followup) => followup.status === "SCHEDULED").length;
- const sent = followups.filter((followup) => followup.status !== "SCHEDULED").length;
+ const sent = followups.filter((followup) => followup.status === "SENT").length;
  const quotesReady = quotes.filter((quote) => quote.status === "QUOTE_READY").length;
  const statusLabel = n8nOn ? "Actif" : "Simule (demo)";
 
  const workflows: Array<[string, string, string]> = [
   ["Envoi de devis", "Devis prêt", "Email au client"],
-  ["Relance J+2 (urgent)", "Sans réponse", "Email de relance"],
+  ["Relance J+1 (urgent)", "Sans réponse", "Email de relance"],
   ["Relance J+7", "Standard", "Email de relance"],
   ["Notification validation", "Passage en validation humaine", "Alerte interne"]
  ];
@@ -929,7 +929,7 @@ export async function GrowthDashboardPage() {
  const wonQuotes = quotes.filter((quote) => isWonQuote(quote, leadById.get(quote.leadId)));
  const accepted = wonQuotes.length;
  const caPotentiel = quotes.reduce((sum, quote) => sum + quote.calculation.priceTtc, 0);
- const caGagne = wonQuotes.reduce((sum, quote) => sum + quote.calculation.priceTtc, 0);
+ const caAccepte = wonQuotes.reduce((sum, quote) => sum + quote.calculation.priceTtc, 0);
  const convRate = quoted > 0 ? Math.round((accepted / quoted) * 100) : 0;
 
  const funnel = [
@@ -948,7 +948,7 @@ export async function GrowthDashboardPage() {
      { label: "Demandes", value: total, tone: "blue" },
      { label: "Taux de conversion", value: `${convRate}%`, tone: "green" },
      { label: "CA potentiel", value: euro(caPotentiel), tone: "blue" },
-     { label: "CA gagné", value: euro(caGagne), tone: "green" }
+     { label: "CA accepté", value: euro(caAccepte), tone: "green" }
     ]}
    />
    <Panel title="Entonnoir commercial" subtitle="Chaque étape avec son volume réel et sa part des demandes.">

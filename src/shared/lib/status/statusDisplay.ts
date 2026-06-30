@@ -23,12 +23,14 @@ const STATUS_MAP: Record<string, StatusEntry> = {
  HUMAN_REVIEW: { label: "À valider", tone: "danger" },
  QUOTE_READY: { label: "Devis prêt", tone: "info" },
  QUOTE_SENT: { label: "Devis envoyé", tone: "info" },
+ QUOTE_ACCEPTED_INTENT: { label: "Client intéressé", tone: "priority" },
+ QUOTE_REFUSED_INTENT: { label: "Pas intéressé", tone: "warning" },
  FOLLOWUP_SCHEDULED: { label: "Relance prévue", tone: "warning" },
  FOLLOWUP_1: { label: "1re relance", tone: "warning" },
  FOLLOWUP_2: { label: "2e relance", tone: "warning" },
  FOLLOWUP_3: { label: "3e relance", tone: "warning" },
- WON: { label: "Gagné", tone: "success" },
- LOST: { label: "Perdu", tone: "danger" },
+ WON: { label: "Accepté", tone: "success" },
+ LOST: { label: "Refusé", tone: "danger" },
  CLOSED: { label: "Clôturé", tone: "muted" },
 
  // Devis
@@ -38,6 +40,7 @@ const STATUS_MAP: Record<string, StatusEntry> = {
  // Relances
  SCHEDULED: { label: "Programmée", tone: "warning" },
  SENT: { label: "Envoyée", tone: "info" },
+ CANCELLED: { label: "Suspendue", tone: "muted" },
  OPENED: { label: "Ouverte", tone: "info" },
  REPLIED: { label: "Répondu", tone: "success" },
 

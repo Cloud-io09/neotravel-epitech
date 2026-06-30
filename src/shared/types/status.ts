@@ -14,7 +14,14 @@ export type CommercialStatus =
   | "LOST"
   | "CLOSED";
 
-export type QuoteStatus = "QUOTE_READY" | "QUOTE_SENT" | "ACCEPTED" | "REFUSED" | "CLOSED";
+export type QuoteStatus =
+  | "QUOTE_READY"
+  | "QUOTE_SENT"
+  | "QUOTE_ACCEPTED_INTENT"
+  | "QUOTE_REFUSED_INTENT"
+  | "ACCEPTED"
+  | "REFUSED"
+  | "CLOSED";
 
 export type PartnerCommercialStatus = "TO_CONFIRM" | "OPTION_HELD" | "CONFIRMED" | "UNAVAILABLE";
 

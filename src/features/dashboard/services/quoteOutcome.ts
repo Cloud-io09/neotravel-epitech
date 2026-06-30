@@ -4,12 +4,18 @@ import type { Quote } from "@/shared/types/quote";
 /**
  * Commercial outcome of a quote.
  *
- * Production stores every finalized quote as CLOSED and records won/lost on the LEAD
- * (WON / LOST), because accept and refuse both close the quote. Demo fixtures instead
- * put it on the quote (ACCEPTED / REFUSED). Counting `quote.status === "ACCEPTED"` alone
- * therefore returns 0 in production — these helpers read BOTH signals so every metric is
- * correct against real Supabase data.
+ * Production keeps the quote lifecycle separate from client intent:
+ * - quote.status tracks readiness/sending/final closure;
+ * - lead.status + humanReviewReason track client intent and final commercial outcome.
  */
+export function isQuoteInterestedIntent(lead: Lead | undefined): boolean {
+  return lead?.status === "HUMAN_REVIEW" && lead.humanReviewReason === "QUOTE_ACCEPTED_INTENT";
+}
+
+export function isQuoteRefusedIntent(lead: Lead | undefined): boolean {
+  return lead?.status === "HUMAN_REVIEW" && lead.humanReviewReason === "QUOTE_REFUSED_INTENT";
+}
+
 export function isWonQuote(quote: Quote, lead: Lead | undefined): boolean {
   return quote.status === "ACCEPTED" || lead?.status === "WON";
 }
@@ -22,6 +28,8 @@ export function isLostQuote(quote: Quote, lead: Lead | undefined): boolean {
 export function quoteOutcomeDisplay(quote: Quote, lead: Lead | undefined): { label: string; status: string } {
   if (isWonQuote(quote, lead)) return { label: "Accepté", status: "WON" };
   if (isLostQuote(quote, lead)) return { label: "Refusé", status: "LOST" };
+  if (isQuoteInterestedIntent(lead)) return { label: "Intéressé", status: "QUOTE_ACCEPTED_INTENT" };
+  if (isQuoteRefusedIntent(lead)) return { label: "Pas intéressé", status: "QUOTE_REFUSED_INTENT" };
   if (quote.status === "QUOTE_SENT") return { label: "Envoyé", status: "QUOTE_SENT" };
   return { label: "Prêt", status: "QUOTE_READY" };
 }

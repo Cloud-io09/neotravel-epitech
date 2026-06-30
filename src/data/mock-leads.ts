@@ -58,7 +58,7 @@ export const mockLeads: Lead[] = [
     createdAt: "2026-03-11T08:35:00.000Z",
     qualifiedAt: "2026-03-11T09:10:00.000Z",
     updatedAt: "2026-03-11T09:55:00.000Z",
-    aiSummary: "Urgence traitable : route connue, devis envoye, relance J+2."
+    aiSummary: "Urgence traitable : route connue, devis envoye, relance J+1."
   },
   {
     id: "demo-lead-too-urgent",
