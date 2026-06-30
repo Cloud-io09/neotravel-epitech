@@ -16,6 +16,15 @@ type TableRow = {
  tone?: "review" | "won" | "danger";
 };
 
+type TableColumn =
+ | string
+ | {
+    label: string;
+    href: string;
+    active?: boolean;
+    direction?: "asc" | "desc";
+   };
+
 const toneColor = {
  blue: "#123885",
  gold: "#dba23e",
@@ -125,7 +134,7 @@ export function DataTable({
  rows,
  columnsTemplate
 }: {
- columns: string[];
+ columns: TableColumn[];
  rows: TableRow[];
  columnsTemplate?: string;
 }) {
@@ -134,7 +143,20 @@ export function DataTable({
    <div className={styles.table} style={{ "--cols": columnsTemplate } as CSSProperties}>
     <div className={styles.tableHead}>
      {columns.map((column) => (
-      <span key={column}>{column}</span>
+      <span key={typeof column === "string" ? column : column.label}>
+       {typeof column === "string" ? (
+        column
+       ) : (
+        <Link
+         className={styles.sortHeader}
+         data-active={column.active ? "true" : "false"}
+         href={column.href}
+        >
+         {column.label}
+         {column.active ? <small>{column.direction === "desc" ? "↓" : "↑"}</small> : null}
+        </Link>
+       )}
+      </span>
      ))}
     </div>
     {rows.map((row, index) => {

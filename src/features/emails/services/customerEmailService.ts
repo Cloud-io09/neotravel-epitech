@@ -42,7 +42,7 @@ type FollowupEmailRow = {
   lead_id: string | null;
   quote_id: string | null;
   scheduled_at: string;
-  status: "scheduled" | "sent" | "cancelled";
+  status: "scheduled" | "sent" | "cancelled" | "SCHEDULED" | "SENT" | "CANCELLED";
   quotes?: QuoteEmailRow | QuoteEmailRow[] | null;
   leads?: (LeadEmailRow & { clients?: ClientJoin }) | Array<LeadEmailRow & { clients?: ClientJoin }> | null;
 };
@@ -203,7 +203,7 @@ export async function sendFollowupEmail(input: {
   if (!lead || !followup.lead_id) throw new AppError("Relance sans demande liée.", "NOT_FOUND");
   if (!quote || !followup.quote_id) throw new AppError("Relance sans devis lié.", "NOT_FOUND");
 
-  if (followup.status !== "scheduled" && !input.force) {
+  if (followup.status.toLowerCase() !== "scheduled" && !input.force) {
     return skippedResult("FOLLOWUP_J1", lead, "FOLLOWUP_ALREADY_PROCESSED");
   }
 
@@ -222,6 +222,10 @@ export async function sendFollowupEmail(input: {
     triggeredBy: input.triggeredBy ?? "dashboard",
     dedupeEntity: input.force ? undefined : { entityType: "followup", entityId: followup.id },
   });
+
+  if (result.skipped) {
+    return result;
+  }
 
   const supabase = createServerSupabaseClient();
   const { error } = await supabase.from("followups").update({ status: "sent" }).eq("id", followup.id);
@@ -261,7 +265,7 @@ export async function sendDueFollowupEmails(input: { now?: Date; limit?: number;
   const { data, error } = await supabase
     .from("followups")
     .select("id")
-    .eq("status", "scheduled")
+    .in("status", ["scheduled", "SCHEDULED"])
     .lte("scheduled_at", nowIso)
     .order("scheduled_at", { ascending: true })
     .limit(limit);
@@ -303,7 +307,7 @@ async function updateLeadAfterFollowupSent(input: {
     .from("followups")
     .select("id")
     .eq("quote_id", input.quoteId)
-    .eq("status", "sent");
+    .in("status", ["sent", "SENT"]);
 
   if (error) throw new AppError("Lecture des relances envoyees impossible.", "EMAIL_STATUS_UPDATE_FAILED");
 
@@ -331,7 +335,7 @@ async function closeLeadsAfterSecondFollowupGracePeriod(input: { now: Date }) {
   const { data, error } = await supabase
     .from("followups")
     .select("id, lead_id, quote_id, scheduled_at, leads(id, status)")
-    .eq("status", "sent")
+    .in("status", ["sent", "SENT"])
     .lte("scheduled_at", cutoff)
     .order("scheduled_at", { ascending: false });
 
@@ -352,7 +356,7 @@ async function closeLeadsAfterSecondFollowupGracePeriod(input: { now: Date }) {
       .from("followups")
       .select("id", { count: "exact", head: true })
       .eq("lead_id", followup.lead_id)
-      .eq("status", "sent");
+      .in("status", ["sent", "SENT"]);
 
     if (countError) throw new AppError("Comptage des relances envoyees impossible.", "EMAIL_STATUS_UPDATE_FAILED");
     if ((count ?? 0) < FOLLOWUP_SEQUENCE_LENGTH) continue;

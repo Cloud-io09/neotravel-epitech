@@ -154,9 +154,52 @@ function filterQuotesByStatus(quotes: Quote[], leadById: Map<string, Lead>, stat
 
 function filterFollowupsByStatus(followups: Followup[], status?: string) {
  if (status === "scheduled") return followups.filter((followup) => followup.status === "SCHEDULED");
+ if (status === "sent") return followups.filter((followup) => followup.status === "SENT");
+ if (status === "cancelled") return followups.filter((followup) => followup.status === "CANCELLED");
+ if (status === "opened") return followups.filter((followup) => followup.status === "OPENED");
+ if (status === "replied") return followups.filter((followup) => followup.status === "REPLIED");
  if (status !== "overdue") return followups;
  const now = Date.now();
  return followups.filter((followup) => followup.status === "SCHEDULED" && new Date(followup.dueAt).getTime() < now);
+}
+
+type FollowupSortKey = "dossier" | "quote" | "date" | "channel" | "status";
+type SortOrder = "asc" | "desc";
+
+function normalizeFollowupSort(value?: string): FollowupSortKey {
+ if (value === "dossier" || value === "quote" || value === "channel" || value === "status") return value;
+ return "date";
+}
+
+function normalizeSortOrder(value?: string): SortOrder {
+ return value === "desc" ? "desc" : "asc";
+}
+
+function sortedFollowups(
+ followups: Followup[],
+ leadById: Map<string, Lead>,
+ sort: FollowupSortKey,
+ order: SortOrder
+) {
+ const direction = order === "asc" ? 1 : -1;
+ return [...followups].sort((left, right) => {
+  const compare = compareFollowupValue(left, right, leadById, sort);
+  if (compare !== 0) return compare * direction;
+  return new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime();
+ });
+}
+
+function compareFollowupValue(
+ left: Followup,
+ right: Followup,
+ leadById: Map<string, Lead>,
+ sort: FollowupSortKey
+) {
+ if (sort === "date") return new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime();
+ if (sort === "status") return left.status.localeCompare(right.status, "fr");
+ if (sort === "channel") return left.channel.localeCompare(right.channel, "fr");
+ if (sort === "quote") return (left.quoteId ?? "").localeCompare(right.quoteId ?? "", "fr");
+ return leadDisplayName(leadById.get(left.leadId)).localeCompare(leadDisplayName(leadById.get(right.leadId)), "fr");
 }
 
 function dateTime(value: string | null | undefined) {
@@ -246,14 +289,10 @@ export async function KpisDashboardPage() {
  const now = Date.now();
  const leadById = new Map(leads.map((lead) => [lead.id, lead]));
  const quoteByLeadId = latestQuoteByLeadId(quotes);
- const generatedQuotes = quotes.length;
  const sentQuotes = quotes.filter((quote) => {
   const lead = leadById.get(quote.leadId);
   return quote.status === "QUOTE_SENT" || isWonQuote(quote, lead) || isLostQuote(quote, lead);
  }).length;
- const acceptedQuotes = quotes.filter((quote) => isWonQuote(quote, leadById.get(quote.leadId))).length;
- const refusedOrLostQuotes = quotes.filter((quote) => isLostQuote(quote, leadById.get(quote.leadId))).length;
- const incompleteLeads = leads.filter((lead) => lead.status === "INCOMPLETE" || (lead.missingFields?.length ?? 0) > 0).length;
  const urgentLeads = leads.filter((lead) => {
   const departureTime = dateTime(lead.departureDate);
   if (departureTime === null) return false;
@@ -262,7 +301,6 @@ export async function KpisDashboardPage() {
  });
  const scheduledFollowups = followups.filter((followup) => followup.status === "SCHEDULED");
  const overdueFollowups = scheduledFollowups.filter((followup) => dateTime(followup.dueAt)! < now);
- const averageDelay = averageLeadToQuoteMinutes(leads, quotes);
  const conversionEvolution = buildConversionEvolution(quotes, leadById);
  const humanManagedLeads = leads.filter((lead) => lead.status === "HUMAN_REVIEW").length;
  const blockedLeads = leads.filter((lead) => lead.status === "INCOMPLETE" || (lead.missingFields?.length ?? 0) > 0).length;
@@ -293,15 +331,8 @@ export async function KpisDashboardPage() {
     kpis={[
      { label: "Leads recus", value: leads.length, tone: "blue", href: "/dashboard/demandes" },
      { label: "Demandes urgentes", value: urgentLeads.length, tone: urgentLeads.length > 0 ? "red" : "green", href: "/dashboard/demandes?status=urgent" },
-     { label: "Demandes incompletes", value: incompleteLeads, tone: incompleteLeads > 0 ? "gold" : "green", href: "/dashboard/demandes?status=incomplete" },
-     { label: "Devis generes", value: generatedQuotes, tone: "blue", href: "/dashboard/devis" },
      { label: "Devis envoyes", value: sentQuotes, tone: "blue", href: "/dashboard/devis?status=sent" },
-     { label: "Devis acceptes", value: acceptedQuotes, tone: "green", href: "/dashboard/devis?status=accepted" },
-     { label: "Refusés / clos", value: refusedOrLostQuotes, tone: refusedOrLostQuotes > 0 ? "red" : "green", href: "/dashboard/devis?status=lost" },
-     { label: "Conversion devis", value: percent(acceptedQuotes, sentQuotes), tone: "green" },
-     { label: "Relances en attente", value: scheduledFollowups.length, tone: "gold", href: "/dashboard/relances?status=scheduled" },
-     { label: "Relances en retard", value: overdueFollowups.length, tone: overdueFollowups.length > 0 ? "red" : "green", href: "/dashboard/relances?status=overdue" },
-     { label: "Délai moyen lead → devis", value: formatMinutes(averageDelay), tone: "blue" }
+     { label: "Relances en retard", value: overdueFollowups.length, tone: overdueFollowups.length > 0 ? "red" : "green", href: "/dashboard/relances?status=overdue" }
     ]}
    />
 
@@ -616,11 +647,27 @@ export async function QuotesDashboardPage({ status }: { status?: string }) {
  );
 }
 
-export async function FollowupsDashboardPage({ status }: { status?: string }) {
+export async function FollowupsDashboardPage({
+ status,
+ sort,
+ order
+}: {
+ status?: string;
+ sort?: string;
+ order?: string;
+}) {
  const [followups, leads] = await Promise.all([listFollowups(), listLeads()]);
- const visibleFollowups = filterFollowupsByStatus(followups, status);
  const leadById = new Map(leads.map((lead) => [lead.id, lead]));
+ const sortKey = normalizeFollowupSort(sort);
+ const sortOrder = normalizeSortOrder(order);
+ const visibleFollowups = sortedFollowups(filterFollowupsByStatus(followups, status), leadById, sortKey, sortOrder);
  const scheduled = followups.filter((followup) => followup.status === "SCHEDULED").length;
+ const activeFilter = status ?? "all";
+ const overdue = filterFollowupsByStatus(followups, "overdue").length;
+ const nextOrder = sortOrder === "asc" ? "desc" : "asc";
+ const filterQuery = status ? `status=${encodeURIComponent(status)}&` : "";
+ const sortHref = (key: FollowupSortKey) =>
+  `/dashboard/relances?${filterQuery}sort=${key}&order=${sortKey === key ? nextOrder : "asc"}`;
 
  return (
   <main className={styles.page}>
@@ -629,15 +676,42 @@ export async function FollowupsDashboardPage({ status }: { status?: string }) {
     kpis={[
      { label: "Relances", value: followups.length, tone: "blue" },
      { label: "Programmées", value: scheduled, tone: "gold" },
+     { label: "En retard", value: overdue, tone: overdue > 0 ? "red" : "green" },
      { label: "Envoyées", value: followups.filter((followup) => followup.status === "SENT").length, tone: "green" }
     ]}
    />
    <Panel title="Planning des relances" subtitle="Chaque relance apparaît aussi dans l'Agenda à sa date d'échéance.">
+    <nav className={styles.filterBar} aria-label="Filtrer les relances">
+     {[
+      ["all", "Toutes", "/dashboard/relances"],
+      ["scheduled", "Programmées", "/dashboard/relances?status=scheduled"],
+      ["overdue", "En retard", "/dashboard/relances?status=overdue"],
+      ["sent", "Envoyées", "/dashboard/relances?status=sent"],
+      ["opened", "Ouvertes", "/dashboard/relances?status=opened"],
+      ["replied", "Réponses", "/dashboard/relances?status=replied"],
+      ["cancelled", "Annulées", "/dashboard/relances?status=cancelled"],
+     ].map(([value, label, href]) => (
+      <Link
+       key={value}
+       className={styles.filterPill}
+       data-active={activeFilter === value ? "true" : "false"}
+       href={href}
+      >
+       {label}
+      </Link>
+     ))}
+    </nav>
     {visibleFollowups.length === 0 ? (
      <Note>Aucune relance pour ce filtre.</Note>
     ) : (
      <DataTable
-      columns={["Dossier", "Devis", "Date", "Canal", "Statut"]}
+      columns={[
+       { label: "Dossier", href: sortHref("dossier"), active: sortKey === "dossier", direction: sortOrder },
+       { label: "Devis", href: sortHref("quote"), active: sortKey === "quote", direction: sortOrder },
+       { label: "Date", href: sortHref("date"), active: sortKey === "date", direction: sortOrder },
+       { label: "Canal", href: sortHref("channel"), active: sortKey === "channel", direction: sortOrder },
+       { label: "Statut", href: sortHref("status"), active: sortKey === "status", direction: sortOrder }
+      ]}
       columnsTemplate="1.2fr 1fr .9fr .8fr 1fr"
       rows={visibleFollowups.map((followup) => {
        const lead = leadById.get(followup.leadId);
@@ -645,7 +719,13 @@ export async function FollowupsDashboardPage({ status }: { status?: string }) {
         cells: [
          leadDisplayName(lead),
          followup.quoteId ?? "Devis",
-         new Date(followup.dueAt).toLocaleDateString("fr-FR"),
+         new Date(followup.dueAt).toLocaleString("fr-FR", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit"
+         }),
         followup.channel,
         <StatusBadge key="s" status={followup.status} />
        ],

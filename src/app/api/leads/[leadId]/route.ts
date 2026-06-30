@@ -102,6 +102,7 @@ function getMissingQualificationFields(lead: Lead) {
  if (!hasText(lead.departureDate)) missingFields.push("departure_date");
  if (!Number.isFinite(lead.passengerCount)) missingFields.push("passenger_count");
  if (lead.tripType !== "one_way" && lead.tripType !== "round_trip") missingFields.push("trip_type");
+ if (lead.tripType === "round_trip" && !hasText(lead.returnDate)) missingFields.push("return_date");
 
  return missingFields;
 }

@@ -25,6 +25,10 @@ export type DashboardFollowup = {
   status: string;
 };
 
+function normalizeFollowupStatus(status: string) {
+  return status.toUpperCase();
+}
+
 export async function getDashboardData() {
   const supabase = createServerSupabaseClient();
   const [leadsResult, quotesResult, followupsResult] = await Promise.all([
@@ -74,7 +78,7 @@ export async function getDashboardData() {
     quoteId: followup.quote_id,
     scheduledAt: followup.scheduled_at,
     channel: followup.channel,
-    status: followup.status,
+    status: normalizeFollowupStatus(followup.status),
   }));
 
   return { leads, quotes, followups };

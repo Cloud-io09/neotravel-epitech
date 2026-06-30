@@ -164,6 +164,12 @@
  text-decoration: underline;
 }
 
+.inlineLink {
+ color: #123885;
+ font-weight: 900;
+ text-decoration: underline;
+}
+
 .primaryButton {
  border: 0;
  color: #ffffff;

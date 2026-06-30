@@ -17,14 +17,24 @@ type FollowupRow = {
 // dashboard expect uppercase (SCHEDULED/SENT/…). Normalize at the boundary so followup
 // counts are live everywhere.
 function normalizeFollowupStatus(raw: string): Followup["status"] {
-  switch (raw) {
+  switch (raw.toLowerCase()) {
     case "scheduled":
       return "SCHEDULED";
     case "sent":
       return "SENT";
+    case "cancelled":
+      return "CANCELLED";
+    case "opened":
+      return "OPENED";
+    case "replied":
+      return "REPLIED";
     default:
       return raw.toUpperCase() as Followup["status"];
   }
+}
+
+function toDatabaseFollowupStatus(status: Followup["status"] | undefined) {
+  return (status ?? "SCHEDULED").toLowerCase();
 }
 
 function toFollowup(row: FollowupRow): Followup {
@@ -51,7 +61,7 @@ export async function createFollowupRecord(input: Parameters<typeof demoStore.cr
       lead_id: input.leadId,
       quote_id: input.quoteId ?? null,
       channel: input.channel,
-      status: input.status ?? "SCHEDULED",
+      status: toDatabaseFollowupStatus(input.status),
       scheduled_at: input.dueAt
     })
     .select(followupSelection)

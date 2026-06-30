@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import styles from "./connexion.module.css";
@@ -9,6 +10,11 @@ export function ClientSignupForm() {
   const searchParams = useSearchParams();
   const quoteId = searchParams.get("quoteId");
   const leadId = searchParams.get("leadId");
+  const loginHref = quoteId
+    ? `/connexion?redirectTo=${encodeURIComponent(`/client/devis/${quoteId}`)}`
+    : leadId
+      ? `/connexion?redirectTo=${encodeURIComponent("/compte/demandes")}`
+      : "/connexion";
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -101,7 +107,11 @@ export function ClientSignupForm() {
       </button>
 
       <p className={styles.note}>
-        Déjà inscrit ? Connectez-vous avec l&apos;email utilisé pour votre demande.
+        Déjà inscrit ?{" "}
+        <Link className={styles.inlineLink} href={loginHref}>
+          Se connecter avec mon compte client
+        </Link>
+        .
       </p>
     </form>
   );

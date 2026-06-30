@@ -10,7 +10,7 @@ export async function GET(): Promise<Response> {
       newLeads: leads.filter((lead) => lead.status === "NEW").length,
       quoteReady: quotes.filter((quote) => quote.status === "QUOTE_READY").length,
       humanReview: leads.filter((lead) => lead.status === "HUMAN_REVIEW").length,
-      followupsScheduled: followups.filter((followup) => followup.status === "scheduled").length,
+      followupsScheduled: followups.filter((followup) => followup.status === "SCHEDULED").length,
     },
     leads,
     quotes,

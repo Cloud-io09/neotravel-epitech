@@ -71,7 +71,7 @@ export async function scheduleFollowups(input: ScheduleFollowupsInput) {
           leadId: followup.lead_id,
           quoteId: followup.quote_id ?? undefined,
           channel: "email" as const,
-          status: followup.status === "sent" ? "SENT" as const : "SCHEDULED" as const,
+          status: normalizeFollowupStatus(followup.status),
           dueAt: followup.scheduled_at,
         }))
       };
@@ -132,4 +132,13 @@ export async function scheduleFollowups(input: ScheduleFollowupsInput) {
     }),
     followups
   };
+}
+
+function normalizeFollowupStatus(status: string) {
+  const normalized = status.toLowerCase();
+  if (normalized === "sent") return "SENT" as const;
+  if (normalized === "cancelled") return "CANCELLED" as const;
+  if (normalized === "opened") return "OPENED" as const;
+  if (normalized === "replied") return "REPLIED" as const;
+  return "SCHEDULED" as const;
 }

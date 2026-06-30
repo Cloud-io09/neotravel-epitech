@@ -81,11 +81,16 @@ export function LeadEditForm({ lead }: { lead: Lead }) {
  }
 
  function setTripType(value: string) {
-  if (value === "multi_stop") {
-   setForm((prev) => ({ ...prev, tripType: prev.tripType || "one_way", hasIntermediateStop: true }));
-  } else {
-   setForm((prev) => ({ ...prev, tripType: value, hasIntermediateStop: false, intermediateStops: "" }));
-  }
+  setForm((prev) => ({ ...prev, tripType: value }));
+  setState({ status: "idle" });
+ }
+
+ function toggleIntermediateStop(checked: boolean) {
+  setForm((prev) => ({
+   ...prev,
+   hasIntermediateStop: checked,
+   intermediateStops: checked ? prev.intermediateStops : ""
+  }));
   setState({ status: "idle" });
  }
 
@@ -134,7 +139,7 @@ export function LeadEditForm({ lead }: { lead: Lead }) {
    body: JSON.stringify(patch)
    });
    const json = await response.json().catch(() => null);
-   if (!response.ok) throw new Error(json?.error?.message ?? "Échec de l'enregistrement, réessayez.");
+   if (!response.ok) throw new Error(errorMessage(json));
 
    setState({ status: "saved", message: "Modifications enregistrées." });
    router.refresh();
@@ -225,19 +230,26 @@ export function LeadEditForm({ lead }: { lead: Lead }) {
       />
      </label>
      <label>
-      Type de trajet
+     Type de trajet
       <select
-       value={form.hasIntermediateStop ? "multi_stop" : form.tripType}
+       value={form.tripType}
        onChange={(event) => setTripType(event.target.value)}
       >
        <option value="">—</option>
        <option value="one_way">Aller simple</option>
        <option value="round_trip">Aller-retour</option>
-       <option value="multi_stop">Multi-destination / avec escale</option>
       </select>
      </label>
      <fieldset className={`${styles.full} ${styles.optionChoices}`}>
       <legend>Escales</legend>
+      <label className={styles.optionChoice}>
+       <input
+        type="checkbox"
+        checked={form.hasIntermediateStop}
+        onChange={(event) => toggleIntermediateStop(event.target.checked)}
+       />
+       <span>Trajet avec arrêt intermédiaire ou multi-destination</span>
+      </label>
       {form.hasIntermediateStop ? (
        <label>
         Villes intermediaires
@@ -248,7 +260,7 @@ export function LeadEditForm({ lead }: { lead: Lead }) {
         />
        </label>
       ) : (
-       <span className={styles.fieldHelp}>Choisir "Multi-destination / avec escale" dans le type de trajet.</span>
+       <span className={styles.fieldHelp}>Cochez l’option ci-dessus pour renseigner une ou plusieurs escales.</span>
       )}
       <span className={styles.fieldHelp}>Les trajets avec escale partent en reprise humaine avant devis.</span>
      </fieldset>
@@ -316,4 +328,18 @@ export function LeadEditForm({ lead }: { lead: Lead }) {
    </form>
   </section>
  );
+}
+
+function errorMessage(json: unknown) {
+ if (!json || typeof json !== "object") return "Échec de l'enregistrement, réessayez.";
+ const record = json as { error?: unknown };
+ if (record.error && typeof record.error === "object" && "message" in record.error) {
+  const error = record.error as { message?: unknown; details?: { missingFields?: string[] } };
+  if (Array.isArray(error.details?.missingFields) && error.details.missingFields.length > 0) {
+   return `${String(error.message ?? "Champs manquants.")} (${error.details.missingFields.join(", ")})`;
+  }
+  return String(error.message ?? "Échec de l'enregistrement, réessayez.");
+ }
+ if (typeof record.error === "string") return record.error;
+ return "Échec de l'enregistrement, réessayez.";
 }

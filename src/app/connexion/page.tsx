@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getClientSession } from "@/shared/lib/auth/requireClient";
 import { ClientLoginForm } from "./ClientLoginForm";
@@ -32,7 +33,9 @@ export default async function ClientConnexionPage() {
           <p>Renseignez l&apos;email utilisé pour votre demande ou votre devis NeoTravel.</p>
         </div>
 
-        <ClientLoginForm />
+        <Suspense fallback={<div className={styles.loginCard}>Chargement...</div>}>
+          <ClientLoginForm />
+        </Suspense>
 
         <section className={styles.signupCard} aria-label="Création de compte client">
           <div>
