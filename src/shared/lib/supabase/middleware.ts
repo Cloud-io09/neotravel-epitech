@@ -11,6 +11,10 @@ function isProtectedPath(pathname: string) {
  );
 }
 
+function isLocalAuthEnabled() {
+ return process.env.LOCAL_AUTH === "true";
+}
+
 /**
  * Refreshes the Supabase session on every request and guards the
  * internal areas (`/dashboard`, `/admin`). Unauthenticated visitors are
@@ -23,6 +27,9 @@ export async function updateSession(request: NextRequest) {
  let supabaseResponse = NextResponse.next({ request });
 
  if (isDemoMode()) return supabaseResponse;
+
+ // Auth locale : la session staff est dans nt_admin_session (requireStaff dans les layouts).
+ if (isLocalAuthEnabled()) return supabaseResponse;
 
  const supabase = createServerClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",

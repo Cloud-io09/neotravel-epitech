@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { AccessibilityWidget } from "@/shared/accessibility/AccessibilityWidget";
 import { LanguageSelector } from "@/shared/i18n/LanguageSelector";
+import { CookieConsentBanner } from "@/shared/cookies/CookieConsentBanner";
 import { HomeCarousel } from "./HomeCarousel";
 import { LandingQuoteForm } from "./LandingQuoteForm";
 import styles from "./home.module.css";
@@ -152,6 +153,7 @@ export default function HomePage() {
     <Link href="/contact">Contact</Link>
     <Link href="/notre-equipe">Notre equipe</Link>
    </footer>
+   <CookieConsentBanner />
   </main>
  );
 }
