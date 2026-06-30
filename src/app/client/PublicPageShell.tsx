@@ -28,6 +28,7 @@ export function PublicPageFooter() {
     <footer className={styles.footer}>
       <Link href="/client/mentions-legales">Mentions légales</Link>
       <Link href="/client/confidentialite">Confidentialité</Link>
+      <Link href="/client/confidentialite#cookies">Cookies</Link>
       <Link href="/client/contact">Contact</Link>
       <Link href="/client/notre-equipe">Notre équipe</Link>
     </footer>

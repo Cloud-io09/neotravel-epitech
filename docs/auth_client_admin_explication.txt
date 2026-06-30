@@ -1,0 +1,166 @@
+Auth client/admin - explication et choix pour NeoTravel
+=======================================================
+
+Le sujet de l'authentification est de definir comment les utilisateurs se connectent,
+et surtout comment NeoTravel separe clairement :
+
+1. les clients NeoTravel ;
+2. les administrateurs / commerciaux NeoTravel.
+
+Un compte client ne doit jamais pouvoir acceder au dashboard interne.
+
+
+Objectif cote client
+--------------------
+
+Un client doit pouvoir :
+- creer son compte ;
+- se connecter a son espace client ;
+- voir ses demandes ;
+- voir ses devis ;
+- consulter ses documents ;
+- gerer ses informations personnelles ;
+- gerer ses preferences de contact ;
+- demander l'export ou la suppression de son compte.
+
+Un client ne doit jamais pouvoir :
+- acceder au dashboard ;
+- voir les autres clients ;
+- voir les relances internes ;
+- voir les KPIs ;
+- modifier les regles de prix ;
+- acceder aux journaux d'audit.
+
+
+Objectif cote admin / commercial
+--------------------------------
+
+Un admin ou commercial doit pouvoir :
+- acceder au dashboard interne ;
+- voir toutes les demandes ;
+- traiter les devis ;
+- gerer les relances ;
+- voir les KPIs ;
+- intervenir sur les dossiers en reprise humaine ;
+- consulter les informations de suivi commercial.
+
+
+Etat actuel du projet
+---------------------
+
+Le projet actuel a deja une separation applicative :
+
+- acces client ;
+- acces admin/dashboard ;
+- routes separees ;
+- cookies de session separes ;
+- interfaces separees.
+
+Les routes principales sont par exemple :
+
+/connexion
+/connexion/inscription
+/compte
+/dashboard
+/admin-connexion
+
+Cela est coherent pour un MVP ou une preproduction.
+
+Mais ce n'est pas encore une authentification production complete tant que :
+- Supabase Auth n'est pas totalement branche ;
+- les roles client/admin/commercial ne sont pas finalises ;
+- les policies RLS ne sont pas liees aux utilisateurs ;
+- toutes les routes sensibles ne sont pas verifiees cote serveur.
+
+
+Choix A - MVP actuel renforce
+-----------------------------
+
+Principe :
+on garde le systeme actuel cote application.
+
+Cela veut dire :
+- connexion client separee ;
+- connexion admin separee ;
+- cookies de session separes ;
+- verification cote serveur ;
+- aucun lien client vers dashboard ;
+- donnees lues via API serveur ;
+- SUPABASE_SERVICE_ROLE_KEY uniquement cote serveur.
+
+Avantages :
+- rapide ;
+- coherent avec l'etat actuel ;
+- suffisant pour demonstration avancee ou preproduction ;
+- limite les gros changements avant stabilisation.
+
+Limites :
+- pas une authentification production long terme ;
+- toutes les routes serveur doivent etre bien protegees ;
+- il faudra migrer vers Supabase Auth pour une production robuste.
+
+
+Choix B - Auth production propre avec Supabase Auth
+---------------------------------------------------
+
+Principe :
+on utilise Supabase Auth comme source d'identite.
+
+Chaque utilisateur a un compte Supabase.
+La table clients est reliee a auth.users.
+Les roles sont explicites :
+
+- client ;
+- admin ;
+- commercial.
+
+Schema cible :
+
+auth.users.id
+  -> clients.user_id
+  -> leads.client_id
+  -> quotes.lead_id
+
+On ajoute aussi une table ou des metadonnees de roles :
+
+user_roles
+- user_id
+- role
+
+Avantages :
+- plus propre pour une vraie production ;
+- compatible avec RLS complete ;
+- meilleure separation client/admin ;
+- chaque utilisateur est limite par la base et pas seulement par l'application.
+
+Limites :
+- plus long ;
+- necessite une migration de l'auth actuelle ;
+- necessite des tests avec plusieurs comptes ;
+- necessite de finaliser les policies RLS.
+
+
+Recommandation pour NeoTravel
+-----------------------------
+
+Pour maintenant :
+choisir le Choix A, c'est-a-dire MVP actuel renforce.
+
+Conduite a tenir :
+1. garder connexion client et admin separees ;
+2. verifier toutes les routes /compte cote serveur ;
+3. verifier toutes les routes /dashboard cote serveur ;
+4. supprimer tout lien client vers dashboard ;
+5. garder SUPABASE_SERVICE_ROLE_KEY uniquement cote serveur ;
+6. documenter que Supabase Auth complete est une etape avant prod finale.
+
+Pour la vraie production :
+preparer ensuite le Choix B avec Supabase Auth, roles et RLS utilisateur.
+
+
+Phrase utile pour la documentation
+----------------------------------
+
+Le MVP utilise une separation applicative entre espace client et dashboard interne.
+Pour une production complete, l'authentification devra etre migree vers Supabase Auth
+avec roles client/admin/commercial et policies RLS associees.

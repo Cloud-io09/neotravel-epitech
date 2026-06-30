@@ -1,0 +1,204 @@
+RLS Supabase - explication et choix pour NeoTravel
+==================================================
+
+RLS signifie Row Level Security, soit securite au niveau des lignes.
+
+Le principe est simple :
+un utilisateur ne doit voir ou modifier que les lignes de base de donnees auxquelles il a droit.
+
+Pour NeoTravel, il faut separer deux mondes :
+
+1. Espace client
+2. Dashboard interne NeoTravel
+
+Un client ne doit jamais pouvoir lire les donnees du dashboard, ni les donnees d'un autre client.
+
+
+Tables a proteger
+-----------------
+
+clients
+- Contient les contacts clients.
+- Regle attendue :
+  - un client voit uniquement sa fiche ;
+  - un admin voit tout ;
+  - le public ne voit rien.
+
+leads
+- Contient les demandes de devis.
+- Regle attendue :
+  - un client voit uniquement ses demandes ;
+  - un admin ou commercial voit toutes les demandes ;
+  - le public ne voit rien directement.
+
+quotes
+- Contient les devis.
+- Regle attendue :
+  - un client voit uniquement ses devis ;
+  - un admin ou commercial voit tous les devis ;
+  - le public ne voit rien directement.
+
+followups
+- Contient les relances.
+- Regle attendue :
+  - client : idealement pas d'acces au detail interne des relances ;
+  - admin ou commercial : acces complet ;
+  - public : rien.
+
+audit_logs
+- Contient les traces internes.
+- Regle attendue :
+  - client : pas d'acces ;
+  - admin uniquement ;
+  - public : rien.
+
+pricing_matrices
+- Contient les regles tarifaires.
+- Regle attendue :
+  - client : pas d'acces ;
+  - admin : lecture et modification ;
+  - service serveur : lecture pour calculer les devis.
+
+route_pricing
+- Contient les distances et routes controlees.
+- Regle attendue :
+  - client : pas d'acces direct ;
+  - admin : lecture et modification ;
+  - service serveur : lecture pour calculer les devis.
+
+
+Lien entre un utilisateur et ses donnees
+---------------------------------------
+
+Pour une RLS complete, il faut relier l'utilisateur Supabase Auth a sa fiche client.
+
+Schema ideal :
+
+auth.users.id
+  -> clients.user_id
+  -> leads.client_id
+  -> quotes.lead_id
+
+Il faudrait donc idealement ajouter un champ :
+
+clients.user_id uuid references auth.users(id)
+
+Ensuite Supabase peut verifier :
+
+auth.uid() = clients.user_id
+
+Traduction :
+l'utilisateur connecte peut voir uniquement les lignes reliees a son compte.
+
+
+Exemple concret
+---------------
+
+Client A connecte :
+auth.uid() = 111
+
+Table clients :
+- client A -> user_id 111
+- client B -> user_id 222
+
+Resultat attendu :
+- Client A voit sa fiche client.
+- Client A ne voit pas la fiche du client B.
+- Client A voit les devis lies a ses demandes.
+- Client A ne voit pas les devis du client B.
+
+
+Gestion des admins
+------------------
+
+Pour les admins, il faut une regle separee.
+
+Option simple MVP :
+- Le dashboard passe par le serveur avec SUPABASE_SERVICE_ROLE_KEY.
+- Avantage : simple et rapide.
+- Inconvenient : il faut garantir que cette cle reste uniquement cote serveur.
+
+Option prod propre :
+- Ajouter une table ou des metadonnees de roles.
+
+Exemple :
+
+user_roles
+- user_id
+- role : admin / commercial / client
+
+Puis les policies RLS deviennent :
+- admin : peut tout lire ;
+- commercial : peut lire et traiter leads, quotes, followups ;
+- client : peut lire uniquement ses donnees.
+
+
+Recommandation pour NeoTravel
+-----------------------------
+
+Je recommande de faire en deux temps.
+
+Etape 1 - securisation immediate
+- Activer RLS sur toutes les tables sensibles.
+- Bloquer anon et authenticated par defaut.
+- Garder les acces dashboard via serveur/service role.
+- Ne jamais exposer SUPABASE_SERVICE_ROLE_KEY cote client.
+
+Etape 2 - quand Supabase Auth client est stable
+- Ajouter clients.user_id.
+- Creer les policies client :
+  - le client lit sa fiche ;
+  - le client lit ses demandes ;
+  - le client lit ses devis.
+- Creer les policies admin/commercial.
+- Tester avec deux comptes clients differents.
+
+
+Decision a prendre
+------------------
+
+Choix A - MVP securise rapidement
+
+On bloque tout cote Supabase pour anon/authenticated.
+Seul le serveur avec service role accede aux donnees.
+L'espace client passe par nos API serveur.
+
+Avantages :
+- plus simple ;
+- plus rapide ;
+- bon niveau de securite court terme ;
+- coherent tant que l'auth Supabase client/admin n'est pas finalisee.
+
+Limites :
+- moins fin qu'une vraie RLS utilisateur ;
+- il faut que toutes les routes serveur soient bien protegees ;
+- la cle service role doit rester strictement serveur.
+
+
+Choix B - prod propre avec comptes Supabase
+
+On met Supabase Auth, clients.user_id, roles admin/client/commercial et policies RLS completes.
+
+Avantages :
+- plus propre pour une vraie production ;
+- chaque utilisateur est limite directement par la base ;
+- meilleure separation client/admin.
+
+Limites :
+- plus long ;
+- necessite une auth Supabase stable ;
+- necessite de tester tous les parcours avec plusieurs comptes.
+
+
+Recommandation finale
+---------------------
+
+Pour le projet maintenant :
+faire le Choix A d'abord.
+
+Ensuite, quand les acces Supabase, Vercel et l'auth client/admin sont stabilises :
+passer au Choix B.
+
+Phrase utile pour la documentation :
+
+Le MVP est pret pour demonstration et preproduction. Avant production reelle, les points bloquants sont la finalisation des policies RLS Supabase, l'authentification Supabase avec separation client/admin, la definition des durees de conservation, la rotation des secrets et l'ajout d'un rate limiting sur les routes sensibles.

@@ -12,6 +12,13 @@ import {
   Trash2,
   UserRound
 } from "lucide-react";
+import {
+  DeletionRequestForm,
+  DocumentDownloadButton,
+  PasswordUpdateForm,
+  ProfileForm
+} from "./ClientAccountActions";
+import { AccountExportForm } from "./AccountExportForm";
 import styles from "./account.module.css";
 
 type Section =
@@ -30,11 +37,11 @@ type Section =
 
 const navItems = [
   { href: "/compte", label: "Accueil", section: "home" },
+  { href: "/compte/profil", label: "Informations personnelles", section: "profil" },
   { href: "/compte/demandes", label: "Mes demandes", section: "demandes" },
   { href: "/compte/devis", label: "Mes devis", section: "devis" },
   { href: "/compte/documents", label: "Documents", section: "documents" },
   { href: "/compte/messages", label: "Messages", section: "messages" },
-  { href: "/compte/profil", label: "Profil", section: "profil" },
   { href: "/compte/notifications", label: "Notifications", section: "notifications" },
   { href: "/compte/confidentialite", label: "Confidentialite", section: "confidentialite" },
   { href: "/compte/securite", label: "Securite", section: "securite" },
@@ -95,15 +102,6 @@ function ToggleRow({ title, body, checked = false }: { title: string; body: stri
   );
 }
 
-function Field({ label, value, type = "text" }: { label: string; value: string; type?: string }) {
-  return (
-    <label className={styles.field}>
-      {label}
-      <input type={type} defaultValue={value} />
-    </label>
-  );
-}
-
 function HomeSection() {
   return (
     <>
@@ -137,12 +135,25 @@ function HomeSection() {
 function DocumentsSection() {
   return (
     <div className={styles.cardGrid}>
-      {["Devis DEV-2026-042.pdf", "Conditions NeoTravel.pdf", "Recapitulatif demande NT-DMD-2406.pdf"].map((doc) => (
-        <article className={styles.actionCard} key={doc}>
+      {[
+        {
+          name: "Devis DEV-2026-042.pdf",
+          description: "Devis Paris -> Lyon, 42 passagers, total estime 2 640 EUR TTC."
+        },
+        {
+          name: "Conditions NeoTravel.pdf",
+          description: "Conditions generales applicables aux demandes et devis NeoTravel."
+        },
+        {
+          name: "Recapitulatif demande NT-DMD-2406.pdf",
+          description: "Recapitulatif de la demande client Paris -> Lyon."
+        }
+      ].map((doc) => (
+        <article className={styles.actionCard} key={doc.name}>
           <FileText aria-hidden="true" />
-          <h2>{doc}</h2>
+          <h2>{doc.name}</h2>
           <p>Document client disponible en telechargement.</p>
-          <button className={styles.secondaryButton} type="button">Telecharger</button>
+          <DocumentDownloadButton document={doc} />
         </article>
       ))}
     </div>
@@ -171,19 +182,13 @@ function MessagesSection() {
 
 function ProfileSection() {
   return (
-    <form className={styles.formGrid}>
-      <Field label="Prenom" value="Claire" />
-      <Field label="Nom" value="Martin" />
-      <Field label="Organisation" value="Association scolaire Alpha" />
-      <Field label="Adresse" value="18 avenue des Voyages" />
-      <Field label="Complement d'adresse" value="Batiment B" />
-      <Field label="Code postal" value="75012" />
-      <Field label="Ville" value="Paris" />
-      <Field label="Pays" value="France" />
-      <Field label="Email" value="client@neotravel.fr" type="email" />
-      <Field label="Telephone" value="+33 6 12 34 56 78" />
-      <button className={styles.primaryButton} type="button">Enregistrer</button>
-    </form>
+    <section className={styles.panel}>
+      <p className={styles.note}>
+        Ces informations servent a preparer vos devis, documents et echanges avec NeoTravel. Elles ne sont pas
+        utilisees pour donner acces au dashboard interne.
+      </p>
+      <ProfileForm />
+    </section>
   );
 }
 
@@ -196,9 +201,13 @@ function NotificationsSection() {
       </div>
       <div className={styles.stack}>
         <ToggleRow title="Suspendre les emails marketing" body="Ne plus recevoir les offres et communications commerciales." />
-        <ToggleRow title="Suspendre les relances automatiques" body="Mettre en pause les relances non essentielles liees aux devis." />
-        <ToggleRow title="Recevoir les messages importants" body="Conserver les emails de securite, devis, documents et obligations contractuelles." checked />
+        <ToggleRow title="Suspendre les relances commerciales" body="Mettre en pause les relances non essentielles liees aux devis non valides." />
+        <ToggleRow title="Recevoir les messages necessaires" body="Conserver les emails de securite, de connexion, de devis, de documents et d'obligations contractuelles." checked />
       </div>
+      <p className={styles.note}>
+        Les emails strictement necessaires au suivi d'un devis, a la securite du compte ou aux obligations legales ne
+        peuvent pas etre desactives depuis les preferences marketing.
+      </p>
     </section>
   );
 }
@@ -209,34 +218,27 @@ function PrivacySection() {
       <article className={styles.actionCard}>
         <Download aria-hidden="true" />
         <h2>Exporter mes donnees</h2>
-        <p>Recuperer les demandes, devis, documents et preferences associes au compte.</p>
+        <p>Recuperer vos demandes, devis, messages, preferences et actions liees au compte.</p>
         <Link className={styles.secondaryButton} href="/compte/confidentialite/export">Preparer l'export</Link>
       </article>
       <article className={styles.actionCard}>
         <Trash2 aria-hidden="true" />
         <h2>Supprimer mon compte</h2>
-        <p>Demande encadree avec conservation legale minimale si necessaire.</p>
+        <p>Demande traitee par NeoTravel, avec conservation possible de certaines preuves legales.</p>
         <Link className={styles.dangerButton} href="/compte/confidentialite/suppression">Demander la suppression</Link>
+      </article>
+      <article className={styles.actionCard}>
+        <ShieldCheck aria-hidden="true" />
+        <h2>Cookies et confidentialite</h2>
+        <p>Consulter la politique cookies, les durees de conservation et modifier vos choix.</p>
+        <Link className={styles.secondaryButton} href="/client/confidentialite#cookies">Voir la politique</Link>
       </article>
     </div>
   );
 }
 
 function ExportSection() {
-  return (
-    <section className={styles.panel}>
-      <div className={styles.panelHeader}>
-        <h2>Extraction d'activite</h2>
-        <Download aria-hidden="true" />
-      </div>
-      <div className={styles.stack}>
-        <ToggleRow title="Demandes de transport" body="Inclure les trajets, dates, passagers et options." checked />
-        <ToggleRow title="Devis et documents PDF" body="Inclure les references, statuts et montants visibles client." checked />
-        <ToggleRow title="Messages et relances" body="Inclure l'historique des echanges et notifications." checked />
-      </div>
-      <button className={styles.primaryButton} type="button">Telecharger mon activite</button>
-    </section>
-  );
+  return <AccountExportForm />;
 }
 
 function DeletionSection() {
@@ -247,28 +249,20 @@ function DeletionSection() {
         <Trash2 aria-hidden="true" />
       </div>
       <p className={styles.warning}>
-        La suppression ferme l'espace client. Certains devis, consentements ou elements de preuve peuvent etre
-        conserves selon les obligations legales NeoTravel.
+        Votre demande sera traitee par NeoTravel. La suppression ferme l'espace client, mais certains devis,
+        consentements, factures ou elements de preuve peuvent etre conserves si une obligation legale l'impose.
       </p>
-      <label className={styles.field}>
-        Confirmer avec votre mot de passe
-        <input type="password" placeholder="Votre mot de passe" />
-      </label>
-      <button className={styles.dangerButton} type="button">Envoyer la demande de suppression</button>
+      <p className={styles.note}>
+        NeoTravel confirmera le traitement de la demande et precisera les donnees supprimees, anonymisees ou conservees
+        pour motif legal.
+      </p>
+      <DeletionRequestForm />
     </section>
   );
 }
 
 function SecuritySection() {
-  return (
-    <form className={styles.formGrid}>
-      <Field label="Email de connexion" value="client@neotravel.fr" type="email" />
-      <Field label="Mot de passe actuel" value="" type="password" />
-      <Field label="Nouveau mot de passe" value="" type="password" />
-      <Field label="Confirmer le nouveau mot de passe" value="" type="password" />
-      <button className={styles.primaryButton} type="button">Mettre a jour le mot de passe</button>
-    </form>
-  );
+  return <PasswordUpdateForm />;
 }
 
 function HelpSection() {
@@ -278,13 +272,17 @@ function HelpSection() {
         <HelpCircle aria-hidden="true" />
         <h2>Contacter NeoTravel</h2>
         <p>Question sur un devis, un document ou une suppression de compte.</p>
-        <button className={styles.secondaryButton} type="button">Demander un rappel</button>
+        <a className={styles.secondaryButton} href="tel:+33102030405">
+          Demander un rappel
+        </a>
       </article>
       <article className={styles.actionCard}>
         <MessageSquare aria-hidden="true" />
         <h2>Support client</h2>
         <p>Une reponse humaine est privilegiee pour les dossiers sensibles.</p>
-        <button className={styles.secondaryButton} type="button">Ecrire au support</button>
+        <a className={styles.secondaryButton} href="mailto:contact@neotravel.fr?subject=Support%20espace%20client%20NeoTravel">
+          Ecrire au support
+        </a>
       </article>
     </div>
   );
@@ -306,15 +304,15 @@ function renderSection(section: Section) {
 }
 
 const titles: Record<Section, { eyebrow: string; title: string; body: string; icon: typeof UserRound }> = {
-  home: { eyebrow: "Espace client", title: "Bonjour Claire", body: "Suivez vos demandes, devis, documents et preferences de contact.", icon: UserRound },
+  home: { eyebrow: "Espace client", title: "Bienvenue dans votre espace client", body: "Suivez vos demandes, devis, documents et preferences de contact.", icon: UserRound },
   demandes: { eyebrow: "Transport", title: "Mes demandes", body: "Vos demandes de trajet et leur avancement.", icon: Mail },
   devis: { eyebrow: "Propositions", title: "Mes devis", body: "Consultez les devis, statuts et documents associes.", icon: FileText },
   documents: { eyebrow: "Fichiers", title: "Documents", body: "Tous les fichiers client disponibles au meme endroit.", icon: FileText },
   messages: { eyebrow: "Suivi", title: "Messages", body: "Historique des echanges et informations importantes.", icon: MessageSquare },
-  profil: { eyebrow: "Compte", title: "Profil", body: "Informations de contact utilisees pour vos demandes.", icon: UserRound },
-  notifications: { eyebrow: "Preferences", title: "Notifications", body: "Suspendez les mailings ou relances non essentielles.", icon: Bell },
-  confidentialite: { eyebrow: "Donnees", title: "Confidentialite", body: "Export d'activite, donnees personnelles et suppression.", icon: ShieldCheck },
-  export: { eyebrow: "Donnees", title: "Extraction d'activite", body: "Choisissez les informations a telecharger.", icon: Download },
+  profil: { eyebrow: "Compte", title: "Informations personnelles", body: "Prenom, nom, adresse et coordonnees utilisees pour vos devis et documents.", icon: UserRound },
+  notifications: { eyebrow: "Preferences", title: "Notifications", body: "Gerez les communications commerciales sans bloquer les messages necessaires au service.", icon: Bell },
+  confidentialite: { eyebrow: "Donnees", title: "Confidentialite", body: "Export, cookies, donnees personnelles, conservation et suppression.", icon: ShieldCheck },
+  export: { eyebrow: "Donnees", title: "Extraction d'activite", body: "Choisissez les demandes, devis et messages a telecharger.", icon: Download },
   suppression: { eyebrow: "Donnees", title: "Suppression du compte", body: "Demande encadree, distincte de l'effacement legal.", icon: Trash2 },
   securite: { eyebrow: "Acces", title: "Securite", body: "Email de connexion, mot de passe et sessions.", icon: KeyRound },
   aide: { eyebrow: "Support", title: "Aide", body: "Contacter NeoTravel ou demander un rappel.", icon: HelpCircle }
@@ -337,6 +335,9 @@ export function ClientAccountPage({ section }: { section: Section }) {
             </Link>
           ))}
         </nav>
+        <Link className={styles.quoteButton} href="/client/demande">
+          Creer un devis
+        </Link>
         <Link className={styles.logout} href="/">
           Deconnexion
         </Link>

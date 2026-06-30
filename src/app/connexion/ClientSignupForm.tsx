@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import styles from "../connexion.module.css";
+import styles from "./connexion.module.css";
 
 export function ClientSignupForm() {
   const router = useRouter();
@@ -99,9 +99,6 @@ export function ClientSignupForm() {
         {isSubmitting ? "Création en cours..." : "Créer mon compte et voir mon devis"}
       </button>
 
-      <p className={styles.note}>
-        Compte client uniquement. Aucun accès au dashboard interne NeoTravel.
-      </p>
     </form>
   );
 }

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { CookieConsentBanner } from "@/shared/cookies/CookieConsentBanner";
 import { GlobalTranslator } from "@/shared/i18n/GlobalTranslator";
 import "./globals.css";
 
@@ -16,6 +17,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           Aller au contenu principal
         </a>
         {children}
+        <CookieConsentBanner />
         <GlobalTranslator />
       </body>
     </html>

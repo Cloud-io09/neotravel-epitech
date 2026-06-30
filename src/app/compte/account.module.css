@@ -203,6 +203,11 @@
  background: #d71920;
 }
 
+.primaryButton:disabled {
+ cursor: not-allowed;
+ opacity: 0.58;
+}
+
 .secondaryButton {
  border: 1px solid #d7e0ed;
  color: #123885;
@@ -212,6 +217,24 @@
 .dangerButton {
  color: #ffffff;
  background: #a11014;
+}
+
+.quoteButton {
+ display: inline-flex;
+ min-height: 44px;
+ align-items: center;
+ justify-content: center;
+ border-radius: 8px;
+ padding: 0 14px;
+ color: #ffffff;
+ background: #d71920;
+ font-size: 13px;
+ font-weight: 950;
+}
+
+.quoteButton:hover {
+ color: #ffffff;
+ background: #b8121a;
 }
 
 .panel {
@@ -357,6 +380,32 @@
  background: #fff1f2;
  font-weight: 800;
  line-height: 1.5;
+}
+
+.exportActions {
+ display: flex;
+ align-items: center;
+ gap: 14px;
+ flex-wrap: wrap;
+}
+
+.exportStatus {
+ margin: 0;
+ color: #5e6b7e;
+ font-size: 13px;
+ font-weight: 850;
+}
+
+.actionStatus {
+ margin: 0;
+ border: 1px solid #d7e0ed;
+ border-radius: 8px;
+ padding: 10px 12px;
+ color: #123885;
+ background: #f8fbff;
+ font-size: 13px;
+ font-weight: 850;
+ line-height: 1.45;
 }
 
 @media (max-width: 960px) {

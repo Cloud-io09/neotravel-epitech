@@ -1,0 +1,146 @@
+Headers securite - regles simples NeoTravel
+============================================
+
+Objectif
+--------
+
+Ajouter quelques protections navigateur simples dans Next.js / Vercel,
+sans risquer de casser le site.
+
+Ces protections se mettent dans le code, dans :
+
+next.config.ts
+
+
+Regles simples recommandees
+---------------------------
+
+1. X-Content-Type-Options
+
+Valeur :
+nosniff
+
+But :
+empecher le navigateur de deviner un mauvais type de fichier.
+
+Risque de casse :
+tres faible.
+
+
+2. Referrer-Policy
+
+Valeur :
+strict-origin-when-cross-origin
+
+But :
+limiter les informations envoyees aux sites externes quand l'utilisateur clique sur un lien.
+
+Risque de casse :
+tres faible.
+
+
+3. X-Frame-Options
+
+Valeur :
+DENY
+
+But :
+empecher un site externe d'afficher NeoTravel dans une iframe.
+Cela protege contre le clickjacking.
+
+Risque de casse :
+faible, sauf si NeoTravel doit etre integre dans une iframe ailleurs.
+
+
+4. Permissions-Policy
+
+Valeur :
+camera=(), microphone=(), geolocation=(), payment=()
+
+But :
+bloquer les acces navigateur dont NeoTravel n'a pas besoin :
+- camera ;
+- micro ;
+- geolocalisation ;
+- paiement navigateur.
+
+Risque de casse :
+faible, car le site n'utilise pas ces fonctions actuellement.
+
+
+Ce qu'on ne fait pas tout de suite
+----------------------------------
+
+Ne pas ajouter une Content-Security-Policy stricte maintenant.
+
+Pourquoi :
+une CSP trop stricte peut casser :
+- Supabase ;
+- Vercel ;
+- images ;
+- cartes ;
+- scripts ;
+- analytics futurs ;
+- services externes.
+
+La CSP complete doit etre faite plus tard, apres inventaire des domaines externes.
+
+
+Code exemple
+------------
+
+Dans next.config.ts :
+
+const securityHeaders = [
+  {
+    key: "X-Content-Type-Options",
+    value: "nosniff",
+  },
+  {
+    key: "Referrer-Policy",
+    value: "strict-origin-when-cross-origin",
+  },
+  {
+    key: "X-Frame-Options",
+    value: "DENY",
+  },
+  {
+    key: "Permissions-Policy",
+    value: "camera=(), microphone=(), geolocation=(), payment=()",
+  },
+];
+
+Puis :
+
+async headers() {
+  return [
+    {
+      source: "/(.*)",
+      headers: securityHeaders,
+    },
+  ];
+}
+
+
+Verification apres ajout
+------------------------
+
+Apres modification :
+
+1. lancer npm run typecheck ;
+2. lancer npm run build ;
+3. tester localhost ;
+4. verifier les pages importantes :
+   - /client/demande
+   - /connexion
+   - /connexion/inscription
+   - /compte
+   - /dashboard
+   - /client/confidentialite
+
+
+Decision recommandee
+--------------------
+
+Ajouter maintenant les 4 headers simples.
+Reporter la CSP stricte en backlog prod.

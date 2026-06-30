@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { FileText, Lock, MessageSquare, ShieldCheck } from "lucide-react";
 import { ClientLoginForm } from "./ClientLoginForm";
 import styles from "./connexion.module.css";
 
@@ -7,6 +8,24 @@ export const metadata = {
   title: "Connexion client - NeoTravel",
   description: "Connexion à l'espace client NeoTravel."
 };
+
+const features = [
+  {
+    icon: FileText,
+    title: "Suivi de vos demandes",
+    body: "Retrouvez vos trajets, informations de contact et dossiers en cours au meme endroit."
+  },
+  {
+    icon: MessageSquare,
+    title: "Devis et documents",
+    body: "Consultez vos devis, documents utiles et messages NeoTravel depuis votre espace client."
+  },
+  {
+    icon: ShieldCheck,
+    title: "Acces securise",
+    body: "Connexion par email et mot de passe pour proteger vos informations de voyage."
+  }
+];
 
 export default function ClientConnexionPage() {
   return (
@@ -41,6 +60,33 @@ export default function ClientConnexionPage() {
             Créer mon compte
           </Link>
         </section>
+      </section>
+
+      <section className={styles.featureGrid} aria-label="Ce que couvre l'espace client">
+        {features.map((feature) => {
+          const Icon = feature.icon;
+
+          return (
+            <article className={styles.featureCard} key={feature.title}>
+              <span className={styles.iconWrap}>
+                <Icon aria-hidden="true" size={24} />
+              </span>
+              <div>
+                <h2>{feature.title}</h2>
+                <p>{feature.body}</p>
+              </div>
+            </article>
+          );
+        })}
+      </section>
+
+      <section className={styles.trustBand}>
+        <Lock aria-hidden="true" size={22} />
+        <p>
+          Connexion chiffree. Votre espace client regroupe uniquement vos demandes, devis,
+          documents et preferences NeoTravel.
+        </p>
+        <ShieldCheck aria-hidden="true" size={22} />
       </section>
     </main>
   );
