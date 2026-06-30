@@ -69,15 +69,15 @@ export type CreateOrUpdateLeadResult = {
 };
 
 export function detectMissingFields(lead: LeadQualification): MissingFieldsResult {
-  const missing_fields = CRITICAL_LEAD_FIELDS.filter((field) => {
-    const value = lead[field];
+  const isEmpty = (value: unknown) =>
+    typeof value === "string" ? value.trim().length === 0 : value === undefined || value === null;
 
-    if (typeof value === "string") {
-      return value.trim().length === 0;
-    }
+  const missing_fields: string[] = CRITICAL_LEAD_FIELDS.filter((field) => isEmpty(lead[field]));
 
-    return value === undefined || value === null;
-  });
+  // A round trip needs a return date — required only in that case.
+  if (lead.trip_type === "round_trip" && isEmpty(lead.return_date)) {
+    missing_fields.push("return_date");
+  }
 
   return MissingFieldsSchema.parse({
     missing_fields,

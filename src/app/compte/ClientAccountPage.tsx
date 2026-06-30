@@ -185,10 +185,25 @@ function Field({
 }
 
 function HomeSection() {
-  const { stats, latestQuote, activity, quotes } = useClientAccount();
+  const { stats, latestQuote, activity, quotes, pendingReview } = useClientAccount();
 
   return (
     <>
+      {pendingReview ? (
+        <section className={styles.reviewBanner} role="status">
+          <div>
+            <strong>Votre demande est en cours de vérification</strong>
+            <p>{pendingReview.message}</p>
+            <small>
+              {pendingReview.reference} · {pendingReview.route}
+            </small>
+          </div>
+          <Link className={styles.secondaryButton} href="/compte/demandes">
+            Suivre ma demande
+          </Link>
+        </section>
+      ) : null}
+
       <div className={generalStyles.heroGrid}>
         <HeroCard
           label="Demandes"

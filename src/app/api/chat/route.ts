@@ -1,7 +1,7 @@
 import { NoObjectGeneratedError, RetryError, APICallError, type ModelMessage } from "ai";
 
 import { containsPromptInjectionAttempt, NEOTRAVEL_SYSTEM_PROMPT } from "../../../lib/ai/prompt";
-import { chatJson, type ExtractedFields } from "../../../lib/ai/chat-response";
+import { chatJson, type ExtractedFields, type LeadWarning } from "../../../lib/ai/chat-response";
 import { ExtractionDeltaSchema, LeadQualificationSchema, type LeadQualification, type ExtractionDelta } from "../../../lib/domain/schemas";
 import { createOrUpdateLead, detectMissingFields } from "../../../lib/ai/tools";
 import { getLeadById, markHumanReview, markLeadIncomplete } from "../../../lib/leads/lead-service";
@@ -13,6 +13,7 @@ import { extractTurnFacts } from "../../../lib/ai/extract-turn-facts";
 import { detectIntermediateStops } from "../../../lib/ai/detect-intermediate-stops";
 import { detectOptions, detectOptionRemovals } from "../../../lib/ai/detect-options";
 import { canonicalizeCity } from "../../../lib/ai/canonicalize-city";
+import { isPlausibleCity } from "../../../lib/ai/validate-city";
 import { validateLead } from "../../../lib/ai/validate-lead";
 import { getChatModel } from "../../../lib/ai/provider";
 import { trackedGenerateText } from "../../../lib/ai/track-ai-call";
@@ -251,12 +252,36 @@ Message : ${latestUserText}`,
     // Only unambiguous matches are corrected; an unknown town is left as typed.
     merged.departure_city = canonicalizeCity(merged.departure_city) ?? merged.departure_city;
     merged.arrival_city = canonicalizeCity(merged.arrival_city) ?? merged.arrival_city;
-    // A known departure date with no return and no round-trip signal defaults to one-way.
-    // Round-trip still wins whenever a return date or "aller-retour" is detected (now or in
-    // a later turn — a real value always overrides this default via mergeLead).
-    if (!merged.trip_type && merged.departure_date && !merged.return_date) {
-      merged.trip_type = "one_way";
+
+    // Validate a NEWLY provided city against the geocoder: if it doesn't resolve to a real
+    // French place, strip it (→ re-asked as missing) and warn so the assistant invites the
+    // prospect to reformulate ("caca", "diner de cons" must not be accepted as cities).
+    const cityWarnings: LeadWarning[] = [];
+    if (merged.departure_city && merged.departure_city !== existingQualification.departure_city) {
+      if (!(await isPlausibleCity(merged.departure_city))) {
+        cityWarnings.push({
+          field: "departureCity",
+          code: "DEPARTURE_CITY_UNRECOGNIZED",
+          message: `Je n'ai pas reconnu « ${merged.departure_city} » comme une ville de départ. Pouvez-vous préciser une ville existante ?`,
+          blocking: false,
+        });
+        merged.departure_city = undefined;
+      }
     }
+    if (merged.arrival_city && merged.arrival_city !== existingQualification.arrival_city) {
+      if (!(await isPlausibleCity(merged.arrival_city))) {
+        cityWarnings.push({
+          field: "arrivalCity",
+          code: "ARRIVAL_CITY_UNRECOGNIZED",
+          message: `Je n'ai pas reconnu « ${merged.arrival_city} » comme une ville d'arrivée. Pouvez-vous préciser une ville existante ?`,
+          blocking: false,
+        });
+        merged.arrival_city = undefined;
+      }
+    }
+
+    // trip_type is NOT defaulted: the assistant must ask "aller simple ou aller-retour ?" so
+    // the prospect chooses explicitly (a silent one-way default skipped that question).
     const mergedLead = LeadQualificationSchema.parse({
       ...merged,
       free_message: latestUserText,
@@ -264,7 +289,8 @@ Message : ${latestUserText}`,
 
     // Deterministic validation — sole authority on validity. Strips unusable
     // values (so they re-appear as missing) and flags >85 pax for HUMAN_REVIEW.
-    const { sanitized, warnings, review } = validateLead(mergedLead, today);
+    const { sanitized, warnings: leadWarnings, review } = validateLead(mergedLead, today);
+    const warnings = [...cityWarnings, ...leadWarnings];
     const lead = sanitized;
     const blocking = warnings.some((warning) => warning.blocking);
     const missing = detectMissingFields(lead);

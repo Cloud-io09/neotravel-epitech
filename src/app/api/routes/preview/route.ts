@@ -51,6 +51,10 @@ async function fetchJson<T>(url: string, init: RequestInit, timeoutMs: number): 
   }
 }
 
+// Pelias confidence is ~0.8–1.0 for a real city, lower for a fuzzy/garbage match. Reject
+// low-confidence hits so "soupe aux choux recette" doesn't render a bogus route.
+const MIN_GEOCODE_CONFIDENCE = 0.5;
+
 async function geocode(label: string, apiKey: string, timeoutMs: number) {
   const url = new URL("https://api.openrouteservice.org/geocode/search");
   url.searchParams.set("api_key", apiKey);
@@ -59,8 +63,12 @@ async function geocode(label: string, apiKey: string, timeoutMs: number) {
   url.searchParams.set("boundary.country", "FR");
 
   const response = await fetchJson<OrsGeocodeResponse>(url.toString(), { method: "GET" }, timeoutMs);
-  const coordinates = response.features?.[0]?.geometry?.coordinates;
-  if (!coordinates || coordinates.length !== 2) throw new AppError("Adresse ou ville non reconnue.", "ROUTE_GEOCODING_FAILED");
+  const feature = response.features?.[0];
+  const coordinates = feature?.geometry?.coordinates;
+  const confidence = feature?.properties?.confidence ?? 0;
+  if (!coordinates || coordinates.length !== 2 || confidence < MIN_GEOCODE_CONFIDENCE) {
+    throw new AppError("Adresse ou ville non reconnue.", "ROUTE_GEOCODING_FAILED");
+  }
 
   return coordinates;
 }

@@ -30,7 +30,8 @@ const FIELD_LABELS: Record<string, { label: string; noun: string }> = {
   arrival_city: { label: "ville d'arrivée", noun: "la ville d'arrivée" },
   departure_date: { label: "date de départ", noun: "la date de départ" },
   passenger_count: { label: "nombre de passagers", noun: "le nombre de passagers" },
-  trip_type: { label: "aller simple ou aller-retour", noun: "le type de trajet" },
+  trip_type: { label: "aller simple, aller-retour ou avec arrêts intermédiaires", noun: "le type de trajet" },
+  return_date: { label: "date de retour", noun: "la date de retour" },
   email: { label: "email de contact", noun: "l'email de contact" },
 };
 
@@ -47,7 +48,8 @@ const NEXT_QUESTION: Record<string, string> = {
   arrival_city: "Quelle est votre ville d'arrivée ?",
   departure_date: "Indiquez-moi la date de départ souhaitée, même approximative si besoin.",
   passenger_count: "Combien de passagers faut-il prévoir ?",
-  trip_type: "Souhaitez-vous un aller simple ou un aller-retour ?",
+  trip_type: "Souhaitez-vous un aller simple, un aller-retour, ou un trajet avec un ou plusieurs arrêts intermédiaires ?",
+  return_date: "Pour l'aller-retour, à quelle date souhaitez-vous revenir ?",
   email: "Quel email devons-nous utiliser pour vous recontacter ?",
 };
 
@@ -94,7 +96,7 @@ export function buildReplyPrompt(ctx: ReplyContext): string {
 
   const objective =
     ctx.status === "QUALIFIED"
-      ? `Toutes les informations necessaires sont reunies. Confirme-le brievement et invite le client a cliquer sur le bouton "Recevoir mon devis" pour generer son estimation. Le devis n'est PAS encore genere : ne dis pas qu'il est pret ni qu'il se prepare.`
+      ? `Toutes les informations necessaires sont reunies. Confirme-le brievement, mentionne en UNE phrase que des options facultatives sont possibles (guide/accompagnateur, nuit chauffeur) sans insister, puis invite le client a cliquer sur le bouton "Recevoir mon devis" pour generer son estimation. Le devis n'est PAS encore genere : ne dis pas qu'il est pret ni qu'il se prepare.`
       : `Il manque des informations. Termine ta réponse en demandant UNIQUEMENT la première information manquante : "${ctx.missingFields.map(labelFor)[0] ?? ""}".`;
 
   return `Tu es l'assistant NeoTravel, tu qualifies par chat une demande de transport de groupe en autocar.

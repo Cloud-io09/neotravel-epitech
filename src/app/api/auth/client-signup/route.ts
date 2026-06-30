@@ -12,7 +12,8 @@ const ClientSignupSchema = z
     email: z.string().trim().email("Email invalide."),
     password: z.string().min(8, "Le mot de passe doit contenir au moins 8 caractères."),
     passwordConfirm: z.string().min(8),
-    quoteId: z.string().trim().min(1).nullable().optional()
+    quoteId: z.string().trim().min(1).nullable().optional(),
+    leadId: z.string().trim().min(1).nullable().optional()
   })
   .refine((value) => value.password === value.passwordConfirm, {
     message: "Les mots de passe ne correspondent pas.",
@@ -26,7 +27,8 @@ export async function POST(request: Request) {
       name: input.name,
       email: input.email,
       password: input.password,
-      quoteId: input.quoteId ?? null
+      quoteId: input.quoteId ?? null,
+      leadId: input.leadId ?? null
     });
 
     // Open the Supabase session (sets the auth cookies via the SSR cookie adapter).

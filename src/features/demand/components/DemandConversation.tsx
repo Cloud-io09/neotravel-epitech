@@ -832,9 +832,10 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
 
       if (!quoteResponse.ok || !quote?.id) {
         if (quote?.status === "HUMAN_REVIEW") {
-          setChatHumanReview(true);
-          setHumanReviewQueued(true);
-          setWorkflowError("Votre demande nécessite une vérification par un conseiller, qui vous recontactera rapidement.");
+          // No devis is generated, but the prospect still creates an account so the request is
+          // tracked and a conseiller follows up from there (account forced before any answer).
+          clearDemandSession();
+          router.push(`/connexion/inscription?leadId=${sync.leadId}`);
           return;
         }
         setWorkflowError("Nous n’avons pas pu préparer le devis pour l’instant. Vous pouvez réessayer ou nous contacter.");
@@ -911,15 +912,11 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
 
       if (!reviewResponse.ok) throw new Error("HUMAN_REVIEW_FAILED");
 
-      setChatHumanReview(true);
-      setHumanReviewQueued(true);
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "Votre demande nécessite une vérification par notre équipe. Nous vous recontacterons rapidement.",
-        },
-      ]);
+      // Force account creation so we capture the prospect's contact and they can follow their
+      // request: no point promising "we'll get back to you" without an email. Already-logged-in
+      // clients are bounced to their espace by the inscription page itself.
+      clearDemandSession();
+      router.push(`/connexion/inscription?leadId=${leadId}`);
     } catch {
       setWorkflowError("Nous n’avons pas pu transmettre la demande. Réessayez dans un instant.");
     } finally {
@@ -1391,7 +1388,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
                 </label>
                 {activeDemand.tripType === "round_trip" ? (
                   <label className={warningFor("returnDate") ? styles.fieldInvalid : undefined}>
-                    <span>Date de retour facultative</span>
+                    <span>Date de retour <strong aria-hidden="true"> *</strong></span>
                     <input
                       type="date"
                       value={activeDemand.returnDate ?? ""}
@@ -1480,76 +1477,6 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
               </div>
             </div>
           </aside>
-
-          <details className={`${styles.sidePanel} ${styles.collapsiblePanel}`}>
-            <summary className={styles.collapsibleSummary}>
-              <span id="contact-panel-title">Vos coordonnées</span>
-              <small>
-                {chatEmail || activeDemand.phone || activeDemand.contactName
-                  ? "Coordonnées renseignées — modifier"
-                  : "À compléter avant l'envoi"}
-              </small>
-            </summary>
-
-            <div className={styles.manualForm}>
-              <div className={styles.manualFields}>
-                <label>
-                  <span>Type de client</span>
-                  <select
-                    value={activeDemand.clientType ?? ""}
-                    onChange={(event) => setChatClientType(event.target.value || null)}
-                  >
-                    <option value="">--</option>
-                    <option value="Particulier">Particulier</option>
-                    <option value="Entreprise">Entreprise</option>
-                    <option value="Association">Association</option>
-                    <option value="Agence">Agence</option>
-                    <option value="École">École</option>
-                    <option value="Collectivité">Collectivité</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Organisation</span>
-                  <input
-                    type="text"
-                    placeholder="ex: Alpha Conseil"
-                    value={activeDemand.organization ?? ""}
-                    onChange={(event) => setChatOrganization(event.target.value.trim() ? event.target.value : null)}
-                  />
-                </label>
-                <label>
-                  <span>Nom du contact</span>
-                  <input
-                    type="text"
-                    placeholder="ex: Marie Dupont"
-                    value={activeDemand.contactName ?? ""}
-                    onChange={(event) => setChatContactName(event.target.value.trim() ? event.target.value : null)}
-                  />
-                </label>
-                <label>
-                  <span>Téléphone</span>
-                  <input
-                    type="tel"
-                    placeholder="ex: 06 12 34 56 78"
-                    value={activeDemand.phone ?? ""}
-                    onChange={(event) => setChatPhone(event.target.value.trim() ? event.target.value : null)}
-                  />
-                </label>
-                <label className={qualifiedLeadId && !chatEmail && !hasInitialDemand ? styles.fieldInvalid : undefined}>
-                  <span>Email de contact {qualifiedLeadId && !hasInitialDemand ? <strong aria-hidden="true"> *</strong> : null}</span>
-                  <input
-                    type="email"
-                    placeholder="votre@email.fr"
-                    value={chatEmail ?? ""}
-                    onChange={(event) => setChatEmail(event.target.value.trim() || null)}
-                  />
-                  {qualifiedLeadId && !chatEmail && !hasInitialDemand ? (
-                    <small className={styles.fieldWarning}>Requis pour recevoir le devis.</small>
-                  ) : null}
-                </label>
-              </div>
-            </div>
-          </details>
 
         </div>
       </div>

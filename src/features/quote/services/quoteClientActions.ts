@@ -35,11 +35,10 @@ async function requireQuote(quoteId: string): Promise<StoredQuote> {
 }
 
 function assertQuoteOpenForClientIntent(status: StoredQuote["status"]) {
-  if (status === "CLOSED") {
+  // A client can express an intent on their generated estimate (QUOTE_READY) or on an
+  // officially sent devis (QUOTE_SENT). Only a finalized devis is closed to new intents.
+  if (status !== "QUOTE_READY" && status !== "QUOTE_SENT") {
     throw new AppError("Devis déjà finalisé.", "QUOTE_FINALIZED");
-  }
-  if (status !== "QUOTE_SENT") {
-    throw new AppError("Le devis doit être envoyé avant de recueillir une intention client.", "QUOTE_NOT_SENT");
   }
 }
 

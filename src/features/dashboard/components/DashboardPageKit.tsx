@@ -82,22 +82,39 @@ export function Panel({
  title,
  subtitle,
  children,
- action
+ action,
+ collapsible = false,
+ defaultOpen = false
 }: {
  title: string;
  subtitle?: string;
  children: ReactNode;
  action?: ReactNode;
+ collapsible?: boolean;
+ defaultOpen?: boolean;
 }) {
+ const header = (
+  <>
+   <div>
+    <h2>{title}</h2>
+    {subtitle ? <p>{subtitle}</p> : null}
+   </div>
+   {action ? <div className={styles.panelAction}>{action}</div> : null}
+  </>
+ );
+
+ if (collapsible) {
+  return (
+   <details className={styles.panel} open={defaultOpen}>
+    <summary className={`${styles.panelHeader} ${styles.panelSummary}`}>{header}</summary>
+    {children}
+   </details>
+  );
+ }
+
  return (
   <section className={styles.panel}>
-   <div className={styles.panelHeader}>
-    <div>
-     <h2>{title}</h2>
-     {subtitle ? <p>{subtitle}</p> : null}
-    </div>
-    {action ? <div className={styles.panelAction}>{action}</div> : null}
-   </div>
+   <div className={styles.panelHeader}>{header}</div>
    {children}
   </section>
  );

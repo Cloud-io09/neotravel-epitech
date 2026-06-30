@@ -4,16 +4,19 @@ import { LeadRouteMap } from "./LeadRouteMap";
 import styles from "./lead-detail.module.css";
 
 export function LeadMessages({ lead }: { lead: Lead }) {
+ const stops = lead.intermediateStops ?? [];
  const routeLabel =
   lead.departureCity && lead.arrivalCity
-   ? `${lead.departureCity} → ${lead.arrivalCity}`
+   ? [lead.departureCity, ...stops, lead.arrivalCity].join(" → ")
    : "Trajet à compléter";
- const tripTypeLabel =
+ const baseTripType =
   lead.tripType === "round_trip"
    ? "Aller-retour"
    : lead.tripType === "one_way"
     ? "Aller simple"
     : "À confirmer";
+ const tripTypeLabel =
+  lead.hasIntermediateStop || stops.length > 0 ? `${baseTripType} · avec arrêts` : baseTripType;
 
  return (
   <section className={styles.mapCard} aria-labelledby="route-map-title">

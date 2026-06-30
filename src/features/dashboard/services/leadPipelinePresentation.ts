@@ -23,7 +23,8 @@ export function leadDisplayName(lead: Lead | undefined, fallback = "Prospect à 
 
 export function leadRouteLabel(lead: Lead | undefined) {
  if (!lead) return "Demande introuvable";
- return `${lead.departureCity ?? "Départ à préciser"} → ${lead.arrivalCity ?? "Arrivée à préciser"}`;
+ const stops = lead.intermediateStops ?? [];
+ return [lead.departureCity ?? "Départ à préciser", ...stops, lead.arrivalCity ?? "Arrivée à préciser"].join(" → ");
 }
 
 export function latestQuoteByLeadId(quotes: Quote[]) {

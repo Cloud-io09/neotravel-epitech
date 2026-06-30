@@ -5,6 +5,7 @@ import { LeadQualificationSchema } from "../../../../lib/domain/schemas";
 import { createOrUpdateLead, detectMissingFields } from "../../../../lib/ai/tools";
 import { buildExistingQualification, mergeLead } from "../../../../lib/ai/merge-existing";
 import { validateLead } from "../../../../lib/ai/validate-lead";
+import { getClientSession } from "../../../../shared/lib/auth/requireClient";
 import { getLeadById, markHumanReview, markLeadIncomplete } from "../../../../lib/leads/lead-service";
 
 export const runtime = "nodejs";
@@ -71,11 +72,16 @@ export async function POST(request: Request): Promise<Response> {
       if (record) existing = buildExistingQualification(record);
     }
 
+    // When a client is logged in, attach the demand to their account (links lead → client
+    // via email in createOrUpdateLead) so it shows up in their espace client.
+    const clientSession = await getClientSession();
+    const sessionEmail = clientSession?.email ?? undefined;
+
     const incoming = {
       client_type: body.clientType ?? undefined,
-      contact_name: body.contactName ?? undefined,
-      name: body.contactName ?? undefined,
-      email: body.email ?? undefined,
+      contact_name: body.contactName ?? clientSession?.name ?? undefined,
+      name: body.contactName ?? clientSession?.name ?? undefined,
+      email: sessionEmail ?? body.email ?? undefined,
       phone: body.phone ?? undefined,
       departure_city: body.departureCity ?? undefined,
       arrival_city: body.arrivalCity ?? undefined,

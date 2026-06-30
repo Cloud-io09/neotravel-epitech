@@ -14,6 +14,7 @@ export type RegisterClientInput = {
   email: string;
   password: string;
   quoteId?: string | null;
+  leadId?: string | null;
 };
 
 /**
@@ -63,21 +64,34 @@ export async function registerClientAccount(input: RegisterClientInput) {
 
   await linkClientAuthUser(client.id, authUserId);
 
+  // Attach the demand to the new account: a quote (→ go to the devis) or a bare lead from a
+  // human-review demand (→ go to the espace client). Either way the email is linked and the
+  // account-creation email is sent. Email send is awaited (serverless kills fire-and-forget)
+  // and non-fatal (never throws on a webhook failure), so it can't break signup.
   let redirectTo = "/compte";
+  let attachedLeadId: string | null = null;
+
   if (input.quoteId) {
     const quote = await getQuoteById(input.quoteId);
     if (quote) {
-      const lead = await getLeadById(quote.leadId);
-      if (lead) {
-        await updateLeadRecord(quote.leadId, {
-          email,
-          organization: lead.organization ?? name,
-          contactName: lead.contactName ?? name
-        }).catch(() => undefined);
-        // Non-blocking account-creation email (idempotent per lead+scenario).
-        void sendAccountCreationEmail({ leadId: quote.leadId }).catch(() => undefined);
-      }
+      attachedLeadId = quote.leadId;
       redirectTo = `/client/devis/${quote.id}`;
+    }
+  } else if (input.leadId) {
+    attachedLeadId = input.leadId;
+  }
+
+  if (attachedLeadId) {
+    const lead = await getLeadById(attachedLeadId);
+    if (lead) {
+      await updateLeadRecord(attachedLeadId, {
+        email,
+        organization: lead.organization ?? name,
+        contactName: lead.contactName ?? name
+      }).catch(() => undefined);
+      await sendAccountCreationEmail({ leadId: attachedLeadId, quoteId: input.quoteId ?? null }).catch((error) =>
+        console.error("[account-email] envoi échoué", error),
+      );
     }
   }
 

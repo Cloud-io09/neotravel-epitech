@@ -51,8 +51,12 @@ export const CRITICAL_LEAD_FIELDS = [
 
 export type CriticalLeadField = (typeof CRITICAL_LEAD_FIELDS)[number];
 
+// return_date is conditionally required (round trips only), so it isn't in the base critical
+// set but can still appear in missing_fields.
+export const MISSING_FIELD_KEYS = [...CRITICAL_LEAD_FIELDS, "return_date"] as const;
+
 export const MissingFieldsSchema = z.object({
-  missing_fields: z.array(z.enum(CRITICAL_LEAD_FIELDS)),
+  missing_fields: z.array(z.enum(MISSING_FIELD_KEYS)),
   status: z.enum(["QUALIFIED", "INCOMPLETE"]),
 });
 

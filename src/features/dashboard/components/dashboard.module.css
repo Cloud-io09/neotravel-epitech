@@ -3075,3 +3075,26 @@
   min-width: 0;
  }
 }
+
+/* Collapsible Panel (native <details>) */
+.panelSummary {
+ cursor: pointer;
+ list-style: none;
+}
+
+.panelSummary::-webkit-details-marker {
+ display: none;
+}
+
+.panelSummary::after {
+ content: "▾";
+ align-self: center;
+ margin-left: auto;
+ color: #94a3b8;
+ font-size: 13px;
+ transition: transform 0.15s ease;
+}
+
+details[open] > .panelSummary::after {
+ transform: rotate(180deg);
+}

@@ -57,6 +57,12 @@ export function LeadQuotePanel({ lead, quote, followup }: { lead: Lead; quote?: 
     <li>
      Arrivée <strong>{lead.arrivalCity ?? "À confirmer"}</strong>
     </li>
+    {lead.hasIntermediateStop || (lead.intermediateStops?.length ?? 0) > 0 ? (
+     <li>
+      Arrêts intermédiaires{" "}
+      <strong>{lead.intermediateStops?.length ? lead.intermediateStops.join(", ") : "Oui (à préciser)"}</strong>
+     </li>
+    ) : null}
     <li>
      Date <strong>{lead.departureDate ?? "À confirmer"}</strong>
     </li>
