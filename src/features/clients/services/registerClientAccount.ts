@@ -1,4 +1,5 @@
 import { getQuoteById } from "@/features/quote/services/getQuoteById";
+import { sendAccountCreationEmail } from "@/features/emails/services/customerEmailService";
 import { auditActions, createAuditLog } from "@/shared/lib/audit";
 import { createClientAccountRecord, getClientAccount } from "@/shared/lib/auth/clientAuth";
 import { createClient, getClientByEmail } from "@/shared/lib/data/clientRepository";
@@ -55,6 +56,8 @@ export async function registerClientAccount(input: RegisterClientInput) {
           organization: lead.organization ?? name,
           contactName: lead.contactName ?? name
         }).catch(() => undefined);
+        // Non-blocking: account-creation email (idempotent per lead+scenario).
+        void sendAccountCreationEmail({ leadId: quote.leadId }).catch(() => undefined);
       }
       redirectTo = `/client/devis/${quote.id}`;
     }

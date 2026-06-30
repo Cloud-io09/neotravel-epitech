@@ -111,6 +111,19 @@ export async function sendLeadStatusEmail(input: {
   });
 }
 
+export async function sendAccountCreationEmail(input: {
+  leadId: string;
+  triggeredBy?: "system" | "dashboard";
+}) {
+  const lead = await loadLead(input.leadId);
+  return sendEmail({
+    scenario: "ACCOUNT_CREATION",
+    lead,
+    triggeredBy: input.triggeredBy ?? "system",
+    dedupeEntity: { entityType: "lead", entityId: lead.id },
+  });
+}
+
 export async function sendQuoteAvailableEmail(input: {
   quoteId: string;
   triggeredBy?: "system" | "dashboard" | "n8n";
@@ -458,10 +471,11 @@ async function resolveFollowupScenario(
     .order("scheduled_at", { ascending: true });
 
   const ordered = data ?? [];
-  // Position in the sequence drives the template: urgent single followup = J1; standard = J3 then J7.
+  // Position in the sequence drives the template: 1st = J1, 2nd = J3, 3rd+ = J7.
+  // (Urgent has a single followup → index 0 → J1.)
   const index = ordered.findIndex((item) => item.id === followup.id);
-  if (ordered.length <= 1) return "FOLLOWUP_J1";
-  if (index <= 0) return "FOLLOWUP_J3";
+  if (index <= 0) return "FOLLOWUP_J1";
+  if (index === 1) return "FOLLOWUP_J3";
   return "FOLLOWUP_J7";
 }
 
@@ -473,6 +487,8 @@ function buildTemplateValues(input: {
 }) {
   return {
     clientName: input.clientName,
+    organizationName: input.clientName,
+    contactName: input.clientName,
     missingFields: (input.lead.missing_fields ?? []).map(fieldLabel).join(", ") || "Informations à confirmer",
     requestReference: input.lead.id.slice(0, 8).toUpperCase(),
     departureCity: display(input.lead.departure_city),
@@ -486,6 +502,10 @@ function buildTemplateValues(input: {
     totalTTC: formatEuro(input.quote?.price_ttc),
     quoteUrl: input.quote ? quoteUrl(input.quote.id) : publicUrl("/client/demande"),
     completionUrl: publicUrl(`/client/demande?leadId=${input.lead.id}`),
+    accountCreationUrl: input.quote
+      ? publicUrl(`/connexion/inscription?quoteId=${input.quote.id}`)
+      : publicUrl("/connexion/inscription"),
+    accountLoginUrl: publicUrl("/connexion"),
     validityDays: "7",
   };
 }
