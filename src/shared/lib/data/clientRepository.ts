@@ -103,6 +103,26 @@ export async function getClientById(id: string): Promise<Client | null> {
   return data ? toClient(data as ClientRow) : null;
 }
 
+export async function getClientByEmail(email: string): Promise<Client | null> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return null;
+
+  if (shouldUseDemoData()) {
+    const all = await demoStore.listClients();
+    return all.find((c) => c.email.toLowerCase() === normalized) ?? null;
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase.from("clients").select(SELECT).ilike("email", normalized).maybeSingle();
+  if (error && isMissingColumnError(error)) {
+    const fallback = await supabase.from("clients").select(LEGACY_SELECT).ilike("email", normalized).maybeSingle();
+    if (fallback.error) throw fallback.error;
+    return fallback.data ? toClient(fallback.data as ClientRow) : null;
+  }
+  if (error) throw error;
+  return data ? toClient(data as ClientRow) : null;
+}
+
 export async function updateClient(
   id: string,
   patch: Partial<{ organization: string | null; contactName: string | null; email: string; phone: string | null; active: boolean }>
