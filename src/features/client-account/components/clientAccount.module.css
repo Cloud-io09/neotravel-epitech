@@ -234,3 +234,35 @@
     grid-template-columns: 1fr;
   }
 }
+
+.reviewBanner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 18px 22px;
+  border: 1px solid #f0d9a6;
+  border-radius: 16px;
+  background: #fdf6e6;
+}
+
+.reviewBanner strong {
+  display: block;
+  color: #8a5a06;
+  font-size: 15px;
+}
+
+.reviewBanner p {
+  margin: 6px 0 4px;
+  color: #5b4708;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.reviewBanner small {
+  color: #97772a;
+  font-size: 12px;
+  font-weight: 700;
+}

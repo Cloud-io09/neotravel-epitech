@@ -2,6 +2,7 @@ import type { ClientSession } from "@/shared/lib/auth/requireClient";
 import { listLeads } from "@/shared/lib/data/leadRepository";
 import { listQuotes } from "@/shared/lib/data/quoteRepository";
 import { quoteOutcomeDisplay } from "@/features/dashboard/services/quoteOutcome";
+import { clientHumanReviewNotice } from "@/features/human-review/clientNotice";
 import type { Client } from "@/shared/types/client";
 import type { Lead, LeadStatus } from "@/shared/types/lead";
 import type { Quote } from "@/shared/types/quote";
@@ -39,6 +40,7 @@ export type ClientAccountData = {
     nextActionDetail: string;
   };
   latestQuote: ClientAccountQuoteRow | null;
+  pendingReview: { reference: string; route: string; message: string } | null;
   activity: ClientAccountTableRow[];
 };
 
@@ -183,6 +185,17 @@ export async function getClientAccountData(session: ClientSession): Promise<Clie
   const nextActionLabel = pendingQuoteCount > 0 ? "Validation" : activeDemandCount > 0 ? "Suivi" : "Aucune";
   const nextActionDetail = latestQuote?.reference ?? (leads[0] ? leadReference(leads[0]) : "—");
 
+  // Explicit notice when a demand is pending human review, so the client knows it's being
+  // handled and can follow it (rather than thinking nothing happened after signup).
+  const reviewLead = leads.find((lead) => lead.status === "HUMAN_REVIEW");
+  const pendingReview = reviewLead
+    ? {
+        reference: leadReference(reviewLead),
+        route: routeLabel(reviewLead),
+        message: clientHumanReviewNotice(reviewLead.humanReviewReason),
+      }
+    : null;
+
   return {
     client: session.client,
     displayName: session.name,
@@ -197,6 +210,7 @@ export async function getClientAccountData(session: ClientSession): Promise<Clie
       nextActionDetail
     },
     latestQuote,
+    pendingReview,
     activity: buildActivity(leads, clientQuotes, quotes)
   };
 }
