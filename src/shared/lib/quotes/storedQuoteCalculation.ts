@@ -36,6 +36,10 @@ export function storedQuoteCalculation(input: StoredQuoteCalculationInput): Quot
   const vat = breakdown.vat;
 
   const optionLines = getQuoteOptionLines(breakdown);
+  const routeLabel = routeLabelFromSegments(breakdown.routeSegments);
+  const quoteLines = breakdown.quoteLines?.length
+    ? breakdown.quoteLines.map((line) => ({ label: line.label, amount: money(line.amountEur) }))
+    : undefined;
 
   const priceTtc = money(input.priceTtc ?? totals?.priceTtcEur);
   const priceHt = money(input.priceHt ?? totals?.priceHtEur);
@@ -64,7 +68,7 @@ export function storedQuoteCalculation(input: StoredQuoteCalculationInput): Quot
     basePriceSource: "route_pricing",
     distanceKm,
     breakdown: {
-      routeLabel: "Trajet calculé",
+      routeLabel: routeLabel ?? "Trajet calculé",
       matrixVersion: text(input.matrixVersion, "legacy"),
       distanceKm,
       basePriceSource: "route_pricing",
@@ -91,9 +95,19 @@ export function storedQuoteCalculation(input: StoredQuoteCalculationInput): Quot
       capacity: money(coefficients?.capacity),
       multiplier: money(coefficients?.total || 1),
     },
-    lines: [
+    lines: quoteLines ?? [
       { label: "Transport", amount: baseAfterCoefficients },
       ...(optionsTotal ? [{ label: "Options", amount: optionsTotal }] : []),
     ],
   };
+}
+
+function routeLabelFromSegments(segments: QuoteBreakdown["routeSegments"]) {
+  if (!segments?.length) return null;
+
+  const points = [segments[0]?.from, ...segments.map((segment) => segment.to)]
+    .map((value) => value?.trim())
+    .filter(Boolean);
+
+  return points.length >= 2 ? points.join(" -> ") : null;
 }

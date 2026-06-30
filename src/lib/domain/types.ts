@@ -93,6 +93,18 @@ export type OptionRates = {
 };
 
 export type QuoteBreakdown = {
+  routeSegments?: Array<{
+    from: string;
+    to: string;
+    distanceKm: number;
+    priceHtEur: number;
+    priceTtcEur: number;
+    source?: DistanceSource;
+  }>;
+  quoteLines?: Array<{
+    label: string;
+    amountEur: number;
+  }>;
   distance: {
     distanceKm: number;
     source?: DistanceSource;

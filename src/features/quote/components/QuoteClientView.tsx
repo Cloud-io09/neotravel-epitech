@@ -37,6 +37,11 @@ function formatTripType(value: string | null | undefined) {
   return "À confirmer";
 }
 
+function formatRouteLabel(lead: Awaited<ReturnType<typeof getLeadDetail>>, fallback: string) {
+  if (!lead?.departureCity || !lead.arrivalCity) return fallback;
+  return [lead.departureCity, ...(lead.intermediateStops ?? []), lead.arrivalCity].join(" -> ");
+}
+
 type QuoteViewer = "client" | "admin";
 
 function quoteOutcome(status: string, leadStatus: string | null | undefined, humanReviewReason: string | null | undefined) {
@@ -72,10 +77,7 @@ export async function QuoteClientView({ quoteId, viewer = "client" }: { quoteId:
   const clientEmail = lead?.email ?? "Email à confirmer";
   const passengerLabel = lead?.passengerCount ? `${lead.passengerCount} passagers` : "À confirmer";
   const tripDates = formatTripDates(lead?.departureDate, lead?.returnDate);
-  const routeLabel =
-    lead?.departureCity && lead?.arrivalCity
-      ? `${lead.departureCity} -> ${lead.arrivalCity}`
-      : calculation.breakdown.routeLabel;
+  const routeLabel = formatRouteLabel(lead, calculation.breakdown.routeLabel);
   // Priced option lines from the engine — each carries a label, a note, and an amount that
   // is 0 € only as a placeholder when no official price exists (never shown as free).
   const optionLines = getQuoteOptionLines(calculation.breakdown);

@@ -1,5 +1,6 @@
 import type { QuoteInput, QuoteOptions, QuoteOutput, TripType } from "../domain/types";
 import type { QuoteSummary } from "../ai/chat-response";
+import { createHash } from "node:crypto";
 import { logAuditEvent } from "../audit/audit-service";
 import {
   getLeadById,
@@ -58,14 +59,7 @@ export async function calculateQuoteForLead(
   }
 
   if (hasIntermediateStops(lead)) {
-    const reason = "INTERMEDIATE_STOP_REQUIRES_MANUAL_ROUTE";
-    await deps.markHumanReview(leadId, reason);
-
-    return {
-      ok: false,
-      status: "HUMAN_REVIEW",
-      reason,
-    };
+    return calculateMultiSegmentQuoteForLead(leadId, lead, deps);
   }
 
   const missingFields = getMissingCriticalFields(lead);
@@ -232,6 +226,313 @@ function isTripType(value: string | null): value is TripType {
 
 function hasIntermediateStops(lead: LeadRecord): boolean {
   return lead.intermediate_stops.some((stop) => stop.trim().length > 0);
+}
+
+async function calculateMultiSegmentQuoteForLead(
+  leadId: string,
+  lead: LeadRecord,
+  deps: QuoteServiceDependencies,
+): Promise<CalculateQuoteForLeadResult> {
+  const missingFields = getMissingCriticalFields(lead);
+
+  if (missingFields.length > 0) {
+    await deps.markLeadIncomplete(leadId, missingFields);
+
+    return {
+      ok: false,
+      status: "INCOMPLETE",
+      reason: `Missing critical fields: ${missingFields.join(", ")}`,
+    };
+  }
+
+  const routePoints = [lead.departure_city!, ...lead.intermediate_stops.filter(hasText), lead.arrival_city!];
+  const routeSegments = buildRouteSegments(routePoints);
+  const rules = await deps.lookupActivePricingRules();
+  const segmentQuotes: Array<{
+    from: string;
+    to: string;
+    distanceKm: number;
+    source?: QuoteOutput["breakdown"]["distance"]["source"];
+    quote: QuoteOutput;
+  }> = [];
+
+  for (const segment of routeSegments) {
+    const distance = await deps.resolveDistance({
+      departureCity: segment.from,
+      arrivalCity: segment.to,
+    });
+
+    if (!distance.ok) {
+      await deps.markHumanReview(leadId, distance.review);
+
+      return {
+        ok: false,
+        status: "HUMAN_REVIEW",
+        reason: distance.review,
+      };
+    }
+
+    const result = calculer_devis(
+      {
+        leadId,
+        departureCity: segment.from,
+        arrivalCity: segment.to,
+        departureDate: lead.departure_date!,
+        requestDate: deps.getRequestDate(),
+        tripType: lead.trip_type!,
+        passengerCount: lead.passenger_count!,
+        distanceKm: distance.distanceKm,
+        distanceSource: distance.source,
+      },
+      rules,
+    );
+
+    if (!result.ok) {
+      await deps.markHumanReview(leadId, result.review);
+
+      return {
+        ok: false,
+        status: "HUMAN_REVIEW",
+        reason: result.review,
+      };
+    }
+
+    segmentQuotes.push({
+      ...segment,
+      distanceKm: distance.distanceKm,
+      source: distance.source,
+      quote: result.quote,
+    });
+  }
+
+  const optionContribution = calculateOptionContribution({
+    lead,
+    leadId,
+    requestDate: deps.getRequestDate(),
+    rules,
+    totalDistanceKm: sum(segmentQuotes.map((segment) => segment.distanceKm)),
+  });
+
+  const quote = combineSegmentQuotes({
+    lead,
+    leadId,
+    matricesVersion: rules.version,
+    optionContribution,
+    segmentQuotes,
+    vatRate: rules.vatRate,
+  });
+  const quoteId = await deps.saveQuote({ leadId, quote });
+
+  await deps.updateLeadStatus(leadId, "QUOTE_READY", {
+    quoteId,
+    quoteNumber: quote.quote_number,
+  });
+  await deps.logAuditEvent({
+    entityType: "quote",
+    entityId: quoteId,
+    action: "QUOTE_CREATED",
+    metadata: {
+      leadId,
+      quoteNumber: quote.quote_number,
+      deterministicHash: quote.deterministic_hash,
+      routeSegments: quote.breakdown.routeSegments,
+    },
+  });
+
+  return {
+    ok: true,
+    quoteId,
+    status: "QUOTE_READY",
+    quote: {
+      quoteNumber: quote.quote_number,
+      vehicleCode: quote.vehicle_code,
+      distanceKm: quote.breakdown.distance.distanceKm,
+      priceHt: quote.price_ht,
+      vatAmount: quote.vat_amount,
+      priceTtc: quote.price_ttc,
+      departureCity: lead.departure_city!,
+      arrivalCity: lead.arrival_city!,
+      departureDate: lead.departure_date!,
+      passengerCount: lead.passenger_count!,
+    },
+  };
+}
+
+function buildRouteSegments(points: string[]) {
+  return points.slice(0, -1).map((from, index) => ({
+    from,
+    to: points[index + 1]!,
+  }));
+}
+
+function calculateOptionContribution(input: {
+  lead: LeadRecord;
+  leadId: string;
+  requestDate: string;
+  rules: Awaited<ReturnType<typeof lookupActivePricingRules>>;
+  totalDistanceKm: number;
+}) {
+  const result = calculer_devis(
+    {
+      leadId: input.leadId,
+      departureCity: input.lead.departure_city!,
+      arrivalCity: input.lead.arrival_city!,
+      departureDate: input.lead.departure_date!,
+      requestDate: input.requestDate,
+      tripType: input.lead.trip_type!,
+      passengerCount: input.lead.passenger_count!,
+      distanceKm: input.totalDistanceKm,
+      options: normalizeQuoteOptions(input.lead.options),
+    },
+    input.rules,
+  );
+
+  if (!result.ok) {
+    return { optionsTotalEur: 0, priceHtEur: 0, items: [] };
+  }
+
+  const optionsTotalEur = result.quote.breakdown.options.totalEur;
+  const priceHtEur = roundCurrency(optionsTotalEur * (1 + input.rules.marginRate));
+  return {
+    optionsTotalEur,
+    priceHtEur,
+    items: result.quote.breakdown.options.items ?? [],
+  };
+}
+
+function combineSegmentQuotes(input: {
+  lead: LeadRecord;
+  leadId: string;
+  matricesVersion: string;
+  optionContribution: ReturnType<typeof calculateOptionContribution>;
+  segmentQuotes: Array<{
+    from: string;
+    to: string;
+    distanceKm: number;
+    source?: QuoteOutput["breakdown"]["distance"]["source"];
+    quote: QuoteOutput;
+  }>;
+  vatRate: number;
+}): QuoteOutput {
+  const totalDistanceKm = roundCurrency(sum(input.segmentQuotes.map((segment) => segment.distanceKm)));
+  const transportHt = roundCurrency(sum(input.segmentQuotes.map((segment) => segment.quote.price_ht)));
+  const priceHt = roundCurrency(transportHt + input.optionContribution.priceHtEur);
+  const vatAmount = roundCurrency(priceHt * input.vatRate);
+  const priceTtc = roundCurrency(priceHt + vatAmount);
+  const segmentLines = input.segmentQuotes.map((segment) => ({
+    label: `${segment.from} -> ${segment.to}`,
+    amountEur: segment.quote.price_ht,
+  }));
+  const optionLines =
+    input.optionContribution.priceHtEur > 0
+      ? [{ label: "Options", amountEur: input.optionContribution.priceHtEur }]
+      : [];
+  const quoteLines = [...segmentLines, ...optionLines];
+  const routeSegments = input.segmentQuotes.map((segment) => ({
+    from: segment.from,
+    to: segment.to,
+    distanceKm: segment.distanceKm,
+    priceHtEur: segment.quote.price_ht,
+    priceTtcEur: segment.quote.price_ttc,
+    source: segment.source,
+  }));
+  const firstQuote = input.segmentQuotes[0]!.quote;
+  const lastQuote = input.segmentQuotes.at(-1)!.quote;
+  const deterministicHash = sha256(
+    stableStringify({
+      leadId: input.leadId,
+      routeSegments,
+      optionContribution: input.optionContribution,
+      priceHt,
+      vatAmount,
+      priceTtc,
+      matricesVersion: input.matricesVersion,
+    }),
+  );
+
+  return {
+    quote_number: `NT-${deterministicHash.slice(0, 10).toUpperCase()}`,
+    vehicle_code: firstQuote.vehicle_code,
+    price_ht: priceHt,
+    vat_rate: input.vatRate,
+    vat_amount: vatAmount,
+    price_ttc: priceTtc,
+    deterministic_hash: deterministicHash,
+    matrices_version: input.matricesVersion,
+    breakdown: {
+      routeSegments,
+      quoteLines,
+      distance: {
+        distanceKm: totalDistanceKm,
+        source: "api",
+        pricingMode: "long_distance_formula",
+        oneWayBaseEur: transportHt,
+      },
+      trip: {
+        type: input.lead.trip_type!,
+        multiplier: input.lead.trip_type === "round_trip" ? 2 : 1,
+        baseAfterTripTypeEur: transportHt,
+      },
+      coefficients: {
+        seasonality: firstQuote.breakdown.coefficients.seasonality,
+        leadTime: firstQuote.breakdown.coefficients.leadTime,
+        capacity: firstQuote.breakdown.coefficients.capacity,
+        total: firstQuote.breakdown.coefficients.total,
+        amountEur: sum(input.segmentQuotes.map((segment) => segment.quote.breakdown.coefficients.amountEur)),
+      },
+      options: {
+        items: input.optionContribution.items,
+        tollPackageEur: 0,
+        totalEur: input.optionContribution.optionsTotalEur,
+      },
+      margin: {
+        rate: firstQuote.breakdown.margin.rate,
+        amountEur: roundCurrency(sum(input.segmentQuotes.map((segment) => segment.quote.breakdown.margin.amountEur)) + input.optionContribution.priceHtEur - input.optionContribution.optionsTotalEur),
+      },
+      vat: {
+        rate: input.vatRate,
+        amountEur: vatAmount,
+      },
+      totals: {
+        beforeMarginEur: roundCurrency(
+          sum(input.segmentQuotes.map((segment) => segment.quote.breakdown.totals.beforeMarginEur)) +
+            input.optionContribution.optionsTotalEur,
+        ),
+        priceHtEur: priceHt,
+        priceTtcEur: priceTtc,
+      },
+    },
+  };
+}
+
+function sum(values: number[]) {
+  return roundCurrency(values.reduce((total, value) => total + value, 0));
+}
+
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  }
+
+  const record = value as Record<string, unknown>;
+  const entries = Object.keys(record)
+    .filter((key) => record[key] !== undefined)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`);
+
+  return `{${entries.join(",")}}`;
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function roundCurrency(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 function normalizeQuoteOptions(options: QuoteOptions | Record<string, unknown> | null): QuoteOptions | undefined {

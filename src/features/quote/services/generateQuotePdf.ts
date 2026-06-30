@@ -100,6 +100,14 @@ function formatTripType(value: string | null | undefined) {
   return "À confirmer";
 }
 
+function formatRouteLabel(
+  lead: Awaited<ReturnType<typeof getLeadDetail>>,
+  fallback: string,
+) {
+  if (!lead?.departureCity || !lead.arrivalCity) return fallback;
+  return [lead.departureCity, ...(lead.intermediateStops ?? []), lead.arrivalCity].join(" -> ");
+}
+
 function formatTraceabilityDate(value: Date) {
   const parts = new Intl.DateTimeFormat("fr-FR", {
     day: "2-digit",
@@ -523,10 +531,7 @@ export async function generateQuotePdf(quoteId: string, language?: string | null
   const tr = (source: string) => translatePdf(source, pdfLanguage);
   const lead = await getLeadDetail(quote.leadId);
   const calculation = quote.calculation;
-  const routeLabel =
-    lead?.departureCity && lead?.arrivalCity
-      ? `${lead.departureCity} -> ${lead.arrivalCity}`
-      : calculation.breakdown.routeLabel;
+  const routeLabel = formatRouteLabel(lead, calculation.breakdown.routeLabel);
   const clientName = lead?.organization ?? tr("Client particulier / organisation");
   const clientEmail = lead?.email ?? tr("Email à confirmer");
   const passengerLabel = lead?.passengerCount ? `${lead.passengerCount} ${tr("passagers")}` : tr("À confirmer");

@@ -119,24 +119,45 @@ describe("calculateQuoteForLead", () => {
     expect(dependencies.saveQuote).not.toHaveBeenCalled();
   });
 
-  it("refuse un trajet avec arrêt sans résoudre la distance ni créer de quote", async () => {
+  it("cree un devis multi-segments avec une ligne par troncon", async () => {
     const dependencies = buildDependencies(
       baseLead({ has_intermediate_stop: true, intermediate_stops: ["Dijon"] }),
     );
+    dependencies.resolveDistance
+      .mockResolvedValueOnce({ ok: true, distanceKm: 315, source: "seed" })
+      .mockResolvedValueOnce({ ok: true, distanceKm: 190, source: "api" });
 
     const result = await calculateQuoteForLead(leadId, dependencies);
 
-    expect(result).toEqual({
-      ok: false,
-      status: "HUMAN_REVIEW",
-      reason: "INTERMEDIATE_STOP_REQUIRES_MANUAL_ROUTE",
+    expect(result).toMatchObject({
+      ok: true,
+      quoteId,
+      status: "QUOTE_READY",
     });
-    expect(dependencies.markHumanReview).toHaveBeenCalledWith(
+    expect(dependencies.resolveDistance).toHaveBeenNthCalledWith(1, {
+      departureCity: "Paris",
+      arrivalCity: "Dijon",
+    });
+    expect(dependencies.resolveDistance).toHaveBeenNthCalledWith(2, {
+      departureCity: "Dijon",
+      arrivalCity: "Lyon",
+    });
+    expect(dependencies.markHumanReview).not.toHaveBeenCalled();
+    expect(dependencies.saveQuote).toHaveBeenCalledWith({
       leadId,
-      "INTERMEDIATE_STOP_REQUIRES_MANUAL_ROUTE",
-    );
-    expect(dependencies.resolveDistance).not.toHaveBeenCalled();
-    expect(dependencies.saveQuote).not.toHaveBeenCalled();
+      quote: expect.objectContaining({
+        breakdown: expect.objectContaining({
+          routeSegments: [
+            expect.objectContaining({ from: "Paris", to: "Dijon", distanceKm: 315 }),
+            expect.objectContaining({ from: "Dijon", to: "Lyon", distanceKm: 190 }),
+          ],
+          quoteLines: [
+            expect.objectContaining({ label: "Paris -> Dijon" }),
+            expect.objectContaining({ label: "Dijon -> Lyon" }),
+          ],
+        }),
+      }),
+    });
   });
 
   it("ignore le flag escale quand aucune ville intermediaire n'est renseignee", async () => {
