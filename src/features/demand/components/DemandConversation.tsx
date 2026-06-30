@@ -912,15 +912,11 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
 
       if (!reviewResponse.ok) throw new Error("HUMAN_REVIEW_FAILED");
 
-      setChatHumanReview(true);
-      setHumanReviewQueued(true);
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "Votre demande nécessite une vérification par notre équipe. Nous vous recontacterons rapidement.",
-        },
-      ]);
+      // Force account creation so we capture the prospect's contact and they can follow their
+      // request: no point promising "we'll get back to you" without an email. Already-logged-in
+      // clients are bounced to their espace by the inscription page itself.
+      clearDemandSession();
+      router.push(`/connexion/inscription?leadId=${leadId}`);
     } catch {
       setWorkflowError("Nous n’avons pas pu transmettre la demande. Réessayez dans un instant.");
     } finally {
