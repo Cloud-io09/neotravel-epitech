@@ -30,7 +30,7 @@ const FIELD_LABELS: Record<string, { label: string; noun: string }> = {
   arrival_city: { label: "ville d'arrivée", noun: "la ville d'arrivée" },
   departure_date: { label: "date de départ", noun: "la date de départ" },
   passenger_count: { label: "nombre de passagers", noun: "le nombre de passagers" },
-  trip_type: { label: "aller simple, aller-retour ou avec arrêts intermédiaires", noun: "le type de trajet" },
+  trip_type: { label: "aller simple ou aller-retour", noun: "le type de trajet" },
   return_date: { label: "date de retour", noun: "la date de retour" },
   email: { label: "email de contact", noun: "l'email de contact" },
 };
@@ -48,7 +48,7 @@ const NEXT_QUESTION: Record<string, string> = {
   arrival_city: "Quelle est votre ville d'arrivée ?",
   departure_date: "Indiquez-moi la date de départ souhaitée, même approximative si besoin.",
   passenger_count: "Combien de passagers faut-il prévoir ?",
-  trip_type: "Souhaitez-vous un aller simple, un aller-retour, ou un trajet avec un ou plusieurs arrêts intermédiaires ?",
+  trip_type: "Souhaitez-vous un aller simple ou un aller-retour ?",
   return_date: "Pour l'aller-retour, à quelle date souhaitez-vous revenir ?",
   email: "Quel email devons-nous utiliser pour vous recontacter ?",
 };

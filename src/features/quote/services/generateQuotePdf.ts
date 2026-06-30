@@ -541,9 +541,10 @@ export async function generateQuotePdf(quoteId: string, language?: string | null
   const tr = (source: string) => translatePdf(source, pdfLanguage);
   const lead = await getLeadDetail(quote.leadId);
   const calculation = quote.calculation;
+  const routeStops = lead?.intermediateStops ?? [];
   const routeLabel =
     lead?.departureCity && lead?.arrivalCity
-      ? `${lead.departureCity} -> ${lead.arrivalCity}`
+      ? [lead.departureCity, ...routeStops, lead.arrivalCity].join(" -> ")
       : calculation.breakdown.routeLabel;
   const clientName = lead?.organization ?? tr("Client particulier / organisation");
   const clientEmail = lead?.email ?? tr("Email à confirmer");
