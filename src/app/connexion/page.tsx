@@ -1,5 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getClientSession } from "@/shared/lib/auth/requireClient";
 import { ClientLoginForm } from "./ClientLoginForm";
 import styles from "./connexion.module.css";
 
@@ -8,7 +10,10 @@ export const metadata = {
   description: "Connexion à l'espace client NeoTravel."
 };
 
-export default function ClientConnexionPage() {
+export default async function ClientConnexionPage() {
+  // Already-logged-in clients go straight to their space (no dead-end login page).
+  if (await getClientSession()) redirect("/compte");
+
   return (
     <main className={styles.page}>
       <header className={styles.header}>

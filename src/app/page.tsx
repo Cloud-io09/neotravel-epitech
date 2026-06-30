@@ -66,6 +66,7 @@ export default function HomePage() {
             <a href="#projets">Vos projets</a>
             <Link href="/client/partenaires">Partenaires</Link>
             <a href="#engagements">Engagements</a>
+            <Link href="/connexion">Espace client</Link>
           </nav>
 
           <LanguageSelector />

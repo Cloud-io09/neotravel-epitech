@@ -24,11 +24,13 @@ export function QuoteClientActions({
   initialStatus = "QUOTE_READY",
   initialOutcome,
   viewer = "client",
+  commercialFollowup = false,
 }: {
   quoteId: string;
   initialStatus?: string;
   initialOutcome?: QuoteOutcome;
   viewer?: QuoteViewer;
+  commercialFollowup?: boolean;
 }) {
   const outcome = initialOutcome ?? (initialStatus === "CLOSED" ? "closed" : "pending");
   const isAdmin = viewer === "admin";
@@ -65,6 +67,24 @@ export function QuoteClientActions({
       setState("error");
       setErrorMessage("Action non finalisée. Réessayez ou contactez notre équipe.");
     }
+  }
+
+  // Urgent departure (client side): the devis is shown but can't be accepted/refused online —
+  // a commercial confirms availability and takes over. Final outcomes still display normally.
+  if (commercialFollowup && !isAdmin && (state === "idle" || initialStatus === "QUOTE_READY")) {
+    return (
+      <div className={styles.actionPanel}>
+        <div className={styles.actions}>
+          <a className={styles.download} href={`/api/quotes/${quoteId}/pdf?lang=${downloadLanguage}`} data-i18n-key="Télécharger">
+            Télécharger PDF
+          </a>
+        </div>
+        <p className={styles.actionMessage}>
+          Votre départ est proche : un conseiller NeoTravel vous recontacte rapidement pour confirmer la
+          disponibilité. Vous pouvez d’ores et déjà télécharger votre estimation.
+        </p>
+      </div>
+    );
   }
 
   if (initialStatus === "QUOTE_READY") {

@@ -327,6 +327,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   const [routeStatus, setRouteStatus] = useState<"idle" | "loading" | "ready" | "fallback">("idle");
   const [mapZoom, setMapZoom] = useState(1);
   const [isMapExpanded, setIsMapExpanded] = useState(false);
+  const [contactOpen, setContactOpen] = useState(true);
   const [isGeneratingQuote, setIsGeneratingQuote] = useState(false);
   const [isRequestingHumanReview, setIsRequestingHumanReview] = useState(false);
   const [humanReviewQueued, setHumanReviewQueued] = useState(false);
@@ -730,21 +731,29 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
       }
       setCurrentLeadId(sync.leadId);
 
+      // Generate the estimate only — sending the devis email (and the relance sequence) is
+      // the commercial's action from the dashboard. The prospect always reaches their devis,
+      // even when urgent: the urgency note + disabled actions live on the devis page itself.
       const quoteResponse = await fetch("/api/quotes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadId: sync.leadId, autoSend: true }),
+        body: JSON.stringify({ leadId: sync.leadId }),
       });
-      if (!quoteResponse.ok) throw new Error("QUOTE_GENERATION_FAILED");
-      const quote = (await quoteResponse.json()) as { id: string; status?: string };
-      if (quote.status === "HUMAN_REVIEW") {
-        setChatHumanReview(true);
-        setHumanReviewQueued(true);
-        setWorkflowError(
-          "Votre demande est très urgente. Un commercial doit vérifier la disponibilité avant d'envoyer le devis.",
-        );
+      const quote = (await quoteResponse.json().catch(() => null)) as
+        | { id?: string; status?: string; error?: string }
+        | null;
+
+      if (!quoteResponse.ok || !quote?.id) {
+        if (quote?.status === "HUMAN_REVIEW") {
+          setChatHumanReview(true);
+          setHumanReviewQueued(true);
+          setWorkflowError("Votre demande nécessite une vérification par un conseiller, qui vous recontactera rapidement.");
+          return;
+        }
+        setWorkflowError("Nous n’avons pas pu préparer le devis pour l’instant. Vous pouvez réessayer ou nous contacter.");
         return;
       }
+
       clearDemandSession();
       router.push(`/client/devis/${quote.id}`);
     } catch {
@@ -1359,13 +1368,17 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
             </div>
           </aside>
 
-          <details className={`${styles.sidePanel} ${styles.collapsiblePanel}`}>
+          <details
+            className={`${styles.sidePanel} ${styles.collapsiblePanel}`}
+            open={contactOpen}
+            onToggle={(e) => setContactOpen((e.target as HTMLDetailsElement).open)}
+          >
             <summary className={styles.collapsibleSummary}>
               <span id="contact-panel-title">Vos coordonnées</span>
               <small>
                 {chatEmail || activeDemand.phone || activeDemand.contactName
                   ? "Coordonnées renseignées — modifier"
-                  : "À compléter avant l'envoi"}
+                  : "Recommandé : email pour recevoir le devis et créer votre compte"}
               </small>
             </summary>
 

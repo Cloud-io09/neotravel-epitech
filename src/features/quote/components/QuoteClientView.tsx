@@ -38,6 +38,16 @@ function formatTripType(value: string | null | undefined) {
 
 type QuoteViewer = "client" | "admin";
 
+// Urgent departure (≤ 7 days): the devis is still generated and shown, but the client can't
+// accept/refuse online — a commercial confirms availability and takes over.
+function isUrgentDeparture(departureDate: string | null | undefined) {
+  if (!departureDate) return false;
+  const departure = new Date(`${departureDate}T12:00:00`).getTime();
+  if (Number.isNaN(departure)) return false;
+  const diffDays = (departure - Date.now()) / (24 * 60 * 60 * 1000);
+  return diffDays >= 0 && diffDays <= 7;
+}
+
 function quoteOutcome(status: string, leadStatus: string | null | undefined, humanReviewReason: string | null | undefined) {
   if (leadStatus === "HUMAN_REVIEW" && humanReviewReason === "QUOTE_ACCEPTED_INTENT") return "interested";
   if (leadStatus === "HUMAN_REVIEW" && humanReviewReason === "QUOTE_REFUSED_INTENT") return "notInterested";
@@ -296,6 +306,7 @@ export async function QuoteClientView({ quoteId, viewer = "client" }: { quoteId:
             initialStatus={storedQuote.status}
             initialOutcome={quoteOutcome(storedQuote.status, lead?.status, lead?.humanReviewReason)}
             viewer={viewer}
+            commercialFollowup={isUrgentDeparture(lead?.departureDate)}
           />
 
           {!isAdmin ? (
