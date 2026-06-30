@@ -55,9 +55,7 @@ export function ClientResetForm() {
 
       {message ? <p className={styles.note}>{message}</p> : null}
 
-      <p className={styles.note}>
-        La réinitialisation concerne uniquement le compte client. Les accès internes restent séparés.
-      </p>
+      <p className={styles.note}>Vous pourrez choisir un nouveau mot de passe depuis le lien reçu par email.</p>
     </form>
   );
 }

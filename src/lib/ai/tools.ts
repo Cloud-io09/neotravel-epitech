@@ -110,9 +110,7 @@ export async function createOrUpdateLead(
     free_message: lead.free_message ?? null,
     status,
     missing_fields: missing.missing_fields,
-    ...(requiresHumanReview
-      ? { human_review_reason: "INTERMEDIATE_STOP_REQUIRES_MANUAL_ROUTE" }
-      : {}),
+    human_review_reason: requiresHumanReview ? "INTERMEDIATE_STOP_REQUIRES_MANUAL_ROUTE" : null,
   };
 
   let clientId: string | null = null;

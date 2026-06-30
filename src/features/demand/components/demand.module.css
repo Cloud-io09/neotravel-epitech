@@ -583,6 +583,24 @@
   background: #fff;
 }
 
+.manualCheckbox {
+  grid-template-columns: 92px auto minmax(0, 1fr) !important;
+}
+
+.manualCheckbox input {
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+  padding: 0;
+  accent-color: #123885;
+}
+
+.manualCheckbox strong {
+  color: #17202e;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .fieldInvalid input,
 .fieldInvalid select {
   border-color: #d51b29;

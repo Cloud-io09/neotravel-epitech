@@ -203,7 +203,7 @@ describe("multi-turn lead accumulation", () => {
     });
   });
 
-  it("does not let a later extraction erase a detected intermediate stop", () => {
+  it("lets an explicit manual correction clear a detected intermediate stop", () => {
     const state = mergeLead(
       LeadQualificationSchema.parse({
         has_intermediate_stop: true,
@@ -213,8 +213,8 @@ describe("multi-turn lead accumulation", () => {
     );
 
     expect(state).toMatchObject({
-      has_intermediate_stop: true,
-      intermediate_stops: ["Dijon"],
+      has_intermediate_stop: false,
+      intermediate_stops: [],
     });
   });
 });

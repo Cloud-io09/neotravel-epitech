@@ -76,6 +76,7 @@
 .grid label {
  display: grid;
  gap: 6px;
+ min-width: 0;
  color: #475467;
  font-size: 12px;
  font-weight: 800;
@@ -176,6 +177,7 @@
 .optionChoice span {
  font-size: 13px;
  font-weight: 800;
+ overflow-wrap: anywhere;
 }
 
 .grid input:focus-visible,
@@ -235,6 +237,7 @@
  color: #b3261e;
  font-size: 13px;
  font-weight: 800;
+ overflow-wrap: anywhere;
 }
 
 .spin {

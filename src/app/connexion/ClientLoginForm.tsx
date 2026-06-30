@@ -1,11 +1,14 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import styles from "./connexion.module.css";
 
 export function ClientLoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirectTo");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -22,7 +25,7 @@ export function ClientLoginForm() {
       const response = await fetch("/api/auth/client-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password, redirectTo })
       });
       const payload = (await response.json().catch(() => null)) as
         | { ok?: boolean; redirectTo?: string; error?: { code?: string; message?: string } }
@@ -74,6 +77,10 @@ export function ClientLoginForm() {
       <button className={styles.primaryButton} type="submit" disabled={isSubmitting}>
         {isSubmitting ? "Connexion..." : "Se connecter"}
       </button>
+
+      <Link className={styles.forgotLink} href="/connexion/reinitialisation">
+        Mot de passe oublié ?
+      </Link>
 
       <p className={styles.note}>
         Pas encore de compte ? Créez votre espace client pour retrouver vos devis et demandes.

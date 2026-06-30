@@ -366,7 +366,12 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
     const arrival = clean(initialDemand.arrival);
     const departureDate = formatDate(initialDemand.departureDate);
     const returnDate = formatDate(initialDemand.returnDate);
-    const tripType = initialDemand.tripType === "one_way" ? "Aller simple" : "Aller-retour";
+    const tripType =
+      initialDemand.tripType === "one_way"
+        ? "Aller simple"
+        : initialDemand.tripType === "round_trip"
+          ? "Aller-retour"
+          : "";
 
     return {
       departure,
@@ -482,8 +487,8 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
         ? "one_way"
         : initialDemand.tripType
           ? "round_trip"
-          : departureDate && !returnDate
-            ? "one_way"
+          : returnDate
+            ? "round_trip"
             : null);
 
     return {
@@ -645,18 +650,15 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   }
 
   function updateTripType(value: string) {
-    if (value === "multi_stop") {
-      setMultiDestination(true);
-      setChatExtracted((prev) => ({ ...prev, tripType: prev.tripType ?? "one_way" }));
-      return;
-    }
-
-    setMultiDestination(false);
-    setStops([]);
     setChatExtracted((prev) => ({
       ...prev,
       tripType: value ? (value as "one_way" | "round_trip") : null,
     }));
+  }
+
+  function toggleMultiDestination(value: boolean) {
+    setMultiDestination(value);
+    if (!value) setStops([]);
   }
 
   async function sendMessage(e?: React.FormEvent) {
@@ -1377,14 +1379,22 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
                 <label>
                   <span>Type</span>
                   <select
-                    value={multiDestination ? "multi_stop" : activeDemand.tripType ?? ""}
+                    value={activeDemand.tripType ?? ""}
                     onChange={(e) => updateTripType(e.target.value)}
                   >
                     <option value="">--</option>
                     <option value="one_way">Aller simple</option>
                     <option value="round_trip">Aller-retour</option>
-                    <option value="multi_stop">Multi-destination / avec escale</option>
                   </select>
+                </label>
+                <label className={styles.manualCheckbox}>
+                  <span>Escales</span>
+                  <input
+                    type="checkbox"
+                    checked={multiDestination}
+                    onChange={(e) => toggleMultiDestination(e.target.checked)}
+                  />
+                  <strong>Ajouter un arrêt intermédiaire</strong>
                 </label>
                 {activeDemand.tripType === "round_trip" ? (
                   <label className={warningFor("returnDate") ? styles.fieldInvalid : undefined}>

@@ -229,7 +229,6 @@ export default async function FollowupDetailPage({ params }: { params: Promise<{
         <article className={styles.kpi}><span>Statut</span><strong>{statusLabel(followup.status)}</strong></article>
         <article className={styles.kpi}><span>Échéance</span><strong>{formatDateTime(followup.dueAt)}</strong></article>
         <article className={styles.kpi}><span>Scénario</span><strong>{kind === "urgent" ? "Urgent J+1" : kind === "very_urgent" ? "Très urgent" : "Standard J+1/J+3/J+7"}</strong></article>
-        <article className={styles.kpi}><span>Scénario</span><strong>{kind === "urgent" ? "Urgent J+1" : kind === "very_urgent" ? "Très urgent" : "Standard J+1/J+3/J+7"}</strong></article>
         <article className={styles.kpi}><span>Action</span><strong>{nextAction(followup, lead)}</strong></article>
       </section>
 

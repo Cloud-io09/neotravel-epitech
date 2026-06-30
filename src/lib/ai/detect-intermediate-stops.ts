@@ -1,15 +1,28 @@
 import type { LeadQualification } from "../domain/schemas";
 
-const NEGATED_STOP_PATTERN =
-  /\b(?:sans\s+(?:aucun\s+)?(?:faire\s+d['’]?)?(?:arr[eê]t|arret|stop|[ée]tape|pause)|pas\s+d['’]?(?:arr[eê]t|arret|stop|[ée]tape|pause))\b/iu;
+// Note: use "(?:^|[^\\p{L}])" instead of "\\b" — the ASCII word boundary is unreliable before
+// accented starts ("étape", "escale" after a comma) under the /u flag.
+const STOP_NOUN = "(?:arr[eê]ts?|arrets?|stops?|[ée]tapes?|pauses?|escales?|haltes?)";
+
+const NEGATED_STOP_PATTERN = new RegExp(
+  `(?:^|[^\\p{L}])(?:sans\\s+(?:aucun\\s+)?(?:faire\\s+d['’]?)?${STOP_NOUN}|pas\\s+d['’]?${STOP_NOUN})`,
+  "iu",
+);
 
 const STOP_PATTERNS = [
-  /\b(?:un\s+|une\s+|des\s+)?(?:arr[eê]t|arret|stop|[ée]tape|pause)\s+(?:à|a|au|aux|dans|via|par)\s+(?<stop>[\p{L}][\p{L}'’\-]*(?:\s+[\p{L}][\p{L}'’\-]*){0,3})/iu,
-  /\b(?:via|en\s+passant\s+par|passer\s+par|(?:un\s+)?d[eé]tour\s+par)\s+(?<stop>[\p{L}][\p{L}'’\-]*(?:\s+[\p{L}][\p{L}'’\-]*){0,3})/iu,
+  // "(un) arrêt/escale/étape (intermédiaire) à/dans/via X"
+  new RegExp(
+    `(?:^|[^\\p{L}])(?:un|une|des|le|la|petit|petite)?\\s*${STOP_NOUN}(?:\\s+interm[ée]diaires?)?\\s+(?:à|a|au|aux|dans|via|par|pr[eè]s\\s+de)\\s+(?<stop>[\\p{L}][\\p{L}'’\\-]*(?:\\s+[\\p{L}][\\p{L}'’\\-]*){0,2})`,
+    "iu",
+  ),
+  // "via / en passant par / passer par / détour par X"
+  /(?:^|[^\p{L}])(?:via|en\s+passant\s+par|passer?\s+par|passe\s+par|(?:un\s+)?d[eé]tour\s+par)\s+(?<stop>[\p{L}][\p{L}'’\-]*(?:\s+[\p{L}][\p{L}'’\-]*){0,2})/iu,
+  // "on s'arrête à X" / "s'arrêter à X"
+  /(?:^|[^\p{L}])s['’]arr[eê]te(?:r|nt)?\s+(?:à|a|au|aux|dans|sur)\s+(?<stop>[\p{L}][\p{L}'’\-]*(?:\s+[\p{L}][\p{L}'’\-]*){0,2})/iu,
 ];
 
 const ROUTE_COMPLEXITY_PATTERN =
-  /(?:^|[^\p{L}])(?:arr[eê]t|arret|stop|[ée]tape|pause|via|passer\s+par|passe\s+par|en\s+passant\s+par|d[eé]tour|ramasser|r[eé]cup[eé]rer)\b/iu;
+  /(?:^|[^\p{L}])(?:arr[eê]t|arret|stop|[ée]tape|pause|escale|halte|via|passer\s+par|passe\s+par|en\s+passant\s+par|d[eé]tour|ramasser|r[eé]cup[eé]rer|s['’]arr[eê]te)/iu;
 
 // Chained / multi-destination signals (not just "via X").
 const PLUSIEURS_PATTERN =
@@ -72,14 +85,25 @@ function cityToken(segment: string): string | undefined {
 
 function normalizeStop(value: string): string | undefined {
   const withoutFillers = value
-    .replace(/\b(?:en\s+fait|enfte|svp|s['’]il\s+vous\s+pla[iî]t)\b.*$/iu, "")
+    .replace(/\b(?:en\s+fait|enfte|en\s+chemin|sur\s+le\s+trajet|svp|s['’]il\s+vous\s+pla[iî]t)\b.*$/iu, "")
     .trim();
 
   if (!withoutFillers) return undefined;
+  if (isNonCityStopToken(withoutFillers)) return undefined;
 
   return withoutFillers
     .toLocaleLowerCase("fr-FR")
     .replace(/(^|[\s\-'])[\p{L}]/gu, (character) => character.toLocaleUpperCase("fr-FR"));
+}
+
+function isNonCityStopToken(value: string): boolean {
+  const normalized = value.toLocaleLowerCase("fr-FR").replace(/[.!?,;]+$/u, "").trim();
+
+  return (
+    /^(?:prévoir|prevoir|confirmer|faire|organiser|gérer|gerer|planifier)$/iu.test(normalized) ||
+    /^(?:le|la|un|une|du|des)\s+(?:trajet|chemin|route)$/iu.test(normalized) ||
+    /^(?:trajet|chemin|route)$/iu.test(normalized)
+  );
 }
 
 function uniqueStops(stops: string[]): string[] {

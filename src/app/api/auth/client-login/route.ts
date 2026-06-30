@@ -7,8 +7,16 @@ export const runtime = "nodejs";
 
 const ClientLoginSchema = z.object({
   email: z.string().trim().email(),
-  password: z.string().min(1)
+  password: z.string().min(1),
+  redirectTo: z.string().optional().nullable(),
 });
+
+function safeClientRedirect(value: string | null | undefined) {
+  if (!value) return "/compte";
+  if (!value.startsWith("/") || value.startsWith("//")) return "/compte";
+  if (value.startsWith("/dashboard") || value.startsWith("/admin")) return "/compte";
+  return value;
+}
 
 export async function POST(request: Request) {
   try {
@@ -30,7 +38,7 @@ export async function POST(request: Request) {
       return jsonError("INVALID_CREDENTIALS", "Email ou mot de passe incorrect.", 401);
     }
 
-    return NextResponse.json({ ok: true, redirectTo: "/compte" });
+    return NextResponse.json({ ok: true, redirectTo: safeClientRedirect(input.redirectTo) });
   } catch (error) {
     return handleApiError(error);
   }

@@ -1,7 +1,9 @@
 .shell {
  display: grid;
  grid-template-columns: 250px minmax(0, 1fr);
+ min-width: 0;
  min-height: 100vh;
+ overflow-x: clip;
  background: #f8fafd;
  color: #17202e;
 }
@@ -369,7 +371,10 @@
  display: grid;
  align-content: start;
  gap: 22px;
+ min-width: 0;
+ max-width: 100%;
  min-height: 100vh;
+ overflow-x: hidden;
  padding: 28px 32px 40px;
 }
 
@@ -677,6 +682,39 @@
  letter-spacing: -0.01em;
 }
 
+.filterBar {
+ display: flex;
+ flex-wrap: wrap;
+ gap: 10px;
+ margin: 0 22px 18px;
+ padding: 14px;
+ border: 1px solid #edf1f6;
+ border-radius: 16px;
+ background: #fbfcff;
+}
+
+.filterPill {
+ display: inline-flex;
+ min-height: 34px;
+ align-items: center;
+ justify-content: center;
+ border: 1px solid #d9e2ed;
+ border-radius: 999px;
+ padding: 0 13px;
+ color: #536176;
+ background: #ffffff;
+ font-size: 12px;
+ font-weight: 900;
+ transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+}
+
+.filterPill:hover,
+.filterPill[data-active="true"] {
+ border-color: #123885;
+ color: #123885;
+ background: #eef5ff;
+}
+
 .conversionLineChart {
  position: relative;
  --chart-color: #0b8554;
@@ -909,6 +947,8 @@
 }
 
 .tableViewport {
+ width: 100%;
+ max-width: 100%;
  overflow-x: auto;
 }
 
@@ -924,9 +964,9 @@
 .compactRow {
  display: grid;
  grid-template-columns: var(--cols, minmax(170px, 1.2fr) repeat(4, minmax(105px, 1fr)));
- gap: 14px;
+ gap: 16px;
  align-items: center;
- padding: 13px 22px;
+ padding: 14px 22px;
 }
 
 .tableHead,
@@ -968,11 +1008,44 @@
 .compactRow strong {
  display: block;
  color: #17202e;
+ overflow-wrap: anywhere;
 }
 
 .row small,
 .compactRow small {
  color: #637188;
+}
+
+.tableHead span,
+.row span,
+.compactHead span,
+.compactRow span {
+ min-width: 0;
+ overflow-wrap: anywhere;
+}
+
+.sortHeader {
+ display: inline-flex;
+ width: fit-content;
+ max-width: 100%;
+ align-items: center;
+ gap: 6px;
+ border-radius: 999px;
+ padding: 5px 9px;
+ color: inherit;
+ transition: background 0.16s ease, color 0.16s ease;
+}
+
+.sortHeader:hover,
+.sortHeader[data-active="true"] {
+ color: #123885;
+ background: #e8f1ff;
+}
+
+.sortHeader small {
+ color: inherit;
+ font-size: 12px;
+ line-height: 1;
 }
 
 .status {

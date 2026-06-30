@@ -21,19 +21,30 @@ export function LeadReviewActions({ lead }: { lead: Lead }) {
   setBusy(kind);
   setError(null);
 
-  const patch =
-   kind === "validate"
-    ? { status: isInterestedIntent || isRefusedIntent ? "QUOTE_SENT" : "QUALIFIED", humanReviewReason: null }
-    : { status: "LOST", humanReviewReason: isRefusedIntent ? "Refus client confirmé par le commercial." : lead.humanReviewReason };
-
   try {
-   const response = await fetch(`/api/leads/${lead.id}`, {
-    method: "PATCH",
-    headers: { "content-type": "application/json" },
-   body: JSON.stringify(patch)
-  });
+   const response =
+    isInterestedIntent || isRefusedIntent
+     ? await fetch(`/api/leads/${lead.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(
+         kind === "validate"
+          ? { status: "QUOTE_SENT", humanReviewReason: null }
+          : {
+             status: "LOST",
+             humanReviewReason: isRefusedIntent
+              ? "Refus client confirmé par le commercial."
+              : lead.humanReviewReason
+            }
+        )
+       })
+     : await fetch(`/api/human-review/${lead.id}/resolve`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ targetStatus: kind === "validate" ? "QUALIFIED" : "LOST" })
+       });
    const json = await response.json().catch(() => null);
-   if (!response.ok) throw new Error(json?.error?.message ?? "Action impossible, réessayez.");
+   if (!response.ok) throw new Error(errorMessage(json));
    router.refresh();
   } catch (caught) {
    setError(caught instanceof Error ? caught.message : "Action impossible, réessayez.");
@@ -59,17 +70,29 @@ export function LeadReviewActions({ lead }: { lead: Lead }) {
     ) : null}
     <button className={styles.validate} type="button" onClick={() => decide("validate")} disabled={busy !== null}>
      {busy === "validate" ? <Loader2 className={styles.spin} aria-hidden="true" size={16} /> : <Check aria-hidden="true" size={16} />}
-     {isInterestedIntent ? "Reprendre le dossier" : isRefusedIntent ? "Réouvrir le suivi" : "Valider la demande"}
+     {isInterestedIntent ? "Reprendre le dossier" : isRefusedIntent ? "Réouvrir le suivi" : "Valider et envoyer le devis"}
     </button>
    </div>
 
    <div className={styles.emailPreview} aria-label="Suite commerciale">
     <strong>Suite commerciale</strong>
     <p>
-     Destinataire : {lead.email ?? "email à renseigner"}. Après validation, générez puis envoyez le devis depuis
-     le bloc devis. Après refus, classez le dossier comme perdu si la demande ne peut pas être traitée.
+     Destinataire : {lead.email ?? "email à renseigner"}. Après validation, le devis est généré si nécessaire,
+     envoyé au client, puis les relances sont planifiées. Si des informations restent manquantes, la validation
+     est bloquée avec un message explicite.
     </p>
    </div>
   </section>
  );
+}
+
+function errorMessage(json: unknown) {
+ if (json && typeof json === "object") {
+  const record = json as { error?: unknown };
+  if (record.error && typeof record.error === "object" && "message" in record.error) {
+   return String((record.error as { message?: unknown }).message ?? "Action impossible, réessayez.");
+  }
+  if (typeof record.error === "string") return record.error;
+ }
+ return "Action impossible, réessayez.";
 }

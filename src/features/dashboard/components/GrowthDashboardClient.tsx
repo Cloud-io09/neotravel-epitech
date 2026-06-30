@@ -1092,39 +1092,11 @@ export function GrowthDashboardClient() {
          href="/dashboard/demandes?status=qualified"
         />
         <GrowthKpiCard
-         label="Delai lead -> devis"
-         value={duration(data.kpis.averageLeadToQuoteMinutes)}
-         detail="Moyenne sur devis generes"
-         tone="gold"
-         onShowDetails={() => showDetails("average_lead_to_quote_minutes")}
-        />
-        <GrowthKpiCard
          label="Devis generes"
          value={data.kpis.quotesGenerated}
          detail={euro(data.kpis.quotesAmount)}
          tone="blue"
          href="/dashboard/devis?status=generated"
-        />
-        <GrowthKpiCard
-         label="Taux de conversion"
-         value={percent(data.kpis.conversionRate)}
-         detail="Acceptes / envoyes"
-         tone="green"
-         onShowDetails={() => showDetails("conversion_rate")}
-        />
-        <GrowthKpiCard
-         label="CA potentiel"
-         value={euro(data.kpis.potentialRevenue)}
-         detail="Devis ouverts non refuses"
-         tone="blue"
-         href="/dashboard/devis?status=open"
-        />
-        <GrowthKpiCard
-         label="CA accepté"
-         value={euro(data.kpis.wonRevenue)}
-         detail="Devis acceptes"
-         tone="green"
-         href="/dashboard/devis?status=accepted"
         />
         <GrowthKpiCard
          label="Relances en retard"
