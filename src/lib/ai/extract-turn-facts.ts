@@ -224,8 +224,11 @@ function parseContextualCityAnswer(message: string): string | undefined {
 
   const city = normalized.replace(/\s+/gu, " ");
   if (!/^[\p{L}][\p{L}'’ -]*$/u.test(city)) return undefined;
-  // Plausible place names are short (incl. compounds like "La Roche-sur-Yon"); reject phrases.
-  if (city.split(/[\s-]+/u).filter(Boolean).length > 4) return undefined;
+  // Plausible place names are short. Multi-word French places use hyphens (Aix-en-Provence,
+  // La Roche-sur-Yon); a 3+ space-separated phrase without any hyphen ("soupe aux choux
+  // recette") is almost certainly NOT a city → reject. (Le Havre, La Rochelle stay valid.)
+  const spaceWords = city.split(/\s+/u).filter(Boolean);
+  if (spaceWords.length > 2 && !city.includes("-")) return undefined;
 
   return cleanCity(city);
 }
