@@ -55,3 +55,17 @@ Résultat attendu :
 - `calculer_devis()` refuse automatiquement ;
 - statut `HUMAN_REVIEW` ;
 - aucun devis automatique créé.
+
+## Cas 5 — Devis multi-escales
+
+Entrée :
+
+> Je veux un car de Paris à Marseille avec un arrêt à Lyon pour 40 personnes le 7 juillet 2026. Mon email est camille@example.com. C'est un aller simple.
+
+Résultat attendu :
+
+- `intermediate_stops` contient `Lyon` ;
+- les distances Paris → Lyon et Lyon → Marseille sont résolues par source contrôlée ;
+- le devis contient deux lignes de sous-devis ;
+- le total HT, TVA et TTC additionne les tronçons ;
+- aucun prix ni kilométrage n'est inventé par l'IA.

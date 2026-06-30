@@ -33,9 +33,9 @@ Si un champ critique manque, la demande passe en `INCOMPLETE` et aucun devis n'e
 
 ## Modèle LLM
 
-Le prototype utilise Gemini via le provider Vercel AI SDK `@ai-sdk/google`.
-La clé attendue est `GEMINI_API_KEY` ou `GOOGLE_GENERATIVE_AI_API_KEY`.
-Le modèle est configuré par `AI_MODEL_ID`, par défaut `gemini-3-flash-preview`.
+Le prototype utilise l'AI Gateway quand `AI_GATEWAY_API_KEY` est configuré, avec
+`AI_GATEWAY_MODEL_ID` pour choisir le modèle. En fallback, il utilise `AI_API_KEY` et
+`AI_MODEL_ID`.
 
 Le tool Google Search natif n'est pas activé : la distance et le prix doivent rester dans les
 services NeoTravel contrôlés.
@@ -47,8 +47,16 @@ L'agent peut résumer le statut du devis, mais il ne doit jamais inventer un mon
 
 ## Règle anti-distance IA
 
-La distance est uniquement produite par `resolveDistance()` depuis `route_pricing`.
-Si la route est inconnue, le devis automatique est bloqué et le lead passe en `HUMAN_REVIEW`.
+La distance est uniquement produite par `resolveDistance()` depuis `route_pricing` ou une API
+de distance contrôlée. Si une route ou un tronçon est inconnu, le devis automatique est bloqué
+et le lead passe en `HUMAN_REVIEW`.
+
+## Règle multi-escales
+
+L'agent peut extraire `has_intermediate_stop` et `intermediate_stops`. Le prix reste calculé
+côté serveur : `quote-service` découpe le trajet en tronçons, résout chaque distance, appelle
+`calculer_devis()` par tronçon et additionne les lignes. L'agent ne doit jamais additionner ou
+inventer les sous-devis lui-même.
 
 ## Prompt injection
 

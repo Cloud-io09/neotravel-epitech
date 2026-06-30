@@ -7,7 +7,7 @@ when the n8n cron calls `/api/followups/send-due`:
 
 | Cas | Condition (départ vs maintenant) | Tag dashboard | Relances |
 |-----|----------------------------------|---------------|----------|
-| Standard | départ > 7j | — | **J+3, J+7** (`FOLLOWUP_J3/J7`) → `FOLLOWUP_1/2` → `CLOSED` ou reprise commerciale |
+| Standard | départ > 7j | — | **J+1, J+3, J+7** (`FOLLOWUP_J1/J3/J7`) → `FOLLOWUP_1/2/3` → `CLOSED` ou reprise commerciale |
 | Urgent | départ 48h–7j | « Urgent » | **J+1 unique** (`FOLLOWUP_J1`) |
 | Très urgent | départ ≤ 48h | « Très urgent » | **aucune** → `HUMAN_REVIEW` |
 
@@ -39,7 +39,7 @@ with header `x-neotravel-webhook-secret`. In n8n the body is under `$json.body`,
 under `$json.headers`.
 
 ## 2. `neotravel-relances.workflow.json` (PROD)
-Daily cron (09:00) that triggers any due J+1 urgent or J+3/J+7 standard relances (sends `{ "limit": 100 }`).
+Daily cron (09:00) that triggers any due J+1 urgent or J+1/J+3/J+7 standard relances (sends `{ "limit": 100 }`).
 
 Replace in **Send due followups**: `REPLACE_WITH_YOUR_APP_URL` and `REPLACE_WITH_N8N_WEBHOOK_SECRET`.
 **Activate**. Calls `POST /api/followups/send-due` once per day.
@@ -53,15 +53,15 @@ demoing so they don't overlap. Sends `{ "limit": 50 }` so a demo batch is fully 
 > `audit_logs`, so hitting it every minute never double-sends.
 
 ## Demo runbook (relances ~every minute)
-1. App env: set `DEMO_FAST_FOLLOWUP=true` (schedules urgent J1 → +1 min, standard J3 → +2 min, standard J7 → +3 min,
+1. App env: set `DEMO_FAST_FOLLOWUP=true` (schedules urgent J1 → +1 min, standard J1 → +1 min, standard J3 → +2 min, standard J7 → +3 min,
    and compresses the closure grace to ~1 min), plus
    `N8N_CUSTOMER_EMAIL_WEBHOOK`, `N8N_WEBHOOK_SECRET`, `NEXT_PUBLIC_APP_URL`.
 2. Import + activate **customer-email** and **relances-demo** workflows (placeholders filled).
 3. Create a lead with a quote whose client email is a real test inbox, then **send the quote**
-   (dashboard "Envoyer le devis") → this schedules the J+3/J+7 standard relances, or J+1 if urgent.
+   (dashboard "Envoyer le devis") → this schedules the J+1/J+3/J+7 standard relances, or J+1 if urgent.
 4. Watch: within ~1–2 min the demo cron drains the due relances → real emails arrive, and
    `/dashboard/relances` flips them `scheduled → sent`; the lead advances
-   `QUOTE_SENT → FOLLOWUP_1 → FOLLOWUP_2 → CLOSED` or human review.
+   `QUOTE_SENT → FOLLOWUP_1 → FOLLOWUP_2 → FOLLOWUP_3 → CLOSED` or human review.
 
 ## App env recap
 ```

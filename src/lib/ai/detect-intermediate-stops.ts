@@ -18,9 +18,9 @@ const ARROW_CHAIN_PATTERN = /(?:→|->)[^→]*(?:→|->)/u; // 2+ arrows: A → 
 const PUIS_CHAIN_PATTERN = /\bpuis\b[^.!?]*\bpuis\b/iu; // 2+ "puis": A puis B puis C
 
 /**
- * Marks multi-step / multi-destination requests as manual-review-only. The direct-route
- * pricing engine has no safe way to price an intermediate stop or a multi-leg trip, so
- * this guardrail is deterministic and independent from the model extraction.
+ * Deterministically detects multi-step / multi-destination requests. Pricing is still
+ * handled server-side by quote-service, segment by segment, after controlled distance
+ * resolution; this helper only preserves the requested stops.
  */
 export function detectIntermediateStops(message: string): Partial<LeadQualification> {
   if (NEGATED_STOP_PATTERN.test(message)) return {};

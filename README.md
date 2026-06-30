@@ -5,6 +5,7 @@ Prototype MVP pour démontrer un parcours commercial amont de devis transport.
 ## Périmètre actuel
 
 - Socle pricing déterministe en TypeScript.
+- Devis multi-escales : chaque tronçon est chiffré séparément puis additionné au total final.
 - Socle Supabase minimal : schéma SQL, seeds et variables d'environnement.
 - Agent Vercel AI SDK minimal avec tools contrôlés.
 - Front prospect et dashboard commercial connectés au pipeline.
@@ -44,15 +45,16 @@ npm run test:integration
 Agent IA local :
 
 ```bash
-export GEMINI_API_KEY=...
-export AI_MODEL_ID=gemini-3-flash-preview
+export AI_GATEWAY_API_KEY=...
+export AI_GATEWAY_MODEL_ID=openai/gpt-5-mini
 export AGENT_DEBUG_LOGS=true
-export AGENT_QUALIFICATION_TIMEOUT_MS=15000
+export AGENT_QUALIFICATION_TIMEOUT_MS=30000
 npm run dev
 ```
 
-Le modèle Gemini est appelé via le provider AI SDK `@ai-sdk/google`. Les tools NeoTravel
-restent les seuls à créer un lead, résoudre une distance ou calculer un devis.
+Le provider AI Gateway est prioritaire quand `AI_GATEWAY_API_KEY` est configuré. Sinon l'app
+utilise le fallback `AI_API_KEY` / `AI_MODEL_ID`. Les tools NeoTravel restent les seuls à
+créer un lead, résoudre une distance ou calculer un devis.
 Les logs `[neotravel:agent]` tracent les phases serveur sans afficher le message complet ni l'email.
 `/api/chat` retourne toujours un JSON métier commun : `status`, `message`, puis `leadId`,
 `quoteId`, `missingFields` ou `reviewReason` selon le cas.
@@ -64,8 +66,10 @@ Templates utilisés :
 - `src/features/emails/templates/00_demande_incomplete.html`
 - `src/features/emails/templates/01_demande_en_cours.html`
 - `src/features/emails/templates/02_devis_disponible.html`
-- `src/features/emails/templates/03_relance_j2.html`
-- `src/features/emails/templates/04_relance_j7.html`
+- `src/features/emails/templates/03_relance_j1.html`
+- `src/features/emails/templates/04_relance_j3.html`
+- `src/features/emails/templates/05_relance_j7.html`
+- `src/features/emails/templates/06_creation_compte.html`
 
 Variables minimales :
 
@@ -107,6 +111,16 @@ curl -X POST "$NEXT_PUBLIC_APP_URL/api/followups/send-due" \
   -d '{"limit":20}'
 ```
 
+Cadence relances :
+
+- départ < 48h : aucune relance automatique, reprise humaine ;
+- départ entre 48h et 7 jours : relance J+1 unique ;
+- départ > 7 jours : relances J+1, J+3, J+7.
+
+En démo rapide avec `DEMO_FAST_FOLLOWUP=true`, la séquence standard est compressée à
+1, 2 et 3 minutes. Si `/api/followups/send-due` retourne `processed: 0`, aucune relance
+planifiée n'est encore arrivée à échéance.
+
 ## Supabase
 
 Avec la CLI Supabase locale et Docker :
@@ -118,9 +132,9 @@ supabase db reset
 
 La CLI applique les migrations dans `supabase/migrations/`, puis exécute `supabase/seed.sql`.
 
-Avec Supabase Cloud, exécuter manuellement dans l'éditeur SQL :
+Avec Supabase Cloud, appliquer les migrations puis initialiser les données de démo si besoin :
 
-1. `supabase/schema.sql`
+1. `supabase/migrations/`
 2. `supabase/seed.sql`
 
 ## Structure
@@ -136,7 +150,7 @@ Avec Supabase Cloud, exécuter manuellement dans l'éditeur SQL :
 - `src/lib/pricing/calculer-devis.test.ts` : tests Vitest du pricing.
 - `src/lib/pricing/lookup-pricing-rules.ts` : lecture de la matrice active Supabase.
 - `src/lib/pricing/resolve-distance.ts` : résolution de distance depuis `route_pricing`.
-- `src/lib/quotes/quote-service.ts` : orchestration lead → devis sauvegardé.
+- `src/lib/quotes/quote-service.ts` : orchestration lead → devis sauvegardé, y compris multi-escales.
 - `src/features/emails/services/` : rendu templates email et payloads n8n.
 - `src/features/emails/templates/` : templates HTML transactionnels.
 - `src/lib/quotes/quote-service.integration.test.ts` : test d'intégration Supabase local.

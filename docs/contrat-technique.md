@@ -47,6 +47,7 @@ Extraites par l'IA, validées par Zod avant tout usage. Non engageantes tant que
 | `return_date` | Si AR | Obligatoire si `trip_type = round_trip` |
 | `passenger_count` | Oui | Entier > 0 |
 | `trip_type` | Oui | `one_way` ou `round_trip` |
+| `intermediate_stops` | Non | Villes d'escale ; chaque tronçon est résolu et chiffré séparément |
 | `options` | Non | `guide`, `nuit_chauffeur` ; les péages sont liés au trajet et non sélectionnables |
 | `free_message` | Non | Contexte libre, conservé pour l'humain |
 
@@ -73,7 +74,7 @@ Ne sont jamais inventées par l'IA ni fournies telles quelles par le prospect.
 | `price_ht` | Prix hors taxe |
 | `tva_10pct` | TVA 10 % |
 | `price_ttc` | Prix TTC |
-| `breakdown` | Détail ligne par ligne (base, coeffs, options, marge, TVA) |
+| `breakdown` | Détail ligne par ligne (base, coeffs, options, marge, TVA, `routeSegments` / `quoteLines` si multi-escales) |
 | `deterministic_hash` | SHA-256 — même input = même hash |
 | `quote_number` | Dérivé du hash |
 
@@ -105,10 +106,14 @@ export const LEAD_STATUSES = [
   "NEW",               // Lead capté, non qualifié
   "INCOMPLETE",        // Champ critique manquant — devis bloqué
   "QUALIFIED",         // Demande complète, prête pour le devis
+  "HIGH_VALUE",        // Demande prioritaire commercialement
   "HUMAN_REVIEW",      // Cas sensible — escalade humaine, devis bloqué
   "QUOTE_READY",       // Devis calculé, pas encore envoyé
   "QUOTE_SENT",        // Devis transmis — compteur relances démarre
   "FOLLOWUP_SCHEDULED",// Relance programmée
+  "FOLLOWUP_1",        // Première relance envoyée
+  "FOLLOWUP_2",        // Deuxième relance envoyée
+  "FOLLOWUP_3",        // Troisième relance envoyée
   "WON",               // Accepté (terminal)
   "LOST",              // Refus ou silence après relances (terminal)
   "CLOSED",            // Clôturé sans issue commerciale (terminal)
@@ -117,9 +122,7 @@ export const LEAD_STATUSES = [
 export type LeadStatus = typeof LEAD_STATUSES[number];
 ```
 
-Règle : `CLOSED` après 2 relances sans réponse. Toute transition importante écrit dans `audit_logs`.
-Ne pas créer `HIGH_VALUE`, `FOLLOWUP_1` ou `FOLLOWUP_2` comme statuts. Si besoin,
-utiliser plus tard des champs séparés comme `priority` ou `followup_count`.
+Règle : `CLOSED` après 3 relances standard sans réponse et délai de grâce. Toute transition importante écrit dans `audit_logs`.
 
 Source unique : `src/lib/domain/status.ts`. Personne ne redéfinit ces statuts ailleurs.
 
@@ -176,6 +179,19 @@ type QuoteResult =
 - Hash SHA-256 sur input normalisé + version matrices + breakdown.
 
 Fonction **pure** : pas d'I/O, pas de réseau, pas de LLM. Testable et reproductible.
+
+### Multi-escales
+
+`calculer_devis()` reste un moteur pur de devis pour un tronçon contrôlé. Les trajets avec
+escales sont orchestrés par `src/lib/quotes/quote-service.ts` :
+
+1. construire les tronçons `départ → escale 1 → ... → arrivée` ;
+2. résoudre la distance contrôlée de chaque tronçon ;
+3. appeler `calculer_devis()` pour chaque tronçon ;
+4. stocker les lignes dans `breakdown.routeSegments` et `breakdown.quoteLines` ;
+5. additionner les sous-devis HT, TVA et TTC dans le devis final.
+
+Si un tronçon n'a pas de distance fiable, le lead passe en `HUMAN_REVIEW`.
 
 ---
 
@@ -254,7 +270,8 @@ Comportement attendu : refus contrôlé + escalade `HUMAN_REVIEW` si la demande 
 | 95 passagers | 95 pax | `HUMAN_REVIEW` (PAX_OVER_85) |
 | Déterminisme | Même input × 2 | Hash identique |
 | Route inconnue | Ville hors seed sans distance | `HUMAN_REVIEW` |
-| Relance planifiée | Devis envoyé sans réponse | `FOLLOWUP_SCHEDULED` visible |
+| Multi-escales | Paris → Lyon → Marseille | 2 lignes de sous-devis + total final |
+| Relance planifiée | Devis envoyé sans réponse | J+1/J+3/J+7 visibles puis `FOLLOWUP_1/2/3` |
 | Dashboard | Après parcours complet | KPIs à jour |
 
 ---
@@ -262,21 +279,28 @@ Comportement attendu : refus contrôlé + escalade `HUMAN_REVIEW` si la demande 
 ## 9. Variables d'environnement (`.env.example`)
 
 ```
-AI_PROVIDER=
 AI_MODEL_ID=
 AI_API_KEY=
-SUPABASE_URL=
-SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_KEY=
+AI_GATEWAY_API_KEY=
+AI_GATEWAY_MODEL_ID=
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+AGENT_DEBUG_LOGS=true
+AGENT_QUALIFICATION_TIMEOUT_MS=30000
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+N8N_CUSTOMER_EMAIL_WEBHOOK=
+N8N_SEND_QUOTE_WEBHOOK=
+N8N_FOLLOWUP_WEBHOOK=
+N8N_HUMAN_REVIEW_WEBHOOK=
+N8N_DAILY_DIGEST_WEBHOOK=
+N8N_WEBHOOK_SECRET=
 RESEND_API_KEY=
 ORS_API_KEY=
-DEMO_MODE=true
-NEXT_PUBLIC_APP_URL=
-N8N_CUSTOMER_EMAIL_WEBHOOK=
-N8N_WEBHOOK_SECRET=
+DEMO_FAST_FOLLOWUP=false
 ```
 
-`DEMO_MODE=true` force le seed `route_pricing` — zéro dépendance réseau le jour J.
+`DEMO_FAST_FOLLOWUP=true` compresse uniquement les délais de relance pour une démo live.
 
 ---
 
