@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getLeadDetail } from "@/features/lead-detail/services/getLeadDetail";
+import { getQuoteOptionLines } from "@/shared/lib/quotes/quoteOptionLines";
 import { getQuoteById } from "../services/getQuoteById";
 import { QuoteAdminSendPanel } from "./QuoteAdminSendPanel";
 import { QuoteClientActions } from "./QuoteClientActions";
@@ -74,7 +75,7 @@ export async function QuoteClientView({ quoteId, viewer = "client" }: { quoteId:
       : calculation.breakdown.routeLabel;
   // Priced option lines from the engine — each carries a label, a note, and an amount that
   // is 0 € only as a placeholder when no official price exists (never shown as free).
-  const optionLines = calculation.breakdown.options;
+  const optionLines = getQuoteOptionLines(calculation.breakdown);
 
   return (
     <main className={styles.page}>
