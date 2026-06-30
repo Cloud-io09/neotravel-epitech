@@ -139,6 +139,24 @@ describe("calculateQuoteForLead", () => {
     expect(dependencies.saveQuote).not.toHaveBeenCalled();
   });
 
+  it("génère le devis d'un trajet avec arrêt quand le commercial a validé la review", async () => {
+    const dependencies = buildDependencies(
+      baseLead({ has_intermediate_stop: true, intermediate_stops: ["Dijon"] }),
+    );
+
+    const result = await calculateQuoteForLead(leadId, dependencies, {
+      allowIntermediateStop: true,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(dependencies.markHumanReview).not.toHaveBeenCalledWith(
+      leadId,
+      "INTERMEDIATE_STOP_REQUIRES_MANUAL_ROUTE",
+    );
+    expect(dependencies.resolveDistance).toHaveBeenCalled();
+    expect(dependencies.saveQuote).toHaveBeenCalled();
+  });
+
   it("marque le lead HUMAN_REVIEW si calculer_devis refuse plus de 85 passagers", async () => {
     const dependencies = buildDependencies(baseLead({ passenger_count: 86 }));
 

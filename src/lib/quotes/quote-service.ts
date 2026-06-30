@@ -46,9 +46,19 @@ const defaultDependencies: QuoteServiceDependencies = {
   getRequestDate: () => new Date().toISOString().slice(0, 10),
 };
 
+export type CalculateQuoteForLeadOptions = {
+  /**
+   * Bypass the intermediate-stop guardrail. Set ONLY when a commercial has manually reviewed
+   * and validated the itinerary (human-review resolution). The automatic/client paths must keep
+   * the guard so multi-leg trips the direct-route engine can't price still land in human review.
+   */
+  allowIntermediateStop?: boolean;
+};
+
 export async function calculateQuoteForLead(
   leadId: string,
   dependencies: Partial<QuoteServiceDependencies> = {},
+  options: CalculateQuoteForLeadOptions = {},
 ): Promise<CalculateQuoteForLeadResult> {
   const deps = { ...defaultDependencies, ...dependencies };
   const lead = await deps.getLeadById(leadId);
@@ -57,7 +67,7 @@ export async function calculateQuoteForLead(
     throw new Error(`Lead ${leadId} not found.`);
   }
 
-  if (lead.has_intermediate_stop || lead.intermediate_stops.length > 0) {
+  if (!options.allowIntermediateStop && (lead.has_intermediate_stop || lead.intermediate_stops.length > 0)) {
     const reason = "INTERMEDIATE_STOP_REQUIRES_MANUAL_ROUTE";
     await deps.markHumanReview(leadId, reason);
 

@@ -251,16 +251,34 @@ function fieldWrapped(
 function edgeExecutablePath() {
   const candidates = [
     process.env.NEOTRAVEL_PDF_BROWSER,
+    // macOS
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium",
+    // Windows
     "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
     "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
     "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
+    // Linux
+    "/usr/bin/google-chrome",
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/microsoft-edge",
+    // Bare commands resolved via PATH (last resort)
     "google-chrome",
     "chromium",
     "chromium-browser",
     "msedge"
   ].filter(Boolean) as string[];
 
-  return candidates.find((candidate) => !candidate.includes(":\\") || existsSync(candidate)) ?? candidates[0];
+  // Prefer an absolute path that actually exists; only then fall back to a PATH-resolved command.
+  // The previous heuristic returned the first non-Windows entry ("google-chrome") without checking
+  // existence, so macOS/Linux installs at standard locations were never used.
+  const installed = candidates.find((candidate) => path.isAbsolute(candidate) && existsSync(candidate));
+  if (installed) return installed;
+
+  return candidates.find((candidate) => !path.isAbsolute(candidate)) ?? candidates[0];
 }
 
 function printHtmlToPdf(html: string) {
@@ -635,32 +653,32 @@ export async function generateQuotePdf(quoteId: string, language?: string | null
     commands.push(text(euro(item.amount + item.amount * calculation.vatRate), 466, y + 2, 8, "F2"));
   });
 
-  commands.push(rect(66, 200, 250, 95, colors.paleGreen, "0.722 0.898 0.780"));
-  commands.push(text(tr("Traçabilité du devis"), 80, 282, 11, "F2", colors.green));
-  commands.push(text(`${tr("Calcul réalisé le : ")}${traceabilityDate}`, 80, 264, 8));
-  commands.push(text(`${tr("Moteur : ")}${engineLabel}`, 80, 250, 8));
-  commands.push(text(`${tr("Référence : ")}${traceabilityId}`, 80, 236, 8));
-  pushWrappedText(commands, tr("Devis généré automatiquement selon les règles métier NeoTravel, sous réserve de validation opérationnelle."), 80, 223, {
+  commands.push(rect(66, 200, 250, 102, colors.paleGreen, "0.722 0.898 0.780"));
+  commands.push(text(tr("Traçabilité du devis"), 80, 289, 11, "F2", colors.green));
+  commands.push(text(`${tr("Calcul réalisé le : ")}${traceabilityDate}`, 80, 271, 8));
+  commands.push(text(`${tr("Moteur : ")}${engineLabel}`, 80, 257, 8));
+  commands.push(text(`${tr("Référence : ")}${traceabilityId}`, 80, 243, 8));
+  pushWrappedText(commands, tr("Devis généré automatiquement selon les règles métier NeoTravel, sous réserve de validation opérationnelle."), 80, 230, {
     fill: colors.green,
     maxChars: 58,
     maxLines: 2,
     size: 6.5
   });
-  pushWrappedText(commands, pdfLegalNotes[pdfLanguage], 80, 208, {
+  pushWrappedText(commands, pdfLegalNotes[pdfLanguage], 80, 215, {
     fill: colors.green,
     maxChars: 58,
     maxLines: 2,
     size: 6.5
   });
 
-  commands.push(rect(340, 200, 189, 95, colors.paleBlue, colors.border));
-  commands.push(text(tr("Total HT"), 358, 280, 9, "F2", colors.muted));
-  commands.push(text(euro(calculation.priceHt), 450, 280, 9, "F2"));
-  commands.push(text(tr("TVA estimée"), 358, 260, 9, "F2", colors.muted));
-  commands.push(text(euro(calculation.vatAmount), 450, 260, 9, "F2"));
-  commands.push(text(tr("Total TTC"), 358, 236, 12, "F2", colors.navy));
-  commands.push(text(euro(calculation.priceTtc), 440, 236, 12, "F2", colors.navy));
-  pushWrappedText(commands, tr("Montant à confirmer après disponibilité finale"), 358, 222, {
+  commands.push(rect(340, 200, 189, 102, colors.paleBlue, colors.border));
+  commands.push(text(tr("Total HT"), 358, 287, 9, "F2", colors.muted));
+  commands.push(text(euro(calculation.priceHt), 450, 287, 9, "F2"));
+  commands.push(text(tr("TVA estimée"), 358, 267, 9, "F2", colors.muted));
+  commands.push(text(euro(calculation.vatAmount), 450, 267, 9, "F2"));
+  commands.push(text(tr("Total TTC"), 358, 243, 12, "F2", colors.navy));
+  commands.push(text(euro(calculation.priceTtc), 440, 243, 12, "F2", colors.navy));
+  pushWrappedText(commands, tr("Montant à confirmer après disponibilité finale"), 358, 229, {
     fill: colors.muted,
     maxChars: 28,
     maxLines: 2,
