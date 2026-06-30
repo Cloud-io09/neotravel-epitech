@@ -54,7 +54,10 @@
 
 ## 2026-06-30 — Nettoyage du code mort
 
-- Suppression de ~96 fichiers scaffold orphelins (zéro importeur, confirmé par knip + tsc/build/tests) :
-  `src/shared/lib/{pricing,ai,n8n,supabase}`, `src/shared/components/*`, `src/features/ai-orchestration`,
-  et schemas/actions/components non câblés de plusieurs features.
+- Suppression de ~96 fichiers scaffold orphelins (zéro importeur, confirmé par knip + tsc/build/tests).
+- Dossiers entièrement retirés : `src/shared/lib/pricing`, `src/shared/components`.
+- Nettoyage partiel (seuls les fichiers non câblés retirés, fichiers vivants conservés) :
+  `src/shared/lib/{ai,n8n,supabase}`, `src/features/ai-orchestration`, `src/shared/types`,
+  et schemas/actions/components non câblés de plusieurs features (demand, quote, followups,
+  human-review, partners, dashboard, lead-detail).
 - `scripts/seed-demo-data.ts` conservé (outil de seed manuel).

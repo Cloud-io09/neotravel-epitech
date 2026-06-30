@@ -7,8 +7,8 @@ when the n8n cron calls `/api/followups/send-due`:
 
 | Cas | Condition (départ vs maintenant) | Tag dashboard | Relances |
 |-----|----------------------------------|---------------|----------|
-| Standard | départ > 7j | — | **J+3, J+7** (`FOLLOWUP_J3/J7`) → `FOLLOWUP_1/2` → `CLOSED` ou reprise commerciale |
-| Urgent | départ 48h–7j | « Urgent » | **J+1 unique** (`FOLLOWUP_J1`) |
+| Standard | départ > 7j | — | **J+1, J+3, J+7** (`FOLLOWUP_1/2/3`) → `CLOSED` ou reprise commerciale |
+| Urgent | départ 48h–7j | « Urgent » | **J+1 unique** (`FOLLOWUP_1`) |
 | Très urgent | départ ≤ 48h | « Très urgent » | **aucune** → `HUMAN_REVIEW` |
 
 > Orchestration & transport are delegated to n8n: the cron decides *when* to sweep, the

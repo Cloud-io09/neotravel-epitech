@@ -33,11 +33,12 @@ Si un champ critique manque, la demande passe en `INCOMPLETE` et aucun devis n'e
 
 ## Modèle LLM
 
-Le prototype utilise Gemini via le provider Vercel AI SDK `@ai-sdk/google`.
-La clé attendue est `GEMINI_API_KEY` ou `GOOGLE_GENERATIVE_AI_API_KEY`.
-Le modèle est configuré par `AI_MODEL_ID`, par défaut `gemini-3-flash-preview`.
+Le modèle est résolu par `getChatModel()` (`src/lib/ai/provider.ts`) : **Vercel AI Gateway** si
+`AI_GATEWAY_API_KEY` est défini (modèle `AI_GATEWAY_MODEL_ID` ou `AI_MODEL_ID`, défaut
+`openai/gpt-5-mini`), sinon **OpenRouter** si `AI_API_KEY` est défini (modèle `AI_MODEL_ID`,
+défaut `openai/gpt-oss-120b:free`).
 
-Le tool Google Search natif n'est pas activé : la distance et le prix doivent rester dans les
+Aucun tool de recherche web natif n'est activé : la distance et le prix doivent rester dans les
 services NeoTravel contrôlés.
 
 ## Règle anti-prix IA
