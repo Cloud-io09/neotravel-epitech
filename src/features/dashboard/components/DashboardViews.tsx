@@ -29,6 +29,19 @@ function euro(value: number) {
  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value);
 }
 
+function aiEuro(value: number) {
+ return new Intl.NumberFormat("fr-FR", {
+  style: "currency",
+  currency: "EUR",
+  minimumFractionDigits: value > 0 && value < 0.01 ? 4 : 2,
+  maximumFractionDigits: value > 0 && value < 0.01 ? 4 : 2
+ }).format(value);
+}
+
+function tokens(value: number) {
+ return new Intl.NumberFormat("fr-FR").format(value);
+}
+
 const PRIORITY_STATUSES = new Set(["NEW", "INCOMPLETE", "HUMAN_REVIEW"]);
 const ARCHIVED_LEAD_STATUSES = new Set<Lead["status"]>(["LOST", "CLOSED"]);
 const QUALIFIED_LEAD_STATUSES = new Set<Lead["status"]>([
@@ -648,7 +661,8 @@ export async function FollowupsDashboardPage({ status }: { status?: string }) {
 export async function CostsLogsDashboardPage() {
  const [logs, runs] = await Promise.all([getAuditLogs(), getModelRuns()]);
  const cost = runs.reduce((sum, run) => sum + (run.costEur ?? 0), 0);
- const latency = runs.reduce((sum, run) => sum + (run.latencyMs ?? 0), 0);
+ const inputTokens = runs.reduce((sum, run) => sum + (run.promptTokens ?? 0), 0);
+ const outputTokens = runs.reduce((sum, run) => sum + (run.completionTokens ?? 0), 0);
 
  return (
   <main className={styles.page}>
@@ -659,22 +673,23 @@ export async function CostsLogsDashboardPage() {
    <KpiGrid
     kpis={[
      { label: "Appels IA", value: runs.length, tone: "blue" },
-     { label: "Coût cumulé", value: euro(cost), tone: "green" },
-     { label: "Latence cumulée", value: `${latency} ms`, tone: "gold" },
-     { label: "Événements d'audit", value: logs.length, tone: "blue" }
+     { label: "Coût IA estimé", value: aiEuro(cost), tone: "green" },
+     { label: "Tokens entrée", value: tokens(inputTokens), tone: "gold" },
+     { label: "Tokens sortie", value: tokens(outputTokens), tone: "blue" }
     ]}
    />
    <div className={styles.twoGrid}>
-    <Panel title="Appels IA" subtitle="Chaque appel IA/mock avec son coût (table model_runs).">
+    <Panel title="Appels IA" subtitle="Chaque appel IA avec tokens SDK, latence et coût estimé (table model_runs).">
      <DataTable
-      columns={["Heure", "Usage", "Modèle", "Coût", "Statut"]}
-      columnsTemplate="1fr 1.2fr 1.2fr .8fr .8fr"
+      columns={["Heure", "Usage", "Modèle", "Tokens", "Coût", "Statut"]}
+      columnsTemplate="1fr 1.1fr 1.2fr .9fr .8fr .8fr"
       rows={runs.map((run) => ({
        cells: [
         new Date(run.createdAt).toLocaleTimeString("fr-FR"),
         run.purpose,
         run.model,
-        euro(run.costEur ?? 0),
+        `${tokens((run.promptTokens ?? 0) + (run.completionTokens ?? 0))} (${tokens(run.promptTokens ?? 0)} / ${tokens(run.completionTokens ?? 0)})`,
+        run.costEur === undefined ? "Non tarifé" : aiEuro(run.costEur),
         run.status ?? "mock"
        ]
       }))}

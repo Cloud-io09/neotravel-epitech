@@ -214,7 +214,7 @@
 .runHead,
 .runRow {
   display: grid;
-  grid-template-columns: minmax(180px, 1.2fr) 120px 110px minmax(140px, 1fr) 170px;
+  grid-template-columns: minmax(170px, 1.2fr) 110px 110px 110px 100px minmax(130px, 1fr) 160px;
   gap: 14px;
   align-items: center;
   padding: 14px 20px;
