@@ -184,7 +184,7 @@ describe("generateAssistantReply", () => {
     );
 
     expect(reply).toBe(
-      "C’est noté. Souhaitez-vous un aller simple, un aller-retour, ou un trajet avec un ou plusieurs arrêts intermédiaires ?",
+      "C’est noté. Souhaitez-vous un aller simple ou un aller-retour ?",
     );
     expect(generate).not.toHaveBeenCalled();
   });

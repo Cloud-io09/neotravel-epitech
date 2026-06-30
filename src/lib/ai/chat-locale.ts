@@ -33,7 +33,7 @@ const NEXT_QUESTION: Record<ChatLanguage, Record<string, string>> = {
     arrival_city: "Quelle est votre ville d'arrivée ?",
     departure_date: "À quelle date souhaitez-vous partir ? Une date approximative suffit pour avancer.",
     passenger_count: "Combien de passagers seront à bord ?",
-    trip_type: "Souhaitez-vous un aller simple, un aller-retour, ou un trajet avec un ou plusieurs arrêts intermédiaires ?",
+    trip_type: "Souhaitez-vous un aller simple ou un aller-retour ?",
     email: "Quel email devons-nous utiliser pour vous recontacter ?",
   },
   EN: {
@@ -146,7 +146,7 @@ const NO_NEW_INFO: Record<ChatLanguage, Record<string, string>> = {
 };
 
 const TRIP_TYPE_PROMPT: Record<ChatLanguage, string> = {
-  FR: "C’est noté. Souhaitez-vous un aller simple, un aller-retour, ou un trajet avec un ou plusieurs arrêts intermédiaires ?",
+  FR: "C’est noté. Souhaitez-vous un aller simple ou un aller-retour ?",
   EN: "Noted. Would you like a one-way or round-trip journey?",
   ES: "Entendido. ¿Desea un viaje de ida o ida y vuelta?",
   IT: "Perfetto. Desidera un viaggio di sola andata o andata e ritorno?",
