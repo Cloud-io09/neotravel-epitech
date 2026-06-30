@@ -1391,7 +1391,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
                 </label>
                 {activeDemand.tripType === "round_trip" ? (
                   <label className={warningFor("returnDate") ? styles.fieldInvalid : undefined}>
-                    <span>Date de retour facultative</span>
+                    <span>Date de retour <strong aria-hidden="true"> *</strong></span>
                     <input
                       type="date"
                       value={activeDemand.returnDate ?? ""}

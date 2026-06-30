@@ -291,7 +291,17 @@ function parseDepartureDate(message: string, referenceDate: Date): string | unde
 }
 
 function parsePassengerCount(message: string): number | undefined {
-  const match = /(?:^|\b)(?:on\s+est|nous\s+sommes|nous\s+serons|on\s+sera|nous\s+seront|environ|à\s+peu\s+près|a\s+peu\s+pres|~)?\s*(\d{1,3})\s*(?:passagers?|personnes?|pers\.?|pax)?\b/iu.exec(message.trim());
+  const text = message.trim();
+  // Never read digits that belong to a date as a passenger count ("11 sept", "11/09", "le 11").
+  if (
+    /\b\d{1,2}\s*(?:er\b\s*)?(?:janv|févr|fevr|mars|avril|mai|juin|juill?|août|aout|sept|oct|nov|d[ée]c)/iu.test(text) ||
+    /\b\d{1,2}\s*[/.-]\s*\d{1,2}\b/u.test(text) ||
+    /\ble\s+\d{1,2}\b/iu.test(text)
+  ) {
+    return undefined;
+  }
+
+  const match = /(?:^|\b)(?:on\s+est|nous\s+sommes|nous\s+serons|on\s+sera|nous\s+seront|environ|à\s+peu\s+près|a\s+peu\s+pres|~)?\s*(\d{1,3})\s*(?:passagers?|personnes?|pers\.?|pax)?\b/iu.exec(text);
   if (!match) return undefined;
 
   const passengerCount = Number(match[1]);
