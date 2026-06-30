@@ -51,6 +51,12 @@
   commercial valide l'itinéraire, ce qui lève le garde-fou pour générer et envoyer le devis.
 - La question FR du type de trajet est binaire (« aller simple ou aller-retour ») comme les autres
   langues — l'ancienne 3e option « avec arrêts » laissait `trip_type = null` et bloquait l'envoi.
+- Le trajet complet (`Départ → escales → Arrivée`) est affiché partout : dashboard, vue devis,
+  PDF et payload email.
+- **Limite assumée** : `calculer_devis()` ne tarife qu'un trajet direct. Pour un trajet avec
+  arrêts, le montant auto est estimé sur la distance directe (le détour n'est pas chiffré) et
+  le commercial confirme le montant final. La vue devis affiche une note explicite au client,
+  le PDF porte déjà « Montant à confirmer ». Un moteur multi-étapes est hors périmètre MVP.
 
 ## 2026-06-30 — Nettoyage du code mort
 

@@ -17,6 +17,32 @@ calcule le prix**, l'humain reprend les cas sensibles.
 - Sécurité : **RLS deny-all** sur toutes les tables ; tout accès données passe par le `service_role` côté serveur.
 - n8n orchestre uniquement emails, relances et notifications — **jamais le prix**.
 
+## Architecture
+
+```mermaid
+flowchart TD
+    P["Prospect — /client/demande"] --> CHAT["/api/chat"]
+    CHAT --> EXT["Extraction déterministe<br/>(facts, villes, arrêts, options)"]
+    CHAT --> AI["Agent Vercel AI SDK<br/>Gateway / OpenRouter"]
+    EXT --> LEAD["leads · Supabase"]
+    AI --> LEAD
+    LEAD --> QUAL{"Qualifié ?"}
+    QUAL -->|"champ critique manquant"| INC["INCOMPLETE<br/>l'agent repose la question"]
+    QUAL -->|"arrêt / 85+ pax / route inconnue"| HR["HUMAN_REVIEW<br/>dashboard commercial"]
+    QUAL -->|"complet"| QS["quote-service"]
+    HR -->|"validation commerciale"| QS
+    QS --> CD["calculer_devis()<br/>SEUL à produire un prix"]
+    CD --> QUOTE["quotes · Supabase"]
+    QUOTE --> PDF["PDF devis signable<br/>generateQuotePdf"]
+    QUOTE --> MAIL["Email devis<br/>webhook n8n"]
+    MAIL --> REL["Relances J+1 / J+3 / J+7<br/>cron send-due"]
+    QUOTE --> COMPTE["Espace client /compte<br/>Supabase Auth"]
+```
+
+L'IA orchestre et qualifie ; le code déterministe (`calculer_devis()`) est le **seul** à
+produire un prix ; l'humain reprend les cas sensibles via `HUMAN_REVIEW`. Tout accès données
+passe par le `service_role` côté serveur (RLS deny-all), n8n ne porte que l'emailing/les relances.
+
 ## Installation
 
 ```bash
