@@ -36,6 +36,7 @@ describe("createOrUpdateLead — same lead is enriched, never duplicated", () =>
         departure_city: "Paris",
         arrival_city: "Montpellier",
         departure_date: "2027-06-11",
+        return_date: "2027-06-13",
         passenger_count: 45,
         trip_type: "round_trip",
       },
