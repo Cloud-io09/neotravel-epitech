@@ -210,14 +210,22 @@ function asksForArrivalCity(message: string) {
 
 function parseContextualCityAnswer(message: string): string | undefined {
   const normalized = message.trim().replace(/[.!?]+$/u, "");
-  if (!normalized || normalized.length > 80) return undefined;
+  if (!normalized || normalized.length > 60) return undefined;
   if (/\d|@|https?:|,|;|\/|\\|→/u.test(normalized)) return undefined;
-  if (/\b(passagers?|personnes?|aller|retour|devis|date|demain|semaine|mois|bonjour|salut|hello|merci)\b/iu.test(normalized)) {
+  // A bare city answer is just a place name — never a sentence/intent. Reject anything with a
+  // pronoun, verb or intent/option word ("je veux un guide", "ajoute un chauffeur", "oui"…).
+  if (
+    /\b(?:je|j['’]|tu|il|elle|on|nous|vous|me|moi|veu[xt]|voudrai[st]?|souhaite|aimerais|prend?s?|met(?:tre|s)?|ajoute[zr]?|enl[èe]ve[zr]?|retire[zr]?|guide|accompagnateur|chauffeur|nuit[ée]?e?|option|passagers?|personnes?|aller|retour|devis|date|demain|semaine|mois|bonjour|salut|hello|merci|oui|non|ok|peux|sais|svp|stp)\b/iu.test(
+      normalized,
+    )
+  ) {
     return undefined;
   }
 
   const city = normalized.replace(/\s+/gu, " ");
   if (!/^[\p{L}][\p{L}'’ -]*$/u.test(city)) return undefined;
+  // Plausible place names are short (incl. compounds like "La Roche-sur-Yon"); reject phrases.
+  if (city.split(/[\s-]+/u).filter(Boolean).length > 4) return undefined;
 
   return cleanCity(city);
 }
@@ -335,9 +343,15 @@ function cleanCity(value: string | undefined): string | undefined {
   if (!city || city.length > 60) return undefined;
   if (!/^[\p{L}][\p{L}'’ -]*$/u.test(city)) return undefined;
 
+  // Lowercase connector words in compound place names (Aix-en-Provence, La Roche-sur-Yon).
+  const connectors = new Set(["en", "sur", "sous", "de", "des", "du", "la", "le", "les", "lès", "aux", "et", "d", "l"]);
   return city
     .split(/([\s'’ -])/u)
-    .map((part) => (/^[\p{L}]/u.test(part) ? part.charAt(0).toLocaleUpperCase("fr-FR") + part.slice(1) : part))
+    .map((part, index) => {
+      if (!/^[\p{L}]/u.test(part)) return part;
+      if (index > 0 && connectors.has(part.toLocaleLowerCase("fr-FR"))) return part.toLocaleLowerCase("fr-FR");
+      return part.charAt(0).toLocaleUpperCase("fr-FR") + part.slice(1);
+    })
     .join("");
 }
 

@@ -251,12 +251,8 @@ Message : ${latestUserText}`,
     // Only unambiguous matches are corrected; an unknown town is left as typed.
     merged.departure_city = canonicalizeCity(merged.departure_city) ?? merged.departure_city;
     merged.arrival_city = canonicalizeCity(merged.arrival_city) ?? merged.arrival_city;
-    // A known departure date with no return and no round-trip signal defaults to one-way.
-    // Round-trip still wins whenever a return date or "aller-retour" is detected (now or in
-    // a later turn — a real value always overrides this default via mergeLead).
-    if (!merged.trip_type && merged.departure_date && !merged.return_date) {
-      merged.trip_type = "one_way";
-    }
+    // trip_type is NOT defaulted: the assistant must ask "aller simple ou aller-retour ?" so
+    // the prospect chooses explicitly (a silent one-way default skipped that question).
     const mergedLead = LeadQualificationSchema.parse({
       ...merged,
       free_message: latestUserText,
