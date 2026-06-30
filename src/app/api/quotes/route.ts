@@ -2,10 +2,20 @@ import { z } from "zod";
 
 import { sendQuoteAvailableEmail } from "@/features/emails/services/customerEmailService";
 
-import { getLeadById, markLeadIncomplete } from "../../../lib/leads/lead-service";
+import { getLeadById, markHumanReview, markLeadIncomplete } from "../../../lib/leads/lead-service";
 import { calculateQuoteForLead } from "../../../lib/quotes/quote-service";
 
 export const runtime = "nodejs";
+
+// Très urgent: departure within 48h. The devis is generated, but the lead is routed to a
+// commercial (human review) instead of letting the client accept/refuse online.
+function isDepartureWithinHours(value: string | null | undefined, hours: number) {
+  if (!value) return false;
+  const departure = new Date(`${value}T12:00:00`).getTime();
+  if (Number.isNaN(departure)) return false;
+  const diffMs = departure - Date.now();
+  return diffMs >= 0 && diffMs <= hours * 60 * 60 * 1000;
+}
 
 const QuoteRequestSchema = z.object({
   leadId: z.string().uuid(),
@@ -41,6 +51,12 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     if (!parsed.data.autoSend) {
+      // Generate the devis but route très-urgent demands to a commercial.
+      const lead = await getLeadById(parsed.data.leadId);
+      if (isDepartureWithinHours(lead?.departure_date, 48)) {
+        await markHumanReview(parsed.data.leadId, "URGENT_DEPARTURE_UNDER_48H");
+        return Response.json({ id: result.quoteId, status: "HUMAN_REVIEW" }, { status: 201 });
+      }
       return Response.json({ id: result.quoteId, status: result.status }, { status: 201 });
     }
 

@@ -69,9 +69,10 @@ export function QuoteClientActions({
     }
   }
 
-  // Urgent departure (client side): the devis is shown but can't be accepted/refused online —
-  // a commercial confirms availability and takes over. Final outcomes still display normally.
-  if (commercialFollowup && !isAdmin && (state === "idle" || initialStatus === "QUOTE_READY")) {
+  // Human-review demands (très urgent < 48h, >85 pax, multi-destination…): the devis is shown
+  // but the client can't accept/refuse online — a commercial takes over. Final outcomes still
+  // display normally below.
+  if (commercialFollowup && !isAdmin && state === "idle") {
     return (
       <div className={styles.actionPanel}>
         <div className={styles.actions}>
@@ -80,14 +81,16 @@ export function QuoteClientActions({
           </a>
         </div>
         <p className={styles.actionMessage}>
-          Votre départ est proche : un conseiller NeoTravel vous recontacte rapidement pour confirmer la
-          disponibilité. Vous pouvez d’ores et déjà télécharger votre estimation.
+          Votre demande nécessite une vérification par un conseiller NeoTravel, qui vous recontacte
+          rapidement. Vous pouvez d’ores et déjà télécharger votre estimation.
         </p>
       </div>
     );
   }
 
-  if (initialStatus === "QUOTE_READY") {
+  // Admin-only: a generated-but-not-sent devis must be sent from the lead sheet before noting
+  // a client intention. The client, however, can accept/refuse their estimate directly.
+  if (initialStatus === "QUOTE_READY" && isAdmin) {
     return (
       <div className={styles.actionPanel}>
         <div className={styles.actions}>
@@ -96,9 +99,7 @@ export function QuoteClientActions({
           </a>
         </div>
         <p className={styles.actionMessage}>
-          {isAdmin
-            ? "Devis prêt mais pas encore envoyé : envoyez-le depuis la fiche demande avant de noter une intention client."
-            : "Ce devis est encore en préparation. Un lien vous sera envoyé lorsqu’il sera transmis officiellement."}
+          Devis prêt mais pas encore envoyé : envoyez-le depuis la fiche demande avant de noter une intention client.
         </p>
       </div>
     );
