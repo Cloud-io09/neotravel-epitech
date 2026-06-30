@@ -46,6 +46,10 @@ const REASON_LABELS: Record<string, string> = {
   DISCOUNT_OR_FORCED_PRICE_REQUEST: "Demande de remise ou de prix imposé : décision commerciale requise.",
   REAL_PARTNER_AVAILABILITY_REQUEST: "Confirmation de disponibilité autocariste demandée : à traiter à la main.",
   QUOTE_CHANGE_REQUEST: "Le client demande une modification du devis.",
+  QUOTE_ACCEPTED_INTENT:
+    "Le client se déclare intéressé par le devis. Relances suspendues : un commercial doit reprendre le dossier.",
+  QUOTE_REFUSED_INTENT:
+    "Le client indique ne pas être intéressé. Relances suspendues : un commercial doit vérifier puis confirmer la perte.",
 
   // --- Générique ---
   QUOTE_GENERATION_BLOCKED: "Devis automatique bloqué : à finaliser à la main."

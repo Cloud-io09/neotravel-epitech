@@ -32,6 +32,9 @@
             }
           ]
         },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{ \"limit\": 100 }",
         "options": {}
       },
       "id": "f2222222-2222-4222-8222-222222222222",

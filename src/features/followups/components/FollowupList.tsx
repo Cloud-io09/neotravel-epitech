@@ -12,6 +12,7 @@ function formatDueAt(value: string) {
 export function FollowupList({ followups }: { followups: Followup[] }) {
   const scheduled = followups.filter((followup) => followup.status === "SCHEDULED").length;
   const sent = followups.filter((followup) => followup.status === "SENT").length;
+  const suspended = followups.filter((followup) => followup.status === "CANCELLED").length;
 
   return (
     <main className={styles.page}>
@@ -37,12 +38,16 @@ export function FollowupList({ followups }: { followups: Followup[] }) {
           <strong>{sent}</strong>
         </article>
         <article>
+          <span>Suspendues</span>
+          <strong>{suspended}</strong>
+        </article>
+        <article>
           <span>Regle standard</span>
           <strong>J+3 / J+7</strong>
         </article>
         <article>
           <span>Urgent traitable</span>
-          <strong>J+2</strong>
+          <strong>J+1</strong>
         </article>
       </section>
 
@@ -50,7 +55,7 @@ export function FollowupList({ followups }: { followups: Followup[] }) {
         <div className={styles.panelHeader}>
           <div>
             <h2 id="followups-title">Relances planifiees et envoyees</h2>
-            <p>Standard : J+3 puis J+7. Urgent traitable : J+2. Demo rapide : +2 minutes si activee.</p>
+            <p>Standard : J+3 puis J+7. Urgent traitable : J+1. Demo rapide : minutes compressees si activee.</p>
           </div>
           <span className={styles.badge}>Apres 2 sans reponse : CLOSED apres delai</span>
         </div>
@@ -71,7 +76,13 @@ export function FollowupList({ followups }: { followups: Followup[] }) {
                 <span>{followup.channel}</span>
                 <span>{formatDueAt(followup.dueAt)}</span>
                 <FollowupStatusBadge status={followup.status} />
-                <span>{followup.status === "SENT" ? "Surveillance reponse" : "En attente n8n"}</span>
+                <span>
+                  {followup.status === "SENT"
+                    ? "Surveillance réponse"
+                    : followup.status === "CANCELLED"
+                      ? "Suspendue après intention client"
+                      : "En attente n8n"}
+                </span>
               </div>
             ))}
           </div>
@@ -82,7 +93,7 @@ export function FollowupList({ followups }: { followups: Followup[] }) {
         <h2 id="rule-title">Chronologie sans reponse</h2>
         <ol>
           <li>QUOTE_SENT declenche la sequence.</li>
-          <li>Relance 1 selon contexte : J+2 urgent traitable, J+3 standard.</li>
+          <li>Relance 1 selon contexte : J+1 urgent traitable, J+3 standard.</li>
           <li>Relance 2 standard a J+7 maximum.</li>
           <li>Sans reponse apres delai de grace : CLOSED.</li>
         </ol>

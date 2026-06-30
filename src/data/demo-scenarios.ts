@@ -57,7 +57,7 @@ const scenarioMap: Record<DemoScenarioId, DemoScenario> = {
     id: "urgent_treatable",
     title: "Demande urgente traitable",
     input: "Paris -> Lille dans 5 jours, 50 passagers.",
-    expectedResult: "Route connue, devis envoye, relance J+2.",
+    expectedResult: "Route connue, devis envoye, relance J+1.",
     showInDemo: true,
     leadIds: ["demo-lead-urgent-treatable"],
     quoteIds: ["demo-quote-urgent"],

@@ -49,9 +49,12 @@
         "fromEmail": "REPLACE_WITH_YOUR_SENDER@gmail.com",
         "toEmail": "={{ $json.body.to.email }}",
         "subject": "={{ $json.body.subject }}",
-        "emailFormat": "html",
+        "emailFormat": "both",
+        "text": "={{ $json.body.text }}",
         "html": "={{ $json.body.html }}",
-        "options": {}
+        "options": {
+          "appendAttribution": false
+        }
       },
       "id": "c3333333-3333-4333-8333-333333333333",
       "name": "Send Email",

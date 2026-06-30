@@ -1,5 +1,6 @@
 import type { QuoteBreakdown } from "@/lib/domain/types";
 import type { QuoteCalculation } from "@/shared/types/quote";
+import { getQuoteOptionLines } from "./quoteOptionLines";
 
 type StoredBreakdown = Partial<QuoteBreakdown> & { vehicle_code?: string };
 
@@ -34,19 +35,7 @@ export function storedQuoteCalculation(input: StoredQuoteCalculationInput): Quot
   const totals = breakdown.totals;
   const vat = breakdown.vat;
 
-  // Prefer the engine's explicit option items; fall back to the legacy toll-package shape
-  // for quotes generated before option lines existed.
-  const optionLines = (options?.items?.length
-    ? options.items.map((item) => ({
-        code: item.code,
-        label: item.label,
-        amountEur: money(item.amountEur),
-        note: item.note,
-        pricingStatus: item.pricingStatus,
-      }))
-    : options?.tollPackageEur
-      ? [{ code: "tolls", label: "Péages", amountEur: money(options.tollPackageEur), pricingStatus: "PRICED" as const, note: "Forfait péages contrôlé" }]
-      : []);
+  const optionLines = getQuoteOptionLines(breakdown);
 
   const priceTtc = money(input.priceTtc ?? totals?.priceTtcEur);
   const priceHt = money(input.priceHt ?? totals?.priceHtEur);

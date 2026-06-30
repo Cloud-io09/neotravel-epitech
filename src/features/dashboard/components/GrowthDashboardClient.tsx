@@ -39,7 +39,7 @@ const metricOptions: Array<{ value: GrowthMetricKey; label: string }> = [
  { value: "quotes_sent", label: "Devis envoyes" },
  { value: "quotes_accepted", label: "Devis acceptes" },
  { value: "potential_revenue", label: "CA potentiel" },
- { value: "won_revenue", label: "CA gagne" },
+ { value: "won_revenue", label: "CA accepté" },
  { value: "followups_planned", label: "Relances planifiees" },
  { value: "followups_sent", label: "Relances envoyees" },
  { value: "followups_overdue", label: "Relances en retard" },
@@ -325,7 +325,7 @@ function GrowthPerformanceTable({ data }: { data: GrowthDashboardData }) {
   ["Devis envoyes / leads qualifies", percent(data.performance.quoteSentRate)],
   ["Devis acceptes / devis envoyes", percent(data.performance.quoteAcceptedRate)],
   ["Panier moyen devis", euro(data.performance.averageQuoteAmount)],
-  ["CA moyen par dossier gagne", euro(data.performance.averageWonAmount)],
+  ["CA moyen par devis accepté", euro(data.performance.averageWonAmount)],
   ["Leads chauds", data.performance.hotLeads],
   ["Leads sans action 24h", data.performance.leadsWithoutAction24h],
   ["Demandes en reprise humaine", data.performance.humanReviewCount]
@@ -364,7 +364,7 @@ function GrowthFollowups({ data }: { data: GrowthDashboardData }) {
     <span>Planifiees <strong>{data.followups.planned}</strong></span>
     <span>Envoyees <strong>{data.followups.sent}</strong></span>
     <span>En retard <strong>{data.followups.overdue}</strong></span>
-    <span>J+2 <strong>{data.followups.urgentJ2}</strong></span>
+    <span>J+1 <strong>{data.followups.urgentJ1}</strong></span>
     <span>J+7 <strong>{data.followups.finalJ7}</strong></span>
    </div>
    {data.followups.items.length ? (
@@ -412,7 +412,7 @@ function GrowthSources({ data }: { data: GrowthDashboardData }) {
       <span>Qualification</span>
       <span>Conversion</span>
       <span>CA potentiel</span>
-      <span>CA gagne</span>
+      <span>CA accepté</span>
      </div>
      {data.sources.map((source) => (
       <div className={styles.growthTableRow} key={source.source}>
@@ -1120,7 +1120,7 @@ export function GrowthDashboardClient() {
          href="/dashboard/devis?status=open"
         />
         <GrowthKpiCard
-         label="CA gagne"
+         label="CA accepté"
          value={euro(data.kpis.wonRevenue)}
          detail="Devis acceptes"
          tone="green"

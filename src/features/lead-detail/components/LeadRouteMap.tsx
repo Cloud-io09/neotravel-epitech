@@ -101,7 +101,11 @@ export function LeadRouteMap({ departureCity, arrivalCity }: Props) {
 
   return () => {
    cancelled = true;
-   if (map) map.remove();
+   try {
+    map?.remove();
+   } catch {
+   }
+   map = undefined;
   };
   // staticFrom/staticTo are stable refs from the static table for a given city.
  }, [departureCity, arrivalCity, staticFrom, staticTo]);

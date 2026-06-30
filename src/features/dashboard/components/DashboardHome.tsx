@@ -26,6 +26,7 @@ type NextAction = {
  cta: string;
  href: string;
  priority: number;
+ updatedAt: number;
 };
 
 function formatDateTime(value: string | null | undefined) {
@@ -51,7 +52,17 @@ function buildNextActions(leads: Lead[], quotes: Quote[], followups: Parameters<
   const quote = quoteByLeadId.get(lead.id);
   const followup = nextScheduledFollowup(lead.id, followups);
   const action = getLeadCommercialAction({ lead, quote, followup, now });
-  if (action.priority > 6) continue;
+  const followupDueAt = followup ? new Date(followup.dueAt).getTime() : null;
+  const isImmediateAction =
+   lead.status === "HUMAN_REVIEW" ||
+   lead.status === "INCOMPLETE" ||
+   lead.status === "NEW" ||
+   quote?.status === "QUOTE_READY" ||
+   lead.status === "QUOTE_READY" ||
+   (followupDueAt !== null && followupDueAt < now);
+
+  if (!isImmediateAction) continue;
+
   actions.push({
    id: lead.id,
    client: leadDisplayName(lead),
@@ -59,7 +70,8 @@ function buildNextActions(leads: Lead[], quotes: Quote[], followups: Parameters<
    what: action.label,
    cta: action.cta,
    href: action.href,
-   priority: action.priority
+   priority: action.priority,
+   updatedAt: activityTime(lead)
   });
  }
 
@@ -68,22 +80,28 @@ function buildNextActions(leads: Lead[], quotes: Quote[], followups: Parameters<
   const dueAt = new Date(followup.dueAt).getTime();
   const lead = leads.find((item) => item.id === followup.leadId);
   if (lead) continue;
+  if (dueAt >= now) continue;
   actions.push({
    id: `followup-${followup.id}`,
    client: "Lead introuvable",
    status: "SCHEDULED",
-   what: dueAt < now ? "Relance en retard" : `Relance prévue le ${formatCommercialDate(followup.dueAt)}`,
+   what: "Relance en retard",
    cta: "Relancer",
    href: `/dashboard/relances/${followup.id}`,
-   priority: dueAt < now ? 0 : 5
+   priority: 0,
+   updatedAt: dueAt
   });
  }
 
- return actions.sort((a, b) => a.priority - b.priority).slice(0, 8);
+ return actions.sort((a, b) => a.priority - b.priority || b.updatedAt - a.updatedAt).slice(0, 8);
 }
 
 function countByStatus(leads: Lead[], statuses: LeadStatus[]) {
  return leads.filter((lead) => statuses.includes(lead.status)).length;
+}
+
+function activityTime(lead: Lead) {
+ return new Date(lead.updatedAt ?? lead.createdAt ?? 0).getTime();
 }
 
 export async function DashboardHome() {
@@ -95,6 +113,7 @@ export async function DashboardHome() {
  ]);
 
  const mode = currentDataMode();
+ const visibleLeads = [...leads].sort((a, b) => activityTime(b) - activityTime(a));
  const quoteByLeadId = latestQuoteByLeadId(quotes);
  const actions = buildNextActions(leads, quotes, followups);
  const scheduledFollowups = followups.filter((followup) => followup.status === "SCHEDULED");
@@ -139,7 +158,7 @@ export async function DashboardHome() {
    </div>
 
    <section className={styles.overviewGrid} aria-label="Priorités commerciales">
-    <Panel title="À faire maintenant" subtitle="File priorisée : validation humaine, demandes incomplètes, relances en retard.">
+    <Panel title="À faire maintenant" subtitle="File priorisée : validation humaine, demandes incomplètes, devis prêts, relances en retard.">
      {actions.length === 0 ? (
       <div className={styles.empty}>
        <strong>Aucune action urgente</strong>
@@ -202,7 +221,7 @@ export async function DashboardHome() {
      <DataTable
       columns={["Dossier", "Trajet", "Statut", "Prochaine action", "Devis", "Relance"]}
       columnsTemplate="1.15fr 1.2fr .85fr 1.25fr .95fr .85fr"
-      rows={leads.slice(0, 12).map((lead) => {
+      rows={visibleLeads.slice(0, 12).map((lead) => {
        const quote = quoteByLeadId.get(lead.id);
        const followup = nextScheduledFollowup(lead.id, followups);
        const action = getLeadCommercialAction({ lead, quote, followup });

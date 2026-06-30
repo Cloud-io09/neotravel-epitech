@@ -73,10 +73,32 @@ export function getLeadCommercialAction({
  now?: number;
 }): LeadCommercialAction {
  const leadHref = `/dashboard/demandes/${lead.id}`;
- const quoteHref = quote ? `/client/devis/${quote.id}` : leadHref;
+ const quoteHref = quote ? `/dashboard/devis/${quote.id}` : leadHref;
  const followupDueAt = followup ? new Date(followup.dueAt).getTime() : null;
 
  if (lead.status === "HUMAN_REVIEW") {
+  if (lead.humanReviewReason === "QUOTE_ACCEPTED_INTENT") {
+   return {
+    label: "Client intéressé",
+    detail: `Motif : ${humanReviewReasonLabel(lead.humanReviewReason)}`,
+    cta: "Reprendre",
+    href: `${leadHref}#human-review-actions`,
+    priority: 0,
+    tone: "critical"
+   };
+  }
+
+  if (lead.humanReviewReason === "QUOTE_REFUSED_INTENT") {
+   return {
+    label: "Refus à confirmer",
+    detail: `Motif : ${humanReviewReasonLabel(lead.humanReviewReason)}`,
+    cta: "Confirmer",
+    href: `${leadHref}#human-review-actions`,
+    priority: 0,
+    tone: "critical"
+   };
+  }
+
   return {
    label: "Reprendre manuellement",
    detail: `Motif : ${humanReviewReasonLabel(lead.humanReviewReason)}`,
@@ -111,9 +133,9 @@ export function getLeadCommercialAction({
 
  if ((lead.status === "QUALIFIED" || lead.status === "HIGH_VALUE") && !quote) {
   return {
-   label: "Automatisation a reprendre",
-   detail: "Demande qualifiee sans devis : le flux attendu est devis auto ou validation humaine.",
-   cta: "Verifier",
+   label: "Générer le devis",
+   detail: "Demande validée : lancer le calcul déterministe du devis.",
+   cta: "Générer",
    href: leadHref,
    priority: 0,
    tone: "critical"
@@ -142,7 +164,7 @@ export function getLeadCommercialAction({
   };
  }
 
- if (lead.status === "FOLLOWUP_SCHEDULED" || lead.status === "FOLLOWUP_1" || lead.status === "FOLLOWUP_2") {
+ if (lead.status === "FOLLOWUP_SCHEDULED" || lead.status === "FOLLOWUP_1" || lead.status === "FOLLOWUP_2" || lead.status === "FOLLOWUP_3") {
   return {
    label: followupDueAt !== null && followupDueAt < now ? "Relance en retard" : "Relance programmée",
    detail: followup ? `Échéance : ${formatCommercialDate(followup.dueAt)}.` : "Suivi commercial en cours.",
@@ -155,8 +177,8 @@ export function getLeadCommercialAction({
 
  if (lead.status === "WON") {
   return {
-   label: "Transmis réservation",
-   detail: "Dossier gagné, suite opérationnelle hors prospection.",
+   label: "Devis accepté",
+   detail: "Réponse client positive enregistrée, suite opérationnelle hors prospection.",
    cta: "Consulter",
    href: leadHref,
    priority: 8,
@@ -166,7 +188,7 @@ export function getLeadCommercialAction({
 
  if (lead.status === "LOST") {
   return {
-   label: "Clôturé perdu",
+   label: "Refusé / sans suite",
    detail: "Aucune action commerciale active.",
    cta: "Consulter",
    href: leadHref,

@@ -16,6 +16,7 @@ const LeadStatusValues = [
  "FOLLOWUP_SCHEDULED",
  "FOLLOWUP_1",
  "FOLLOWUP_2",
+ "FOLLOWUP_3",
  "WON",
  "LOST",
  "CLOSED"
@@ -58,6 +59,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ le
   const previousStatus = existing.status;
 
   const patch = LeadPatchSchema.parse(await request.json()) as Partial<Lead>;
+  if (patch.status === "QUALIFIED" || patch.status === "HIGH_VALUE") {
+   const missingFields = getMissingQualificationFields({ ...existing, ...patch });
+   if (missingFields.length > 0) {
+    return jsonError(
+     "LEAD_INCOMPLETE",
+     `Complétez la demande avant validation : ${missingFields.join(", ")}.`,
+     422,
+     { missingFields },
+    );
+   }
+  }
+
   const updated = await updateLeadRecord(leadId, patch);
 
   // Traçabilité : tout changement de statut (notamment une validation humaine).
@@ -78,4 +91,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ le
  } catch (error) {
   return handleApiError(error);
  }
+}
+
+function getMissingQualificationFields(lead: Lead) {
+ const missingFields: string[] = [];
+
+ if (!hasText(lead.email)) missingFields.push("email");
+ if (!hasText(lead.departureCity)) missingFields.push("departure_city");
+ if (!hasText(lead.arrivalCity)) missingFields.push("arrival_city");
+ if (!hasText(lead.departureDate)) missingFields.push("departure_date");
+ if (!Number.isFinite(lead.passengerCount)) missingFields.push("passenger_count");
+ if (lead.tripType !== "one_way" && lead.tripType !== "round_trip") missingFields.push("trip_type");
+
+ return missingFields;
+}
+
+function hasText(value: string | null | undefined) {
+ return typeof value === "string" && value.trim().length > 0;
 }

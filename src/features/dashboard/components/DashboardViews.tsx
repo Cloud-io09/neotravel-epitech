@@ -29,6 +29,19 @@ function euro(value: number) {
  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value);
 }
 
+function aiEuro(value: number) {
+ return new Intl.NumberFormat("fr-FR", {
+  style: "currency",
+  currency: "EUR",
+  minimumFractionDigits: value > 0 && value < 0.01 ? 4 : 2,
+  maximumFractionDigits: value > 0 && value < 0.01 ? 4 : 2
+ }).format(value);
+}
+
+function tokens(value: number) {
+ return new Intl.NumberFormat("fr-FR").format(value);
+}
+
 const PRIORITY_STATUSES = new Set(["NEW", "INCOMPLETE", "HUMAN_REVIEW"]);
 const ARCHIVED_LEAD_STATUSES = new Set<Lead["status"]>(["LOST", "CLOSED"]);
 const QUALIFIED_LEAD_STATUSES = new Set<Lead["status"]>([
@@ -71,7 +84,29 @@ function PriorityBadge({ priority }: { priority: LeadPriorityBucket }) {
  );
 }
 
+// Departure proximity drives a dedicated tag: ≤48h "Très urgent" (routed to human review,
+// no relance), 48h–7j "Urgent" (single J+1 relance). Terminal leads are excluded.
+function departureUrgency(lead: Lead): "very_urgent" | "urgent" | null {
+ if (lead.status === "WON" || lead.status === "LOST" || lead.status === "CLOSED") return null;
+ if (!lead.departureDate) return null;
+ const departure = new Date(`${lead.departureDate}T12:00:00`).getTime();
+ if (Number.isNaN(departure)) return null;
+ const diffHours = (departure - Date.now()) / (60 * 60 * 1000);
+ if (diffHours < 0) return null;
+ if (diffHours <= 48) return "very_urgent";
+ if (diffHours <= 7 * 24) return "urgent";
+ return null;
+}
+
 function leadPriorityBucket(lead: Lead, quote?: Quote): LeadPriorityBucket {
+ const urgency = departureUrgency(lead);
+ if (urgency === "very_urgent") {
+  return { rank: 0, label: "Très urgent", tone: "critical" };
+ }
+ if (urgency === "urgent") {
+  return { rank: 1, label: "Urgent", tone: "critical" };
+ }
+
  if (lead.status === "HUMAN_REVIEW") {
   return { rank: 1, label: "1 - À valider urgent", tone: "critical" };
  }
@@ -91,7 +126,7 @@ function leadPriorityBucket(lead: Lead, quote?: Quote): LeadPriorityBucket {
  }
 
  if (lead.status === "LOST" || lead.status === "CLOSED" || quote?.status === "REFUSED" || quote?.status === "CLOSED") {
-  return { rank: 4, label: "4 - Perdu", tone: "muted" };
+  return { rank: 4, label: "4 - Refusé / clos", tone: "muted" };
  }
 
  return { rank: 5, label: "5 - Autres", tone: "info" };
@@ -261,7 +296,7 @@ export async function KpisDashboardPage() {
      { label: "Devis generes", value: generatedQuotes, tone: "blue", href: "/dashboard/devis" },
      { label: "Devis envoyes", value: sentQuotes, tone: "blue", href: "/dashboard/devis?status=sent" },
      { label: "Devis acceptes", value: acceptedQuotes, tone: "green", href: "/dashboard/devis?status=accepted" },
-     { label: "Refuses / perdus", value: refusedOrLostQuotes, tone: refusedOrLostQuotes > 0 ? "red" : "green", href: "/dashboard/devis?status=lost" },
+     { label: "Refusés / clos", value: refusedOrLostQuotes, tone: refusedOrLostQuotes > 0 ? "red" : "green", href: "/dashboard/devis?status=lost" },
      { label: "Conversion devis", value: percent(acceptedQuotes, sentQuotes), tone: "green" },
      { label: "Relances en attente", value: scheduledFollowups.length, tone: "gold", href: "/dashboard/relances?status=scheduled" },
      { label: "Relances en retard", value: overdueFollowups.length, tone: overdueFollowups.length > 0 ? "red" : "green", href: "/dashboard/relances?status=overdue" },
@@ -417,7 +452,7 @@ export async function CommercialLeadsPage({ status }: { status?: string }) {
 
 function archiveReason(lead: Lead, quote?: Quote) {
  if (lead.humanReviewReason) return lead.humanReviewReason;
- if (lead.status === "LOST" || quote?.status === "REFUSED") return "Demande perdue ou refusée.";
+ if (lead.status === "LOST" || quote?.status === "REFUSED") return "Demande refusée ou classée sans suite.";
  return "Demande clôturée : non traitable ou sans réponse après relances.";
 }
 
@@ -431,16 +466,16 @@ export async function ArchivedLeadsPage() {
  return (
   <main className={styles.page}>
    <DashboardHeader
-    title="Archives demandes"
-    subtitle="Demandes non traitables, perdues ou clôturées après absence de réponse."
-    actionHref="/dashboard/demandes"
+   title="Archives demandes"
+   subtitle="Demandes non traitables, refusées ou clôturées après absence de réponse."
+   actionHref="/dashboard/demandes"
     actionLabel="Retour demandes"
    />
    <KpiGrid
     kpis={[
      { label: "Archives", value: archivedLeads.length, tone: "gold" },
      { label: "Non traitables", value: archivedLeads.filter((lead) => lead.status === "CLOSED").length, tone: "blue" },
-     { label: "Perdues", value: archivedLeads.filter((lead) => lead.status === "LOST").length, tone: "red" },
+     { label: "Refusées", value: archivedLeads.filter((lead) => lead.status === "LOST").length, tone: "red" },
      { label: "Avec raison", value: archivedLeads.filter((lead) => Boolean(lead.humanReviewReason)).length, tone: "green" }
     ]}
    />
@@ -569,7 +604,7 @@ export async function QuotesDashboardPage({ status }: { status?: string }) {
          <StatusBadge key="s" status={outcome.status} />,
          "Ouvrir"
         ],
-        href: `/client/devis/${quote.id}`
+        href: `/dashboard/devis/${quote.id}`
        };
       })}
      />
@@ -593,7 +628,7 @@ export async function FollowupsDashboardPage({ status }: { status?: string }) {
     kpis={[
      { label: "Relances", value: followups.length, tone: "blue" },
      { label: "Programmées", value: scheduled, tone: "gold" },
-     { label: "Envoyées", value: followups.filter((followup) => followup.status !== "SCHEDULED").length, tone: "green" }
+     { label: "Envoyées", value: followups.filter((followup) => followup.status === "SENT").length, tone: "green" }
     ]}
    />
    <Panel title="Planning des relances" subtitle="Chaque relance apparaît aussi dans l'Agenda à sa date d'échéance.">
@@ -626,7 +661,8 @@ export async function FollowupsDashboardPage({ status }: { status?: string }) {
 export async function CostsLogsDashboardPage() {
  const [logs, runs] = await Promise.all([getAuditLogs(), getModelRuns()]);
  const cost = runs.reduce((sum, run) => sum + (run.costEur ?? 0), 0);
- const latency = runs.reduce((sum, run) => sum + (run.latencyMs ?? 0), 0);
+ const inputTokens = runs.reduce((sum, run) => sum + (run.promptTokens ?? 0), 0);
+ const outputTokens = runs.reduce((sum, run) => sum + (run.completionTokens ?? 0), 0);
 
  return (
   <main className={styles.page}>
@@ -637,22 +673,23 @@ export async function CostsLogsDashboardPage() {
    <KpiGrid
     kpis={[
      { label: "Appels IA", value: runs.length, tone: "blue" },
-     { label: "Coût cumulé", value: euro(cost), tone: "green" },
-     { label: "Latence cumulée", value: `${latency} ms`, tone: "gold" },
-     { label: "Événements d'audit", value: logs.length, tone: "blue" }
+     { label: "Coût IA estimé", value: aiEuro(cost), tone: "green" },
+     { label: "Tokens entrée", value: tokens(inputTokens), tone: "gold" },
+     { label: "Tokens sortie", value: tokens(outputTokens), tone: "blue" }
     ]}
    />
    <div className={styles.twoGrid}>
-    <Panel title="Appels IA" subtitle="Chaque appel IA/mock avec son coût (table model_runs).">
+    <Panel title="Appels IA" subtitle="Chaque appel IA avec tokens SDK, latence et coût estimé (table model_runs).">
      <DataTable
-      columns={["Heure", "Usage", "Modèle", "Coût", "Statut"]}
-      columnsTemplate="1fr 1.2fr 1.2fr .8fr .8fr"
+      columns={["Heure", "Usage", "Modèle", "Tokens", "Coût", "Statut"]}
+      columnsTemplate="1fr 1.1fr 1.2fr .9fr .8fr .8fr"
       rows={runs.map((run) => ({
        cells: [
         new Date(run.createdAt).toLocaleTimeString("fr-FR"),
         run.purpose,
         run.model,
-        euro(run.costEur ?? 0),
+        `${tokens((run.promptTokens ?? 0) + (run.completionTokens ?? 0))} (${tokens(run.promptTokens ?? 0)} / ${tokens(run.completionTokens ?? 0)})`,
+        run.costEur === undefined ? "Non tarifé" : aiEuro(run.costEur),
         run.status ?? "mock"
        ]
       }))}
@@ -696,7 +733,7 @@ export async function AdminOverviewDashboardPage() {
     kpis={[
      { label: "Source des données", value: supabase ? "Supabase" : "Démo", tone: supabase ? "green" : "gold" },
      { label: "Appels IA", value: runs.length, tone: "blue" },
-     { label: "Coût IA cumulé", value: euro(aiCost), tone: "green" }
+     { label: "Coût IA cumulé", value: aiEuro(aiCost), tone: "green" }
     ]}
    />
    <div className={styles.grid}>
@@ -759,13 +796,13 @@ export async function AutomationsDashboardPage() {
  const integrations = getIntegrationsStatus();
  const n8nOn = Boolean(integrations.find((integration) => integration.id === "n8n")?.connected);
  const scheduled = followups.filter((followup) => followup.status === "SCHEDULED").length;
- const sent = followups.filter((followup) => followup.status !== "SCHEDULED").length;
+ const sent = followups.filter((followup) => followup.status === "SENT").length;
  const quotesReady = quotes.filter((quote) => quote.status === "QUOTE_READY").length;
  const statusLabel = n8nOn ? "Actif" : "Simule (demo)";
 
  const workflows: Array<[string, string, string]> = [
   ["Envoi de devis", "Devis prêt", "Email au client"],
-  ["Relance J+2 (urgent)", "Sans réponse", "Email de relance"],
+  ["Relance J+1 (urgent)", "Sans réponse", "Email de relance"],
   ["Relance J+7", "Standard", "Email de relance"],
   ["Notification validation", "Passage en validation humaine", "Alerte interne"]
  ];
@@ -794,6 +831,8 @@ export async function AdminAiCostsDashboardPage() {
  const integrations = getIntegrationsStatus();
  const aiOn = Boolean(integrations.find((integration) => integration.id === "ai")?.connected);
  const cost = runs.reduce((sum, run) => sum + (run.costEur ?? 0), 0);
+ const inputTokens = runs.reduce((sum, run) => sum + (run.promptTokens ?? 0), 0);
+ const outputTokens = runs.reduce((sum, run) => sum + (run.completionTokens ?? 0), 0);
  const errors = runs.filter((run) => run.status === "error").length;
 
  return (
@@ -806,20 +845,22 @@ export async function AdminAiCostsDashboardPage() {
     kpis={[
      { label: "Fournisseur IA", value: aiOn ? "Connecte" : "Mock", tone: aiOn ? "green" : "gold" },
      { label: "Modèle", value: runs[0]?.model ?? "mock", tone: "blue" },
-     { label: "Coût cumulé", value: euro(cost), tone: "green" },
+     { label: "Coût cumulé", value: aiEuro(cost), tone: "green" },
+     { label: "Tokens", value: tokens(inputTokens + outputTokens), tone: "blue" },
      { label: "Appels en erreur", value: errors, tone: errors > 0 ? "red" : "green" }
     ]}
    />
    <Panel title="Détail des appels" subtitle="Usage, modèle, coût et issue de chaque appel.">
     <DataTable
-     columns={["Heure", "Usage", "Modèle", "Coût", "Statut"]}
-     columnsTemplate="1fr 1.2fr 1.2fr .8fr .8fr"
+     columns={["Heure", "Usage", "Modèle", "Tokens", "Coût", "Statut"]}
+     columnsTemplate="1fr 1.1fr 1.2fr .9fr .8fr .8fr"
      rows={runs.map((run) => ({
       cells: [
        new Date(run.createdAt).toLocaleTimeString("fr-FR"),
        run.purpose,
        run.model,
-       euro(run.costEur ?? 0),
+       `${tokens((run.promptTokens ?? 0) + (run.completionTokens ?? 0))} (${tokens(run.promptTokens ?? 0)} / ${tokens(run.completionTokens ?? 0)})`,
+       run.costEur === undefined ? "Non tarifé" : aiEuro(run.costEur),
        run.status ?? "mock"
       ]
      }))}
@@ -907,7 +948,7 @@ export async function GrowthDashboardPage() {
  const wonQuotes = quotes.filter((quote) => isWonQuote(quote, leadById.get(quote.leadId)));
  const accepted = wonQuotes.length;
  const caPotentiel = quotes.reduce((sum, quote) => sum + quote.calculation.priceTtc, 0);
- const caGagne = wonQuotes.reduce((sum, quote) => sum + quote.calculation.priceTtc, 0);
+ const caAccepte = wonQuotes.reduce((sum, quote) => sum + quote.calculation.priceTtc, 0);
  const convRate = quoted > 0 ? Math.round((accepted / quoted) * 100) : 0;
 
  const funnel = [
@@ -926,7 +967,7 @@ export async function GrowthDashboardPage() {
      { label: "Demandes", value: total, tone: "blue" },
      { label: "Taux de conversion", value: `${convRate}%`, tone: "green" },
      { label: "CA potentiel", value: euro(caPotentiel), tone: "blue" },
-     { label: "CA gagné", value: euro(caGagne), tone: "green" }
+     { label: "CA accepté", value: euro(caAccepte), tone: "green" }
     ]}
    />
    <Panel title="Entonnoir commercial" subtitle="Chaque étape avec son volume réel et sa part des demandes.">

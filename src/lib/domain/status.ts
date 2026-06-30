@@ -9,6 +9,7 @@ export const LEAD_STATUSES = [
   "FOLLOWUP_SCHEDULED",
   "FOLLOWUP_1",
   "FOLLOWUP_2",
+  "FOLLOWUP_3",
   "WON",
   "LOST",
   "CLOSED",

@@ -9,7 +9,9 @@ import {
 } from "@/shared/i18n/translations";
 import styles from "./quote-client.module.css";
 
-type ActionState = "idle" | "loading" | "accepted" | "refused" | "error";
+type ActionState = "idle" | "loading" | "interested" | "notInterested" | "accepted" | "refused" | "closed" | "error";
+type QuoteViewer = "client" | "admin";
+type QuoteOutcome = "pending" | "interested" | "notInterested" | "accepted" | "refused" | "closed";
 
 async function postQuoteAction(quoteId: string, action: "accept" | "refuse") {
   const response = await fetch(`/api/quotes/${quoteId}/${action}`, { method: "POST" });
@@ -20,14 +22,21 @@ async function postQuoteAction(quoteId: string, action: "accept" | "refuse") {
 export function QuoteClientActions({
   quoteId,
   initialStatus = "QUOTE_READY",
+  initialOutcome,
+  viewer = "client",
+  commercialFollowup = false,
 }: {
   quoteId: string;
   initialStatus?: string;
+  initialOutcome?: QuoteOutcome;
+  viewer?: QuoteViewer;
+  commercialFollowup?: boolean;
 }) {
-  const alreadyClosed = initialStatus === "CLOSED";
+  const outcome = initialOutcome ?? (initialStatus === "CLOSED" ? "closed" : "pending");
+  const isAdmin = viewer === "admin";
 
   const [state, setState] = useState<ActionState>(
-    alreadyClosed ? "accepted" : "idle",
+    outcome === "pending" ? "idle" : outcome,
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [downloadLanguage, setDownloadLanguage] = useState<LanguageCode>(defaultLanguage);
@@ -53,18 +62,17 @@ export function QuoteClientActions({
 
     try {
       await postQuoteAction(quoteId, action);
-      if (action === "accept") {
-        setState("accepted");
-      } else {
-        setState("refused");
-      }
+      setState(action === "accept" ? "interested" : "notInterested");
     } catch {
       setState("error");
       setErrorMessage("Action non finalisée. Réessayez ou contactez notre équipe.");
     }
   }
 
-  if (state === "accepted") {
+  // Human-review demands (très urgent < 48h, >85 pax, multi-destination…): the devis is shown
+  // but the client can't accept/refuse online — a commercial takes over. Final outcomes still
+  // display normally below.
+  if (commercialFollowup && !isAdmin && state === "idle") {
     return (
       <div className={styles.actionPanel}>
         <div className={styles.actions}>
@@ -73,18 +81,58 @@ export function QuoteClientActions({
           </a>
         </div>
         <p className={styles.actionMessage}>
-          {alreadyClosed && state === "accepted"
-            ? "Ce devis a déjà été finalisé."
-            : "Devis accepté. Notre équipe vous contactera sous 48h."}
+          Votre demande nécessite une vérification par un conseiller NeoTravel, qui vous recontacte
+          rapidement. Vous pouvez d’ores et déjà télécharger votre estimation.
         </p>
       </div>
     );
   }
 
-  if (state === "refused") {
+  // Admin-only: a generated-but-not-sent devis must be sent from the lead sheet before noting
+  // a client intention. The client, however, can accept/refuse their estimate directly.
+  if (initialStatus === "QUOTE_READY" && isAdmin) {
     return (
       <div className={styles.actionPanel}>
-        <p className={styles.actionMessage}>Devis refusé. Merci pour votre retour, notre équipe en prend note.</p>
+        <div className={styles.actions}>
+          <a className={styles.download} href={`/api/quotes/${quoteId}/pdf?lang=${downloadLanguage}`} data-i18n-key="Télécharger">
+            Télécharger PDF
+          </a>
+        </div>
+        <p className={styles.actionMessage}>
+          Devis prêt mais pas encore envoyé : envoyez-le depuis la fiche demande avant de noter une intention client.
+        </p>
+      </div>
+    );
+  }
+
+  if (state === "interested" || state === "notInterested" || state === "accepted" || state === "refused" || state === "closed") {
+    const finalMessage =
+      state === "interested"
+        ? isAdmin
+          ? "Intention client enregistrée : intéressé. Relances suspendues, reprise commerciale requise."
+          : "Merci, votre intérêt est bien enregistré. Un conseiller NeoTravel reprend le dossier."
+        : state === "notInterested"
+          ? isAdmin
+            ? "Intention client enregistrée : pas intéressé. Relances suspendues, confirmation commerciale requise."
+            : "Merci pour votre retour. Votre refus est enregistré et notre équipe en prend note."
+          : state === "accepted"
+        ? isAdmin
+          ? "Réponse client enregistrée : devis accepté."
+          : "Devis accepté. Un conseiller NeoTravel reprend le dossier."
+        : state === "refused"
+          ? isAdmin
+            ? "Réponse client enregistrée : devis refusé."
+            : "Devis refusé. Merci pour votre retour, notre équipe en prend note."
+          : "Ce devis a déjà été finalisé.";
+
+    return (
+      <div className={styles.actionPanel}>
+        <div className={styles.actions}>
+          <a className={styles.download} href={`/api/quotes/${quoteId}/pdf?lang=${downloadLanguage}`} data-i18n-key="Télécharger">
+            Télécharger PDF
+          </a>
+        </div>
+        <p className={state === "notInterested" || state === "refused" ? styles.refusedMessage : styles.actionMessage}>{finalMessage}</p>
       </div>
     );
   }
@@ -100,18 +148,18 @@ export function QuoteClientActions({
           type="button"
           disabled={state === "loading"}
           onClick={() => run("accept")}
-          data-i18n-key="Accepter"
+          data-i18n-key={isAdmin ? undefined : "Accepter"}
         >
-          {state === "loading" ? "En cours..." : "Accepter"}
+          {state === "loading" ? "En cours..." : isAdmin ? "Noter intéressé" : "Je suis intéressé"}
         </button>
         <button
           className={styles.danger}
           type="button"
           disabled={state === "loading"}
           onClick={() => run("refuse")}
-          data-i18n-key="Refuser"
+          data-i18n-key={isAdmin ? undefined : "Refuser"}
         >
-          Refuser
+          {isAdmin ? "Noter pas intéressé" : "Pas intéressé"}
         </button>
       </div>
       {state === "error" && errorMessage && (
@@ -119,7 +167,9 @@ export function QuoteClientActions({
       )}
       {state === "idle" && (
         <p className={styles.actionMessage}>
-          Vous pouvez télécharger, accepter ou refuser ce devis.
+          {isAdmin
+            ? "Espace interne : notez uniquement une intention client confirmée (email, téléphone ou accord écrit)."
+            : "Vous pouvez télécharger le devis ou indiquer votre intention. Cela ne valide pas définitivement le dossier."}
         </p>
       )}
     </div>

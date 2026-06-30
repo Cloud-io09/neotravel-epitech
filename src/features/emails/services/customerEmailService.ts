@@ -1,5 +1,5 @@
 import { logAuditEvent } from "../../../lib/audit/audit-service";
-import { markHumanReview, updateLeadStatus } from "../../../lib/leads/lead-service";
+import { markHumanReview, markLeadIncomplete, updateLeadStatus } from "../../../lib/leads/lead-service";
 import { createServerSupabaseClient } from "../../../lib/supabase/server";
 import { scheduleFollowups } from "../../followups/services/scheduleFollowups";
 import { triggerCustomerEmail } from "../../../shared/lib/n8n/triggerCustomerEmail";
@@ -111,6 +111,19 @@ export async function sendLeadStatusEmail(input: {
   });
 }
 
+export async function sendAccountCreationEmail(input: {
+  leadId: string;
+  triggeredBy?: "system" | "dashboard";
+}) {
+  const lead = await loadLead(input.leadId);
+  return sendEmail({
+    scenario: "ACCOUNT_CREATION",
+    lead,
+    triggeredBy: input.triggeredBy ?? "system",
+    dedupeEntity: { entityType: "lead", entityId: lead.id },
+  });
+}
+
 export async function sendQuoteAvailableEmail(input: {
   quoteId: string;
   triggeredBy?: "system" | "dashboard" | "n8n";
@@ -129,6 +142,20 @@ export async function sendQuoteAvailableEmail(input: {
 
   if (quote.status === "QUOTE_SENT" && !input.force) {
     return skippedResult("QUOTE_AVAILABLE", lead, "QUOTE_ALREADY_SENT");
+  }
+
+  const missingFields = getMissingQuoteSendFields(lead);
+  if (missingFields.length > 0) {
+    await markLeadIncomplete(quote.lead_id, missingFields);
+    throw new AppError(
+      `Informations manquantes avant envoi du devis : ${missingFields.join(", ")}.`,
+      "QUOTE_SEND_INCOMPLETE_LEAD",
+    );
+  }
+
+  if ((input.triggeredBy ?? "dashboard") === "system" && isDepartureWithinHours(lead.departure_date, 48)) {
+    await markHumanReview(quote.lead_id, "URGENT_DEPARTURE_UNDER_48H");
+    return skippedResult("QUOTE_AVAILABLE", lead, "URGENT_DEPARTURE_REQUIRES_HUMAN_REVIEW");
   }
 
   const result = await sendEmail({
@@ -172,7 +199,7 @@ export async function sendFollowupEmail(input: {
   if (!quote || !followup.quote_id) throw new AppError("Relance sans devis lié.", "NOT_FOUND");
 
   if (followup.status !== "scheduled" && !input.force) {
-    return skippedResult("FOLLOWUP_J2", lead, "FOLLOWUP_ALREADY_PROCESSED");
+    return skippedResult("FOLLOWUP_J1", lead, "FOLLOWUP_ALREADY_PROCESSED");
   }
 
   const scenario = await resolveFollowupScenario(followup);
@@ -206,6 +233,14 @@ export async function sendFollowupEmail(input: {
 }
 
 const FOLLOWUP_CLOSURE_GRACE_DAYS = 7;
+const FOLLOWUP_SEQUENCE_LENGTH = 3;
+
+// Grace before auto-closing a lead that stayed silent after the final relance. Compressed in
+// demo mode so the full cycle (… → CLOSED) is observable within a few minutes.
+function followupClosureGraceMs() {
+  if (process.env.DEMO_FAST_FOLLOWUP === "true") return 60 * 1000;
+  return FOLLOWUP_CLOSURE_GRACE_DAYS * 24 * 60 * 60 * 1000;
+}
 
 export async function sendDueFollowupEmails(input: { now?: Date; limit?: number; triggeredBy?: "n8n" } = {}) {
   const now = input.now ?? new Date();
@@ -256,22 +291,16 @@ async function updateLeadAfterFollowupSent(input: {
 
   if (sentCount <= 0) return;
 
-  if (sentCount === 1) {
-    await updateLeadStatus(input.leadId, "FOLLOWUP_1", {
-      quoteId: input.quoteId,
-      sentFollowupsWithoutResponse: sentCount,
-    });
-    return;
-  }
-
-  await updateLeadStatus(input.leadId, "FOLLOWUP_2", {
+  // Standard sequence (J1/J3/J7) → FOLLOWUP_1/2/3. Urgent has one followup then human review.
+  const status = sentCount === 1 ? "FOLLOWUP_1" : sentCount === 2 ? "FOLLOWUP_2" : "FOLLOWUP_3";
+  await updateLeadStatus(input.leadId, status, {
     quoteId: input.quoteId,
     sentFollowupsWithoutResponse: sentCount,
   });
 }
 
 async function closeLeadsAfterSecondFollowupGracePeriod(input: { now: Date }) {
-  const cutoff = new Date(input.now.getTime() - FOLLOWUP_CLOSURE_GRACE_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const cutoff = new Date(input.now.getTime() - followupClosureGraceMs()).toISOString();
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase
     .from("followups")
@@ -291,7 +320,7 @@ async function closeLeadsAfterSecondFollowupGracePeriod(input: { now: Date }) {
   const closed: string[] = [];
   for (const followup of latestByLead.values()) {
     const lead = one(followup.leads);
-    if (!lead || lead.status !== "FOLLOWUP_2") continue;
+    if (!lead || lead.status !== "FOLLOWUP_3") continue;
 
     const { count, error: countError } = await supabase
       .from("followups")
@@ -300,12 +329,12 @@ async function closeLeadsAfterSecondFollowupGracePeriod(input: { now: Date }) {
       .eq("status", "sent");
 
     if (countError) throw new AppError("Comptage des relances envoyees impossible.", "EMAIL_STATUS_UPDATE_FAILED");
-    if ((count ?? 0) < 2) continue;
+    if ((count ?? 0) < FOLLOWUP_SEQUENCE_LENGTH) continue;
 
     await updateLeadStatus(followup.lead_id, "CLOSED", {
       quoteId: followup.quote_id,
       sentFollowupsWithoutResponse: count,
-      reason: "NO_RESPONSE_7_DAYS_AFTER_SECOND_FOLLOWUP",
+      reason: "NO_RESPONSE_AFTER_FINAL_FOLLOWUP",
     });
     closed.push(followup.lead_id);
   }
@@ -429,8 +458,10 @@ async function loadFollowup(followupId: string) {
   return data as unknown as FollowupEmailRow;
 }
 
-async function resolveFollowupScenario(followup: FollowupEmailRow): Promise<Extract<CustomerEmailScenario, "FOLLOWUP_J2" | "FOLLOWUP_J7">> {
-  if (!followup.quote_id) return "FOLLOWUP_J2";
+async function resolveFollowupScenario(
+  followup: FollowupEmailRow,
+): Promise<Extract<CustomerEmailScenario, "FOLLOWUP_J1" | "FOLLOWUP_J3" | "FOLLOWUP_J7">> {
+  if (!followup.quote_id) return "FOLLOWUP_J1";
 
   const supabase = createServerSupabaseClient();
   const { data } = await supabase
@@ -439,8 +470,13 @@ async function resolveFollowupScenario(followup: FollowupEmailRow): Promise<Extr
     .eq("quote_id", followup.quote_id)
     .order("scheduled_at", { ascending: true });
 
-  const index = (data ?? []).findIndex((item) => item.id === followup.id);
-  return index >= 1 ? "FOLLOWUP_J7" : "FOLLOWUP_J2";
+  const ordered = data ?? [];
+  // Position in the sequence drives the template: 1st = J1, 2nd = J3, 3rd+ = J7.
+  // (Urgent has a single followup → index 0 → J1.)
+  const index = ordered.findIndex((item) => item.id === followup.id);
+  if (index <= 0) return "FOLLOWUP_J1";
+  if (index === 1) return "FOLLOWUP_J3";
+  return "FOLLOWUP_J7";
 }
 
 function buildTemplateValues(input: {
@@ -451,6 +487,8 @@ function buildTemplateValues(input: {
 }) {
   return {
     clientName: input.clientName,
+    organizationName: input.clientName,
+    contactName: input.clientName,
     missingFields: (input.lead.missing_fields ?? []).map(fieldLabel).join(", ") || "Informations à confirmer",
     requestReference: input.lead.id.slice(0, 8).toUpperCase(),
     departureCity: display(input.lead.departure_city),
@@ -464,6 +502,10 @@ function buildTemplateValues(input: {
     totalTTC: formatEuro(input.quote?.price_ttc),
     quoteUrl: input.quote ? quoteUrl(input.quote.id) : publicUrl("/client/demande"),
     completionUrl: publicUrl(`/client/demande?leadId=${input.lead.id}`),
+    accountCreationUrl: input.quote
+      ? publicUrl(`/connexion/inscription?quoteId=${input.quote.id}`)
+      : publicUrl("/connexion/inscription"),
+    accountLoginUrl: publicUrl("/connexion"),
     validityDays: "7",
   };
 }
@@ -477,6 +519,24 @@ function skippedResult(scenario: CustomerEmailScenario, lead: LeadEmailRow, reas
     reason,
     n8n: { workflow: "customer-email", simulated: true, payload: { skipped: true, reason } },
   };
+}
+
+function getMissingQuoteSendFields(lead: LeadEmailRow): string[] {
+  const client = one(lead.clients);
+  const missingFields: string[] = [];
+
+  if (!hasText(client?.email)) missingFields.push("email");
+  if (!hasText(lead.departure_city)) missingFields.push("departure_city");
+  if (!hasText(lead.arrival_city)) missingFields.push("arrival_city");
+  if (!hasText(lead.departure_date)) missingFields.push("departure_date");
+  if (!Number.isFinite(lead.passenger_count)) missingFields.push("passenger_count");
+  if (lead.trip_type !== "one_way" && lead.trip_type !== "round_trip") missingFields.push("trip_type");
+
+  return missingFields;
+}
+
+function hasText(value: string | null | undefined): boolean {
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 function one<T>(value: T | T[] | null | undefined): T | null {

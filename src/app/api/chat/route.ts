@@ -1,4 +1,4 @@
-import { generateText, NoObjectGeneratedError, RetryError, APICallError, type ModelMessage } from "ai";
+import { NoObjectGeneratedError, RetryError, APICallError, type ModelMessage } from "ai";
 
 import { containsPromptInjectionAttempt, NEOTRAVEL_SYSTEM_PROMPT } from "../../../lib/ai/prompt";
 import { chatJson, type ExtractedFields } from "../../../lib/ai/chat-response";
@@ -15,6 +15,7 @@ import { detectOptions, detectOptionRemovals } from "../../../lib/ai/detect-opti
 import { canonicalizeCity } from "../../../lib/ai/canonicalize-city";
 import { validateLead } from "../../../lib/ai/validate-lead";
 import { getChatModel } from "../../../lib/ai/provider";
+import { trackedGenerateText } from "../../../lib/ai/track-ai-call";
 import { sanitizeExtractionDelta } from "../../../lib/ai/sanitize-extraction-delta";
 import { sendLeadStatusEmail } from "../../../features/emails/services/customerEmailService";
 import {
@@ -28,6 +29,8 @@ import {
 
 export const runtime = "nodejs";
 const DEFAULT_QUALIFICATION_TIMEOUT_MS = 30_000;
+const INITIAL_ASSISTANT_CONTEXT =
+  "Indiquez simplement votre départ, votre arrivée, la date, le nombre de passagers, puis le type de client, le nom du contact et le téléphone.";
 
 export async function POST(request: Request): Promise<Response> {
   const requestId = crypto.randomUUID();
@@ -44,8 +47,8 @@ export async function POST(request: Request): Promise<Response> {
     const lastAssistantText = latestUserIndex > 0
       ? getMessageText(
           [...messages].slice(0, latestUserIndex).reverse().find((m) => m.role === "assistant")?.content
-        )
-      : "";
+        ) || INITIAL_ASSISTANT_CONTEXT
+      : INITIAL_ASSISTANT_CONTEXT;
 
     logAgentEvent(
       requestId,
@@ -106,6 +109,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const qualificationTimeoutMs = getQualificationTimeoutMs();
+    let trackedLeadId = existingLeadId ?? null;
     logAgentEvent(
       requestId,
       "qualification_started",
@@ -127,7 +131,7 @@ export async function POST(request: Request): Promise<Response> {
     // OpenAI's response_format parameter, so structured-output requests fail outright.
     // We ask for raw JSON and parse it tolerantly (raw / fenced / embedded) instead.
     const textResult = await withTimeout(
-      generateText({
+      trackedGenerateText({
         model: chatModel.model,
         system: NEOTRAVEL_SYSTEM_PROMPT,
         prompt: `Extrait les informations de transport NOUVELLEMENT fournies dans ce message utilisateur.
@@ -160,6 +164,20 @@ Retourne UNIQUEMENT un objet JSON valide (aucun markdown, aucun texte autour), a
 Message : ${latestUserText}`,
         temperature: 0.1,
         abortSignal: AbortSignal.timeout(qualificationTimeoutMs),
+      }, {
+        purpose: "extract_demand",
+        provider: chatModel.provider,
+        modelId: chatModel.modelId,
+        leadId: trackedLeadId,
+        inputFingerprint: {
+          purpose: "extract_demand",
+          modelId: chatModel.modelId,
+          latestUserText,
+          leadId: trackedLeadId,
+          existingQualification,
+          lastAssistantText,
+          todayIso,
+        },
       }),
       qualificationTimeoutMs,
     );
@@ -173,12 +191,23 @@ Message : ${latestUserText}`,
       .slice(-6);
     const generateReply = (prompt: string) =>
       withTimeout(
-        generateText({
+        trackedGenerateText({
           model: chatModel.model,
           system: NEOTRAVEL_SYSTEM_PROMPT,
           prompt,
           temperature: 0.5,
           abortSignal: AbortSignal.timeout(qualificationTimeoutMs),
+        }, {
+          purpose: "clarify",
+          provider: chatModel.provider,
+          modelId: chatModel.modelId,
+          leadId: trackedLeadId,
+          inputFingerprint: {
+            purpose: "clarify",
+            modelId: chatModel.modelId,
+            prompt,
+            leadId: trackedLeadId,
+          },
         }),
         qualificationTimeoutMs,
       ).then((result) => result.text);
@@ -268,6 +297,7 @@ Message : ${latestUserText}`,
       startedAt,
     );
     const leadResult = await createOrUpdateLead({ leadId: existingLeadId, lead });
+    trackedLeadId = leadResult.leadId;
     logAgentEvent(
       requestId,
       "lead_upserted",

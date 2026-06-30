@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { logAuditEvent } from "@/lib/audit/audit-service";
-import { markHumanReview, updateLeadStatus } from "@/lib/leads/lead-service";
+import { markHumanReview } from "@/lib/leads/lead-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { AppError } from "@/shared/lib/utils/errors";
 
@@ -34,47 +34,61 @@ async function requireQuote(quoteId: string): Promise<StoredQuote> {
   return data as StoredQuote;
 }
 
-function assertQuoteActionable(status: StoredQuote["status"]) {
+function assertQuoteOpenForClientIntent(status: StoredQuote["status"]) {
   if (status === "CLOSED") {
     throw new AppError("Devis déjà finalisé.", "QUOTE_FINALIZED");
   }
+  if (status !== "QUOTE_SENT") {
+    throw new AppError("Le devis doit être envoyé avant de recueillir une intention client.", "QUOTE_NOT_SENT");
+  }
 }
 
-async function closeQuote(quoteId: string) {
+async function suspendScheduledFollowups(quote: StoredQuote, reason: "QUOTE_ACCEPTED_INTENT" | "QUOTE_REFUSED_INTENT") {
   const supabase = createServerSupabaseClient();
-  const { error } = await supabase.from("quotes").update({ status: "CLOSED" }).eq("id", quoteId);
+  const { error } = await supabase
+    .from("followups")
+    .update({ status: "cancelled" })
+    .eq("quote_id", quote.id)
+    .eq("status", "scheduled");
 
-  if (error) throw new AppError("Mise à jour du devis impossible.", "NOT_FOUND");
+  if (error) throw new AppError("Suspension des relances impossible.", "FOLLOWUP_SUSPEND_FAILED");
+
+  await logAuditEvent({
+    entityType: "quote",
+    entityId: quote.id,
+    action: "FOLLOWUPS_SUSPENDED_AFTER_CLIENT_INTENT",
+    metadata: { leadId: quote.lead_id, reason },
+  });
 }
 
 export async function acceptQuote(quoteId: string) {
   const quote = await requireQuote(quoteId);
-  assertQuoteActionable(quote.status);
-  await closeQuote(quote.id);
-  await updateLeadStatus(quote.lead_id!, "WON", { quoteId: quote.id });
+  assertQuoteOpenForClientIntent(quote.status);
+  await suspendScheduledFollowups(quote, "QUOTE_ACCEPTED_INTENT");
+  await markHumanReview(quote.lead_id!, "QUOTE_ACCEPTED_INTENT");
   await logAuditEvent({
     entityType: "quote",
     entityId: quote.id,
-    action: "QUOTE_ACCEPTED",
-    metadata: { leadId: quote.lead_id },
+    action: "QUOTE_ACCEPTED_INTENT_RECORDED",
+    metadata: { leadId: quote.lead_id, quoteStatus: quote.status },
   });
 
-  return { id: quote.id, leadId: quote.lead_id, status: "CLOSED" };
+  return { id: quote.id, leadId: quote.lead_id, status: quote.status, intent: "INTERESTED" };
 }
 
 export async function refuseQuote(quoteId: string) {
   const quote = await requireQuote(quoteId);
-  assertQuoteActionable(quote.status);
-  await closeQuote(quote.id);
-  await updateLeadStatus(quote.lead_id!, "LOST", { quoteId: quote.id });
+  assertQuoteOpenForClientIntent(quote.status);
+  await suspendScheduledFollowups(quote, "QUOTE_REFUSED_INTENT");
+  await markHumanReview(quote.lead_id!, "QUOTE_REFUSED_INTENT");
   await logAuditEvent({
     entityType: "quote",
     entityId: quote.id,
-    action: "QUOTE_REFUSED",
-    metadata: { leadId: quote.lead_id },
+    action: "QUOTE_REFUSED_INTENT_RECORDED",
+    metadata: { leadId: quote.lead_id, quoteStatus: quote.status },
   });
 
-  return { id: quote.id, leadId: quote.lead_id, status: "CLOSED" };
+  return { id: quote.id, leadId: quote.lead_id, status: quote.status, intent: "NOT_INTERESTED" };
 }
 
 export async function requestQuoteChange(
@@ -82,7 +96,7 @@ export async function requestQuoteChange(
   input: z.infer<typeof QuoteChangeRequestSchema>,
 ) {
   const quote = await requireQuote(quoteId);
-  assertQuoteActionable(quote.status);
+  assertQuoteOpenForClientIntent(quote.status);
   await markHumanReview(quote.lead_id!, "QUOTE_CHANGE_REQUEST");
   await logAuditEvent({
     entityType: "quote",

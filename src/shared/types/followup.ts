@@ -1,4 +1,4 @@
-export type FollowupStatus = "SCHEDULED" | "SENT" | "OPENED" | "REPLIED";
+export type FollowupStatus = "SCHEDULED" | "SENT" | "CANCELLED" | "OPENED" | "REPLIED";
 
 export type Followup = {
   id: string;

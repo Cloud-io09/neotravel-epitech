@@ -57,6 +57,28 @@ describe("extractTurnFacts", () => {
     });
   });
 
+  it("extracts a first-message route from two known city names", () => {
+    expect(extractTurnFacts("PAris MArseille", {}, referenceDate)).toEqual({
+      departure_city: "Paris",
+      arrival_city: "Marseille",
+    });
+  });
+
+  it("extracts route, date and passengers from a composed first message", () => {
+    expect(extractTurnFacts("Paris Marseille, 11 septembre, 34 passagers", {}, referenceDate)).toEqual({
+      departure_city: "Paris",
+      arrival_city: "Marseille",
+      departure_date: "2026-09-11",
+      passenger_count: 34,
+    });
+    expect(extractTurnFacts("Paris Marseille 11 septembre 34 passagers", {}, referenceDate)).toEqual({
+      departure_city: "Paris",
+      arrival_city: "Marseille",
+      departure_date: "2026-09-11",
+      passenger_count: 34,
+    });
+  });
+
   it("extracts destination from shorthand intent", () => {
     expect(extractTurnFacts("jvai a lyon", { departure_city: "Paris" }, referenceDate)).toEqual({
       arrival_city: "Lyon",
@@ -98,6 +120,17 @@ describe("extractTurnFacts", () => {
         {},
         referenceDate,
         "Pour commencer, quelle est votre ville de départ ?",
+      ),
+    ).toEqual({ departure_city: "Paris" });
+  });
+
+  it("uses the initial assistant context to map the first short city answer to departure_city", () => {
+    expect(
+      extractTurnFacts(
+        "Paris",
+        {},
+        referenceDate,
+        "Indiquez simplement votre départ, votre arrivée, la date et le nombre de passagers.",
       ),
     ).toEqual({ departure_city: "Paris" });
   });

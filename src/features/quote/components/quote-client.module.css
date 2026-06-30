@@ -466,6 +466,29 @@
   padding: 28px 44px 36px;
 }
 
+.adminActionPanel {
+  display: grid;
+  gap: 12px;
+  margin: 32px 44px 0;
+  border: 1px solid #cfe0f5;
+  border-radius: 12px;
+  padding: 20px 22px;
+  background: #f4f8fe;
+}
+
+.adminActionPanel strong {
+  color: #091a35;
+  font-size: 16px;
+}
+
+.adminActionPanel p {
+  margin: 0;
+  color: #52627d;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -510,6 +533,7 @@
 }
 
 .actionMessage,
+.refusedMessage,
 .errorMessage {
   margin: 0;
   font-size: 13px;
@@ -518,6 +542,10 @@
 
 .actionMessage {
   color: #058247;
+}
+
+.refusedMessage {
+  color: #a8111f;
 }
 
 .errorMessage {
@@ -625,4 +653,36 @@
   color: #5b6573;
   text-align: right;
   font-weight: 600;
+}
+
+.accountCta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+  border: 1px solid #d8e2ee;
+  border-radius: 14px;
+  padding: 16px 18px;
+  background: #f6f9fd;
+}
+
+.accountCta p {
+  margin: 0;
+  color: #253044;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.accountCta a {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 10px;
+  padding: 10px 16px;
+  background: #061b3a;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
 }

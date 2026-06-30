@@ -1,5 +1,6 @@
 .page {
   min-height: 100vh;
+  overflow-x: hidden;
   padding-bottom: 60px;
   background: #f8fafd;
   color: #17202e;
@@ -550,9 +551,10 @@
 
 .manualFields label {
   display: grid;
-  grid-template-columns: 80px 1fr;
+  grid-template-columns: 92px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .manualFields label span {
@@ -563,6 +565,8 @@
 
 .manualFields input,
 .manualFields select {
+  width: 100%;
+  min-width: 0;
   height: 32px;
   border: 1px solid #d9e2ed;
   border-radius: 8px;
@@ -720,9 +724,14 @@
 
 .routeHeader {
   display: flex;
+  min-width: 0;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+}
+
+.routeHeader > div {
+  min-width: 0;
 }
 
 .routeHeader p {
@@ -742,6 +751,7 @@
 
 .routeHeader > span {
   display: inline-grid;
+  flex: 0 0 auto;
   min-height: 32px;
   place-items: center;
   border-radius: 999px;
@@ -750,6 +760,34 @@
   background: #e8f1ff;
   font-size: 12px;
   font-weight: 900;
+}
+
+.routeMetrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.routeMetrics span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  border: 1px solid #edf1f6;
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: #637188;
+  background: #fbfcfe;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.routeMetrics strong {
+  overflow: hidden;
+  color: #0d2040;
+  font-size: 13px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mapBox {
@@ -939,6 +977,20 @@
   }
 
   .composer {
+    grid-template-columns: 1fr;
+  }
+
+  .routeHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .routeHeader > span {
+    width: fit-content;
+  }
+
+  .routeMetrics,
+  .manualFields label {
     grid-template-columns: 1fr;
   }
 

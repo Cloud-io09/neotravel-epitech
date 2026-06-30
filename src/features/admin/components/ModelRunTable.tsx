@@ -12,6 +12,22 @@ function shortHash(value?: string) {
   return value ? `${value.slice(0, 10)}...` : "non renseigne";
 }
 
+function formatCost(value?: number) {
+  if (value === undefined) return "non tarifé";
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: value > 0 && value < 0.01 ? 4 : 2,
+    maximumFractionDigits: value > 0 && value < 0.01 ? 4 : 2
+  }).format(value);
+}
+
+function formatTokens(input?: number, output?: number) {
+  const inputTokens = input ?? 0;
+  const outputTokens = output ?? 0;
+  return `${inputTokens + outputTokens} (${inputTokens}/${outputTokens})`;
+}
+
 export function ModelRunTable({ runs }: { runs: ModelRun[] }) {
   return (
     <section className={styles.panel} aria-labelledby="model-runs-title">
@@ -23,6 +39,8 @@ export function ModelRunTable({ runs }: { runs: ModelRun[] }) {
         <div className={styles.runHead}>
           <span>Usage</span>
           <span>Provider</span>
+          <span>Tokens</span>
+          <span>Coût</span>
           <span>Statut</span>
           <span>Hash input</span>
           <span>Date</span>
@@ -34,6 +52,8 @@ export function ModelRunTable({ runs }: { runs: ModelRun[] }) {
               <small>{run.model}</small>
             </span>
             <span>{run.provider ?? "mock"}</span>
+            <span>{formatTokens(run.promptTokens, run.completionTokens)}</span>
+            <span>{formatCost(run.costEur)}</span>
             <span className={styles.status}>{run.status ?? "success"}</span>
             <code>{shortHash(run.payloadHash)}</code>
             <span>{formatDate(run.createdAt)}</span>

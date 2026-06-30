@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { getLeadDetail } from "@/features/lead-detail/services/getLeadDetail";
+import { getQuoteOptionLines } from "@/shared/lib/quotes/quoteOptionLines";
+import { getClientSession } from "@/shared/lib/auth/requireClient";
 import { getQuoteById } from "../services/getQuoteById";
+import { QuoteAdminSendPanel } from "./QuoteAdminSendPanel";
 import { QuoteClientActions } from "./QuoteClientActions";
 import styles from "./quote-client.module.css";
 
@@ -34,9 +37,23 @@ function formatTripType(value: string | null | undefined) {
   return "À confirmer";
 }
 
-export async function QuoteClientView({ quoteId }: { quoteId: string }) {
+type QuoteViewer = "client" | "admin";
+
+function quoteOutcome(status: string, leadStatus: string | null | undefined, humanReviewReason: string | null | undefined) {
+  if (leadStatus === "HUMAN_REVIEW" && humanReviewReason === "QUOTE_ACCEPTED_INTENT") return "interested";
+  if (leadStatus === "HUMAN_REVIEW" && humanReviewReason === "QUOTE_REFUSED_INTENT") return "notInterested";
+  if (status === "ACCEPTED" || leadStatus === "WON") return "accepted";
+  if (status === "REFUSED" || leadStatus === "LOST") return "refused";
+  if (status === "CLOSED") return "closed";
+  return "pending";
+}
+
+export async function QuoteClientView({ quoteId, viewer = "client" }: { quoteId: string; viewer?: QuoteViewer }) {
   const storedQuote = await getQuoteById(quoteId);
   const lead = storedQuote ? await getLeadDetail(storedQuote.leadId) : null;
+  const isAdmin = viewer === "admin";
+  // Hide the "create account" CTA for an already-logged-in client.
+  const clientLoggedIn = isAdmin ? false : Boolean(await getClientSession());
 
   if (!storedQuote) {
     return (
@@ -61,12 +78,12 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
       : calculation.breakdown.routeLabel;
   // Priced option lines from the engine — each carries a label, a note, and an amount that
   // is 0 € only as a placeholder when no official price exists (never shown as free).
-  const optionLines = calculation.breakdown.options;
+  const optionLines = getQuoteOptionLines(calculation.breakdown);
 
   return (
     <main className={styles.page}>
       <header className={styles.topbar}>
-        <Link className={styles.logo} href="/" aria-label="NeoTravel accueil">
+        <Link className={styles.logo} href={isAdmin ? "/dashboard/devis" : "/"} aria-label="NeoTravel accueil">
           <span className={styles.logoShield}>N</span>
           <span>
             <strong>
@@ -76,16 +93,30 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
           </span>
         </Link>
 
-        <nav className={styles.nav} aria-label="Parcours client">
-          <Link href="/client/demande">Conversation</Link>
-          <span>Devis</span>
-          <Link href="/client/contact">Contact</Link>
+        <nav className={styles.nav} aria-label={isAdmin ? "Navigation dashboard" : "Parcours client"}>
+          {isAdmin ? (
+            <>
+              <Link href="/dashboard">Dashboard</Link>
+              <Link href={`/dashboard/demandes/${storedQuote.leadId}`}>Demande</Link>
+              <span>Devis</span>
+            </>
+          ) : (
+            <>
+              <Link href="/client/demande">Conversation</Link>
+              <span>Devis</span>
+              <Link href="/client/contact">Contact</Link>
+            </>
+          )}
         </nav>
       </header>
 
       <section className={styles.pageIntro}>
-        <h1>Mon devis NeoTravel</h1>
-        <p>Votre devis détaillé, établi à partir de votre demande.</p>
+        <h1>{isAdmin ? "Devis client" : "Mon devis NeoTravel"}</h1>
+        <p>
+          {isAdmin
+            ? "Vue interne du devis. Les actions enregistrent uniquement une réponse client confirmée."
+            : "Votre devis détaillé, établi à partir de votre demande."}
+        </p>
         <span aria-hidden="true">↓</span>
       </section>
 
@@ -261,7 +292,22 @@ export async function QuoteClientView({ quoteId }: { quoteId: string }) {
             </div>
           </div>
 
-          <QuoteClientActions quoteId={quoteId} initialStatus={storedQuote.status} />
+          {isAdmin ? <QuoteAdminSendPanel quoteId={quoteId} status={storedQuote.status} /> : null}
+
+          <QuoteClientActions
+            quoteId={quoteId}
+            initialStatus={storedQuote.status}
+            initialOutcome={quoteOutcome(storedQuote.status, lead?.status, lead?.humanReviewReason)}
+            viewer={viewer}
+            commercialFollowup={lead?.status === "HUMAN_REVIEW"}
+          />
+
+          {!isAdmin && !clientLoggedIn ? (
+            <div className={styles.accountCta}>
+              <p>Suivez ce devis et vos demandes depuis votre espace client.</p>
+              <Link href={`/connexion/inscription?quoteId=${storedQuote.id}`}>Créer mon compte</Link>
+            </div>
+          ) : null}
         </article>
       </div>
     </main>
