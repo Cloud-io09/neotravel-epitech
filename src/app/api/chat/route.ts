@@ -29,6 +29,8 @@ import {
 
 export const runtime = "nodejs";
 const DEFAULT_QUALIFICATION_TIMEOUT_MS = 30_000;
+const INITIAL_ASSISTANT_CONTEXT =
+  "Indiquez simplement votre départ, votre arrivée, la date, le nombre de passagers, puis le type de client, le nom du contact et le téléphone.";
 
 export async function POST(request: Request): Promise<Response> {
   const requestId = crypto.randomUUID();
@@ -45,8 +47,8 @@ export async function POST(request: Request): Promise<Response> {
     const lastAssistantText = latestUserIndex > 0
       ? getMessageText(
           [...messages].slice(0, latestUserIndex).reverse().find((m) => m.role === "assistant")?.content
-        )
-      : "";
+        ) || INITIAL_ASSISTANT_CONTEXT
+      : INITIAL_ASSISTANT_CONTEXT;
 
     logAgentEvent(
       requestId,

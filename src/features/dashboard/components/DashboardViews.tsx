@@ -733,7 +733,7 @@ export async function AdminOverviewDashboardPage() {
     kpis={[
      { label: "Source des données", value: supabase ? "Supabase" : "Démo", tone: supabase ? "green" : "gold" },
      { label: "Appels IA", value: runs.length, tone: "blue" },
-     { label: "Coût IA cumulé", value: euro(aiCost), tone: "green" }
+     { label: "Coût IA cumulé", value: aiEuro(aiCost), tone: "green" }
     ]}
    />
    <div className={styles.grid}>
@@ -831,6 +831,8 @@ export async function AdminAiCostsDashboardPage() {
  const integrations = getIntegrationsStatus();
  const aiOn = Boolean(integrations.find((integration) => integration.id === "ai")?.connected);
  const cost = runs.reduce((sum, run) => sum + (run.costEur ?? 0), 0);
+ const inputTokens = runs.reduce((sum, run) => sum + (run.promptTokens ?? 0), 0);
+ const outputTokens = runs.reduce((sum, run) => sum + (run.completionTokens ?? 0), 0);
  const errors = runs.filter((run) => run.status === "error").length;
 
  return (
@@ -843,20 +845,22 @@ export async function AdminAiCostsDashboardPage() {
     kpis={[
      { label: "Fournisseur IA", value: aiOn ? "Connecte" : "Mock", tone: aiOn ? "green" : "gold" },
      { label: "Modèle", value: runs[0]?.model ?? "mock", tone: "blue" },
-     { label: "Coût cumulé", value: euro(cost), tone: "green" },
+     { label: "Coût cumulé", value: aiEuro(cost), tone: "green" },
+     { label: "Tokens", value: tokens(inputTokens + outputTokens), tone: "blue" },
      { label: "Appels en erreur", value: errors, tone: errors > 0 ? "red" : "green" }
     ]}
    />
    <Panel title="Détail des appels" subtitle="Usage, modèle, coût et issue de chaque appel.">
     <DataTable
-     columns={["Heure", "Usage", "Modèle", "Coût", "Statut"]}
-     columnsTemplate="1fr 1.2fr 1.2fr .8fr .8fr"
+     columns={["Heure", "Usage", "Modèle", "Tokens", "Coût", "Statut"]}
+     columnsTemplate="1fr 1.1fr 1.2fr .9fr .8fr .8fr"
      rows={runs.map((run) => ({
       cells: [
        new Date(run.createdAt).toLocaleTimeString("fr-FR"),
        run.purpose,
        run.model,
-       euro(run.costEur ?? 0),
+       `${tokens((run.promptTokens ?? 0) + (run.completionTokens ?? 0))} (${tokens(run.promptTokens ?? 0)} / ${tokens(run.completionTokens ?? 0)})`,
+       run.costEur === undefined ? "Non tarifé" : aiEuro(run.costEur),
        run.status ?? "mock"
       ]
      }))}

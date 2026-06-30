@@ -69,3 +69,16 @@ export function canonicalizeCity(input: string | null | undefined): string | nul
 
   return input;
 }
+
+export function isKnownCity(input: string | null | undefined): boolean {
+  if (!input) return false;
+  const normalized = normalize(input);
+  if (!normalized) return false;
+
+  if (NORMALIZED_TO_CANONICAL.has(normalized)) return true;
+
+  const keys = [...NORMALIZED_TO_CANONICAL.keys()];
+  if (normalized.length >= 3 && keys.filter((key) => key.startsWith(normalized)).length === 1) return true;
+
+  return keys.filter((key) => editDistance(normalized, key) <= 1).length === 1;
+}

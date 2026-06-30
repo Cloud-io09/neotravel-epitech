@@ -1,4 +1,5 @@
 import type { LeadQualification } from "../domain/schemas";
+import { canonicalizeCity, isKnownCity } from "./canonicalize-city";
 
 const ROUND_TRIP_PATTERN =
   /\baller[- /]retour\b|\baller\s+et\s+retour\b|\bon\s+reviendra\b|\btrajet\s+retour\b|\bvoyage\s+aller[- ]retour\b/iu;
@@ -169,6 +170,10 @@ function parseCityMentions(message: string): Pick<LeadQualification, "departure_
     return compactFacts(facts);
   }
 
+  const firstSegment = normalized.split(/[,;.]/u)[0] ?? normalized;
+  const bareRoute = parseBareCityPair(normalized) ?? parseBareCityPair(firstSegment);
+  if (bareRoute) return bareRoute;
+
   const departure = /(?:^|\b)(?:je|on|nous)?\s*(?:pars?|part|partons|dépars?|depart|suis|sommes|habite|départ|depart)\s+(?:de|depuis|à|a)\s+(.+?)(?:$|[.!?]|,|;|\s+et\s+|\s+pour\s+|\s+vers\s+)/iu.exec(normalized);
   if (departure) facts.departure_city = cleanCity(departure[1]);
 
@@ -178,8 +183,25 @@ function parseCityMentions(message: string): Pick<LeadQualification, "departure_
   return compactFacts(facts);
 }
 
+function parseBareCityPair(message: string): Pick<LeadQualification, "departure_city" | "arrival_city"> | undefined {
+  const parts = message
+    .replace(/[→,;|/]+/gu, " ")
+    .trim()
+    .split(/\s+/u)
+    .filter(Boolean);
+
+  if (parts.length < 2) return undefined;
+  const [departure, arrival] = parts;
+  if (!isKnownCity(departure) || !isKnownCity(arrival)) return undefined;
+
+  return {
+    departure_city: canonicalizeCity(departure) ?? cleanCity(departure),
+    arrival_city: canonicalizeCity(arrival) ?? cleanCity(arrival),
+  };
+}
+
 function asksForDepartureCity(message: string) {
-  return /ville\s+de\s+d[eé]part|d['’]o[uù]\s+.*partez|d['’]o[uù]\s+.*part|point\s+de\s+d[eé]part/iu.test(message);
+  return /ville\s+de\s+d[eé]part|votre\s+d[eé]part|d['’]o[uù]\s+.*partez|d['’]o[uù]\s+.*part|point\s+de\s+d[eé]part/iu.test(message);
 }
 
 function asksForArrivalCity(message: string) {
@@ -225,7 +247,7 @@ function parseDepartureDate(message: string, referenceDate: Date): string | unde
   const isoDate = /^(\d{4}-\d{2}-\d{2})$/u.exec(normalized);
   if (isoDate) return isoDate[1];
 
-  const slashDate = /^(?:le\s+)?(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?[.!?]?$/u.exec(normalized);
+  const slashDate = /(?:^|\b)(?:le\s+)?(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?(?:$|[.!?;,]|\s)/u.exec(normalized);
   if (slashDate) {
     const day = Number(slashDate[1]);
     const month = Number(slashDate[2]) - 1;
@@ -240,7 +262,7 @@ function parseDepartureDate(message: string, referenceDate: Date): string | unde
     return candidate.toISOString().slice(0, 10);
   }
 
-  const explicitDate = /^(?:le\s+)?(\d{1,2})\s+([a-zéû]+)(?:\s+(\d{4}))?[.!?]?$/u.exec(normalized);
+  const explicitDate = /(?:^|\b)(?:le\s+)?(\d{1,2})\s+([a-zéû]+)(?:\s+(\d{4}))?(?:$|[.!?;,]|\s)/u.exec(normalized);
   if (!explicitDate) return undefined;
 
   const month = MONTHS[explicitDate[2]];
