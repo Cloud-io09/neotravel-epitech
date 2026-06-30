@@ -13,7 +13,8 @@ export type PermissionKey =
   | "growth"
   | "costs_logs"
   | "costs_ai"
-  | "compliance";
+  | "compliance"
+  | "connections";
 
 export type PermissionDef = {
   key: PermissionKey;
@@ -37,7 +38,8 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "growth", label: "Croissance", section: "Pilotage", defaultForCommercial: false },
   { key: "costs_logs", label: "Coûts & logs", section: "Coûts & conformité", defaultForCommercial: false },
   { key: "costs_ai", label: "Coûts IA", section: "Coûts & conformité", defaultForCommercial: false },
-  { key: "compliance", label: "Audit RGPD", section: "Coûts & conformité", defaultForCommercial: false }
+  { key: "compliance", label: "Audit RGPD", section: "Coûts & conformité", defaultForCommercial: false },
+  { key: "connections", label: "Connexions", section: "Système", defaultForCommercial: false }
 ];
 
 export const ALL_PERMISSION_KEYS: PermissionKey[] = PERMISSIONS.map((permission) => permission.key);

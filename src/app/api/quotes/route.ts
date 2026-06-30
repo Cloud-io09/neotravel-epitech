@@ -1,32 +1,15 @@
-import { z } from "zod";
+import { GenerateQuoteForLeadSchema, generateQuoteForLead } from "@/features/quote/services/generateQuoteForLead";
+import { isAdminAuthorized } from "@/shared/lib/auth/requireAdmin";
+import { handleApiError, jsonError, jsonOk } from "@/shared/lib/utils/apiResponse";
 
-import { calculateQuoteForLead } from "../../../lib/quotes/quote-service";
-
-export const runtime = "nodejs";
-
-const QuoteRequestSchema = z.object({
-  leadId: z.string().uuid(),
-});
-
-export async function POST(request: Request): Promise<Response> {
-  const parsed = QuoteRequestSchema.safeParse(await request.json().catch(() => null));
-
-  if (!parsed.success) {
-    return Response.json({ error: "Payload invalide." }, { status: 400 });
+export async function POST(request: Request) {
+ try {
+  if (!(await isAdminAuthorized())) {
+   return jsonError("UNAUTHORIZED", "Connexion requise.", 401);
   }
-
-  try {
-    const result = await calculateQuoteForLead(parsed.data.leadId);
-
-    if (!result.ok) {
-      return Response.json(
-        { error: result.reason, status: result.status },
-        { status: result.status === "INCOMPLETE" ? 422 : 409 },
-      );
-    }
-
-    return Response.json({ id: result.quoteId, status: result.status }, { status: 201 });
-  } catch {
-    return Response.json({ error: "Impossible de générer le devis." }, { status: 500 });
-  }
+  const body = GenerateQuoteForLeadSchema.parse(await request.json());
+  return jsonOk(await generateQuoteForLead(body), { status: 201 });
+ } catch (error) {
+  return handleApiError(error);
+ }
 }

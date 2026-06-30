@@ -1,1450 +1,829 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { PublicPageHeader } from "@/app/client/PublicPageShell";
 import { validateDemandCompleteness } from "@/features/demand/services/validateDemandCompleteness";
-import { localizedSendError } from "@/lib/ai/chat-locale";
-import { useSiteLanguage } from "@/shared/i18n/useSiteLanguage";
-import {
-  PAX_MAX,
-  isPastDate,
-  isPaxBelowMin,
-  isPaxOverMax,
-  isReturnBeforeDeparture,
-  isValidDateString,
-} from "@/shared/lib/validation/leadValidators";
+import { clientHumanReviewNotice } from "@/features/human-review/clientNotice";
+import { AccessibilityWidget } from "@/shared/accessibility/AccessibilityWidget";
+import { LanguageSelector } from "@/shared/i18n/LanguageSelector";
 import type { DemandDraft } from "@/shared/types/lead";
 import styles from "./demand.module.css";
 
-type FieldWarning = { field: string; message: string; blocking: boolean };
-
 type InitialDemand = {
-  departure?: string;
-  arrival?: string;
-  departureDate?: string;
-  returnDate?: string;
-  passengers?: string;
-  tripType?: string;
-  options?: string;
-  intermediateStops?: string;
-  callback?: string;
+ departure?: string;
+ arrival?: string;
+ departureDate?: string;
+ returnDate?: string;
+ passengers?: string;
+ tripType?: string;
+ options?: string;
+ intermediateStops?: string;
+ callback?: string;
 };
 
 type RoutePreview = {
-  distanceKm: number;
-  durationMinutes: number;
-  labels: string[];
-  geometry: [number, number][];
-  bbox?: [number, number, number, number];
+ status?: "ready" | "fallback";
+ distanceKm: number | null;
+ durationMinutes: number | null;
+ labels: string[];
+ geometry: [number, number][];
+ bbox?: [number, number, number, number];
+};
+
+type ChatApiResponse = {
+ status?: "INCOMPLETE" | "QUALIFIED" | "HUMAN_REVIEW";
+ demand?: DemandDraft;
+ missingFields?: string[];
+ clarification?: { questions?: string[] };
+ humanReviewReasons?: string[];
+};
+
+type ChatTurn = {
+ role: "prospect" | "assistant";
+ content: string;
 };
 
 type LeafletLayer = {
-  addTo: (target: LeafletMap) => LeafletLayer;
-  remove: () => void;
+ addTo: (target: LeafletMap) => LeafletLayer;
+ remove: () => void;
 };
 
 type LeafletPolyline = LeafletLayer & {
-  getBounds: () => unknown;
+ getBounds: () => unknown;
 };
 
 type LeafletMap = {
-  fitBounds: (bounds: unknown, options?: { padding?: [number, number]; maxZoom?: number }) => void;
-  getZoom: () => number;
-  invalidateSize: () => void;
-  remove: () => void;
-  setZoom: (zoom: number) => void;
+ fitBounds: (bounds: unknown, options?: { padding?: [number, number]; maxZoom?: number }) => void;
+ getZoom: () => number;
+ invalidateSize: () => void;
+ remove: () => void;
+ setZoom: (zoom: number) => void;
 };
 
 type LeafletNamespace = {
-  circleMarker: (
-    coordinates: [number, number],
-    options: Record<string, string | number | boolean>
-  ) => LeafletLayer;
-  map: (
-    element: HTMLElement,
-    options?: { attributionControl?: boolean; scrollWheelZoom?: boolean; zoomControl?: boolean }
-  ) => LeafletMap;
-  polyline: (coordinates: [number, number][], options: Record<string, string | number>) => LeafletPolyline;
-  tileLayer: (url: string, options?: Record<string, string | number>) => LeafletLayer;
+ circleMarker: (
+  coordinates: [number, number],
+  options: Record<string, string | number | boolean>
+ ) => LeafletLayer;
+ map: (
+  element: HTMLElement,
+  options?: { attributionControl?: boolean; scrollWheelZoom?: boolean; zoomControl?: boolean }
+ ) => LeafletMap;
+ polyline: (coordinates: [number, number][], options: Record<string, string | number>) => LeafletPolyline;
+ tileLayer: (url: string, options?: Record<string, string | number>) => LeafletLayer;
 };
 
 declare global {
-  interface Window {
-    L?: LeafletNamespace;
-    neoTravelLeafletLoader?: Promise<LeafletNamespace>;
-  }
+ interface Window {
+  L?: LeafletNamespace;
+  neoTravelLeafletLoader?: Promise<LeafletNamespace>;
+ }
 }
 
-const steps = ["Trajet", "Vérification", "Devis"];
-
-// Options the prospect can request. Péages are route-dependent and must stay automatic,
-// not customer-selectable.
-const AVAILABLE_OPTIONS: { code: string; label: string; hint: string }[] = [
-  { code: "guide", label: "Guide / accompagnateur", hint: "+80 €/jour" },
-  { code: "driver_overnight", label: "Nuit chauffeur", hint: "+120 €/nuit" },
-];
-
-// Display-only estimates mirroring the engine's Tableau 3 rates. calculer_devis() stays the
-// sole pricing authority; these only preview the supplément while the prospect fills the form.
-const GUIDE_DAY_RATE_EUR = 80;
-const DRIVER_NIGHT_RATE_EUR = 120;
-
-const OPTION_ALIASES = new Map(
-  AVAILABLE_OPTIONS.flatMap((option) => [
-    [option.code, option.code],
-    [option.label.toLocaleLowerCase("fr-FR"), option.code],
-  ])
-);
+const steps = ["Trajet", "Options", "Coordonnees", "Devis"];
 const missingFieldLabels: Partial<Record<keyof DemandDraft, string>> = {
-  organization: "Nom de l'organisation",
-  email: "Email de contact",
-  departureCity: "Ville de départ",
-  arrivalCity: "Ville d'arrivée",
-  departureDate: "Date de départ",
-  returnDate: "Date de retour",
-  passengerCount: "Nombre de passagers",
-  tripType: "Type de trajet"
+ organization: "Nom de l'organisation",
+ email: "Email de contact",
+ departureCity: "Ville de depart",
+ arrivalCity: "Ville d'arrivee",
+ departureDate: "Date de depart",
+ returnDate: "Date de retour",
+ passengerCount: "Nombre de passagers",
+ tripType: "Type de trajet"
 };
 
+const translatableDetectedValues = new Set(["Aucune", "En attente", "Non", "Oui"]);
+type ProgressStepState = "done" | "current" | "next";
+
 function clean(value: string | undefined, fallback = "") {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : fallback;
-}
-
-function normalizeEmailForApi(email: string | null) {
-  const trimmed = email?.trim();
-  if (!trimmed) return null;
-
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed) ? trimmed : null;
+ const trimmed = value?.trim();
+ return trimmed ? trimmed : fallback;
 }
 
 function splitValues(value: string | undefined) {
-  return (value ?? "")
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function normalizeOptionCodes(values: string[]) {
-  return [
-    ...new Set(
-      values
-        .map((value) => OPTION_ALIASES.get(value.trim().toLocaleLowerCase("fr-FR")) ?? value.trim())
-        .filter((value) => AVAILABLE_OPTIONS.some((option) => option.code === value))
-    ),
-  ];
-}
-
-function optionLabels(codes: string[]) {
-  return codes
-    .map((code) => AVAILABLE_OPTIONS.find((option) => option.code === code)?.label)
-    .filter((label): label is string => Boolean(label));
+ return (value ?? "")
+  .split(",")
+  .map((item) => item.trim())
+  .filter(Boolean);
 }
 
 function formatDate(value: string | undefined, fallback = "") {
-  if (!value) return fallback;
-  const date = new Date(`${value}T12:00:00`);
-  if (Number.isNaN(date.getTime())) return fallback;
+ if (!value) return fallback;
+ const date = new Date(`${value}T12:00:00`);
+ if (Number.isNaN(date.getTime())) return fallback;
 
-  return new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" }).format(date);
+ return new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" }).format(date);
 }
 
 function formatDuration(minutes: number | null | undefined) {
-  if (!minutes) return "Durée à confirmer";
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  if (!hours) return `${rest} min`;
+ if (!minutes) return "Duree a confirmer";
+ const hours = Math.floor(minutes / 60);
+ const rest = minutes % 60;
+ if (!hours) return `${rest} min`;
 
-  return `${hours} h ${String(rest).padStart(2, "0")}`;
+ return `${hours} h ${String(rest).padStart(2, "0")}`;
+}
+
+function viewFromDraft(draft: DemandDraft, fallback: ReturnType<typeof buildInitialDemandView>) {
+ return {
+  ...fallback,
+  departure: draft.departureCity ?? fallback.departure,
+  arrival: draft.arrivalCity ?? fallback.arrival,
+  departureDate: formatDate(draft.departureDate ?? undefined, fallback.departureDate),
+  returnDate: formatDate(draft.returnDate ?? undefined, fallback.returnDate),
+  passengers: draft.passengerCount ? String(draft.passengerCount) : fallback.passengers,
+  tripType:
+   draft.tripType === "one_way" ? "Aller simple" : draft.tripType === "round_trip" ? "Aller-retour" : fallback.tripType,
+  options: draft.options.length ? draft.options : fallback.options
+ };
+}
+
+function mergeDemandDraft(previous: DemandDraft | null, next: DemandDraft, message: string): DemandDraft {
+ return {
+  rawMessage: [previous?.rawMessage, message].filter(Boolean).join("\n"),
+  organization: next.organization ?? previous?.organization ?? null,
+  email: next.email ?? previous?.email ?? null,
+  departureCity: next.departureCity ?? previous?.departureCity ?? null,
+  arrivalCity: next.arrivalCity ?? previous?.arrivalCity ?? null,
+  departureDate: next.departureDate ?? previous?.departureDate ?? null,
+  returnDate: next.returnDate ?? previous?.returnDate ?? null,
+  passengerCount: next.passengerCount ?? previous?.passengerCount ?? null,
+  tripType: next.tripType ?? previous?.tripType ?? null,
+  options: Array.from(new Set([...(previous?.options ?? []), ...next.options]))
+ };
+}
+
+function buildInitialDemandView(initialDemand: InitialDemand) {
+ const intermediateStops = splitValues(initialDemand.intermediateStops);
+ const options = splitValues(initialDemand.options);
+ const departure = clean(initialDemand.departure);
+ const arrival = clean(initialDemand.arrival);
+ const departureDate = formatDate(initialDemand.departureDate);
+ const returnDate = formatDate(initialDemand.returnDate);
+ const tripType =
+  initialDemand.tripType === "one_way" ? "Aller simple" : initialDemand.tripType === "round_trip" ? "Aller-retour" : "";
+
+ return {
+  departure,
+  arrival,
+  departureDate,
+  returnDate,
+  passengers: clean(initialDemand.passengers),
+  tripType,
+  options,
+  intermediateStops,
+  callbackWanted: initialDemand.callback === "no" ? "Non" : "Oui"
+ };
+}
+
+function buildChatRouteLabel(draft: DemandDraft | null) {
+ if (draft?.departureCity && draft.arrivalCity) return `${draft.departureCity} - ${draft.arrivalCity}`;
+ if (draft?.departureCity) return draft.departureCity;
+ if (draft?.arrivalCity) return draft.arrivalCity;
+ return null;
+}
+
+function buildContextualAssistantMessage(payload: ChatApiResponse, draft: DemandDraft | null, missingFieldKeys: string[]) {
+ if (payload.status === "HUMAN_REVIEW") {
+  const reason = payload.humanReviewReasons?.[0];
+  return clientHumanReviewNotice(reason);
+ }
+
+ const businessMissingFields = missingFieldKeys.filter((field) => field !== "organization" && field !== "email");
+ const routeLabel = buildChatRouteLabel(draft);
+
+ if (!draft?.departureCity) return "Quel est votre lieu de depart ?";
+ if (!draft.arrivalCity) return `Ok, votre lieu de depart est ${draft.departureCity}. Quelle est la ville d'arrivee ?`;
+ if (businessMissingFields.includes("departureDate")) {
+  return `Trajet ${routeLabel} note. Quelle est la date de depart ?`;
+ }
+ if (businessMissingFields.includes("passengerCount")) {
+  return `Parfait pour ${routeLabel}. Combien de passagers faut-il prevoir ?`;
+ }
+ if (businessMissingFields.includes("tripType")) {
+  return `Merci. Pour ${routeLabel}, souhaitez-vous un aller simple ou un aller-retour ?`;
+ }
+ if (draft.tripType === "round_trip" && businessMissingFields.includes("returnDate")) {
+  return `Aller-retour note pour ${routeLabel}. Quelle est la date de retour ?`;
+ }
+ if (businessMissingFields.length) {
+  const labels = businessMissingFields.map((field) => missingFieldLabels[field as keyof DemandDraft] ?? field);
+  return `Merci. Il manque encore : ${labels.join(", ")}.`;
+ }
+
+ return `Merci, les informations principales sont completes${routeLabel ? ` pour ${routeLabel}` : ""}. Vous pouvez recevoir le devis.`;
+}
+
+function progressClassName(state: ProgressStepState) {
+ if (state === "done") return styles.doneStep;
+ if (state === "current") return styles.currentStep;
+ return styles.nextStep;
 }
 
 function loadLeaflet() {
-  if (window.L) return Promise.resolve(window.L);
-  if (window.neoTravelLeafletLoader) return window.neoTravelLeafletLoader;
+ if (window.L) return Promise.resolve(window.L);
+ if (window.neoTravelLeafletLoader) return window.neoTravelLeafletLoader;
 
-  window.neoTravelLeafletLoader = new Promise((resolve, reject) => {
-    if (!document.querySelector('link[data-neotravel-leaflet="true"]')) {
-      const link = document.createElement("link");
-      link.dataset.neotravelLeaflet = "true";
-      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-      link.rel = "stylesheet";
-      document.head.appendChild(link);
-    }
-
-    const script = document.createElement("script");
-    script.async = true;
-    script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-    script.onload = () => (window.L ? resolve(window.L) : reject(new Error("LEAFLET_UNAVAILABLE")));
-    script.onerror = () => reject(new Error("LEAFLET_LOAD_FAILED"));
-    document.body.appendChild(script);
-  });
-
-  return window.neoTravelLeafletLoader;
-}
-
-const SESSION_CACHE_KEY = "neotravel:demand-session:v1";
-const ROUTE_PREVIEW_DEBOUNCE_MS = 650;
-const MIN_ROUTE_LABEL_LENGTH = 2;
-
-type ChatExtracted = {
-  clientType: string | null;
-  contactName: string | null;
-  organization: string | null;
-  departureCity: string | null;
-  arrivalCity: string | null;
-  departureDate: string | null;
-  returnDate: string | null;
-  passengerCount: number | null;
-  tripType: "one_way" | "round_trip" | null;
-  phone: string | null;
-};
-
-type DemandSessionCache = {
-  chatMessages: { role: "user" | "assistant"; content: string }[];
-  currentLeadId: string | null;
-  qualifiedLeadId: string | null;
-  chatHumanReview: boolean;
-  chatEmail: string | null;
-  chatClientType?: string | null;
-  chatContactName?: string | null;
-  chatOrganization?: string | null;
-  chatPhone?: string | null;
-  chatExtracted: ChatExtracted;
-  selectedOptions?: string[];
-  multiDestination?: boolean;
-  stops?: string[];
-  guideDays?: number | null;
-  driverNights?: number | null;
-};
-
-function useDebouncedValue<T>(value: T, delayMs: number) {
-  const [debounced, setDebounced] = useState(value);
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => setDebounced(value), delayMs);
-
-    return () => window.clearTimeout(timeout);
-  }, [delayMs, value]);
-
-  return debounced;
-}
-
-function normalizeRouteLabel(value: string | null | undefined) {
-  return value?.trim() ?? "";
-}
-
-function isRouteLabelReady(value: string) {
-  return value.length >= MIN_ROUTE_LABEL_LENGTH;
-}
-
-function removeLeafletLayer(layer: LeafletLayer) {
-  try {
-    layer.remove();
-  } catch {
-    return;
+ window.neoTravelLeafletLoader = new Promise((resolve, reject) => {
+  if (!document.querySelector('link[data-neotravel-leaflet="true"]')) {
+   const link = document.createElement("link");
+   link.dataset.neotravelLeaflet = "true";
+   link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+   link.rel = "stylesheet";
+   document.head.appendChild(link);
   }
-}
 
-function removeLeafletMap(map: LeafletMap | null) {
-  try {
-    map?.remove();
-  } catch {
-    return;
-  }
-}
+  const script = document.createElement("script");
+  script.async = true;
+  script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+  script.onload = () => (window.L ? resolve(window.L) : reject(new Error("LEAFLET_UNAVAILABLE")));
+  script.onerror = () => reject(new Error("LEAFLET_LOAD_FAILED"));
+  document.body.appendChild(script);
+ });
 
-// Session persistence: survives refresh and client-side navigation, clears when the tab
-// closes. Crucial for currentLeadId — without it a refresh orphans the Supabase lead and
-// the next message would spawn a duplicate instead of enriching the existing one.
-function readDemandSession(): DemandSessionCache | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.sessionStorage.getItem(SESSION_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as DemandSessionCache;
-    if (!parsed || !Array.isArray(parsed.chatMessages) || !parsed.chatExtracted) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-function writeDemandSession(cache: DemandSessionCache) {
-  if (typeof window === "undefined") return;
-  try {
-    window.sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(cache));
-  } catch {
-    // storage disabled or full — the session just won't persist, no crash.
-  }
-}
-
-function clearDemandSession() {
-  if (typeof window === "undefined") return;
-  try {
-    window.sessionStorage.removeItem(SESSION_CACHE_KEY);
-  } catch {
-    // ignore
-  }
+ return window.neoTravelLeafletLoader;
 }
 
 export function DemandConversation({ initialDemand = {} }: { initialDemand?: InitialDemand }) {
-  const router = useRouter();
-  const language = useSiteLanguage();
-  const hasInitialDemand = Boolean(
-    initialDemand.departure?.trim() ||
-      initialDemand.arrival?.trim() ||
-      initialDemand.departureDate?.trim() ||
-      initialDemand.passengers?.trim() ||
-      initialDemand.options?.trim() ||
-      initialDemand.intermediateStops?.trim()
-  );
-  const demand = useMemo(() => {
-    const intermediateStops = splitValues(initialDemand.intermediateStops);
-    const options = normalizeOptionCodes(splitValues(initialDemand.options));
-    const departure = clean(initialDemand.departure);
-    const arrival = clean(initialDemand.arrival);
-    const departureDate = formatDate(initialDemand.departureDate);
-    const returnDate = formatDate(initialDemand.returnDate);
-    const tripType = initialDemand.tripType === "one_way" ? "Aller simple" : "Aller-retour";
+ const router = useRouter();
+ const hasInitialDemand = Boolean(
+  initialDemand.departure?.trim() ||
+   initialDemand.arrival?.trim() ||
+   initialDemand.departureDate?.trim() ||
+   initialDemand.passengers?.trim() ||
+   initialDemand.options?.trim() ||
+   initialDemand.intermediateStops?.trim()
+ );
+ const initialDemandView = useMemo(() => buildInitialDemandView(initialDemand), [initialDemand]);
+ const initialDemandDraft = useMemo<DemandDraft>(
+  () => ({
+   rawMessage: undefined,
+   organization: null,
+   email: null,
+   departureCity: initialDemandView.departure || null,
+   arrivalCity: initialDemandView.arrival || null,
+   departureDate: initialDemand.departureDate?.trim() || null,
+   returnDate: initialDemand.returnDate?.trim() || null,
+   passengerCount: Number.isFinite(Number(initialDemandView.passengers)) ? Number(initialDemandView.passengers) : null,
+   tripType:
+    initialDemand.tripType === "one_way" ? "one_way" : initialDemand.tripType === "round_trip" ? "round_trip" : null,
+   options: initialDemandView.options
+  }),
+  [initialDemandView, hasInitialDemand, initialDemand.departureDate, initialDemand.returnDate, initialDemand.tripType]
+ );
+ const [chatInput, setChatInput] = useState("");
+ const [chatTurns, setChatTurns] = useState<ChatTurn[]>([]);
+ const [chatDraft, setChatDraft] = useState<DemandDraft | null>(null);
+ const [isChatLoading, setIsChatLoading] = useState(false);
+ const demandDraft = chatDraft ?? initialDemandDraft;
+ const hasDemand = hasInitialDemand || Boolean(chatDraft);
+ const hasConversationStarted = hasDemand || chatTurns.length > 0;
+ const demand = useMemo(() => (chatDraft ? viewFromDraft(chatDraft, initialDemandView) : initialDemandView), [
+  chatDraft,
+  initialDemandView
+ ]);
+ const missingFields = useMemo(
+  () =>
+   validateDemandCompleteness(demandDraft).missingFields.map(
+    (field) => missingFieldLabels[field] ?? String(field)
+   ),
+  [demandDraft]
+ );
+ const demoBlockingMissingFields = missingFields.filter(
+  (field) => field !== missingFieldLabels.organization && field !== missingFieldLabels.email
+ );
+ const hasQuoteReadyDemand = hasDemand && demoBlockingMissingFields.length === 0;
+ const hasRouteDetails = Boolean(
+  demandDraft.departureCity &&
+   demandDraft.arrivalCity &&
+   demandDraft.departureDate &&
+   demandDraft.passengerCount &&
+   demandDraft.tripType
+ );
+ const progressStates: ProgressStepState[] = hasQuoteReadyDemand
+  ? ["done", "done", "current", "next"]
+  : hasRouteDetails
+   ? ["done", "current", "next", "next"]
+   : ["current", "next", "next", "next"];
+ const requiresHumanReview = hasInitialDemand && demoBlockingMissingFields.length > 0;
+ const [routePreview, setRoutePreview] = useState<RoutePreview | null>(null);
+ const [routeStatus, setRouteStatus] = useState<"idle" | "loading" | "ready" | "fallback">("idle");
+ const [mapZoom, setMapZoom] = useState(1);
+ const [isMapExpanded, setIsMapExpanded] = useState(false);
+ const [isGeneratingQuote, setIsGeneratingQuote] = useState(false);
+ const [workflowError, setWorkflowError] = useState<string | null>(null);
+ const mapContainerRef = useRef<HTMLDivElement | null>(null);
+ const mapRef = useRef<LeafletMap | null>(null);
+ const routeLayersRef = useRef<LeafletLayer[]>([]);
+ const mainStop = demand.intermediateStops[0];
+ const detected = [
+  ["Depart", demand.departure || "En attente"],
+  ["Arrivee", demand.arrival || "En attente"],
+  ["Date", demand.departureDate || "En attente"],
+  [
+   "Retour",
+   hasDemand
+    ? demand.tripType === "Aller-retour"
+      ? demand.returnDate || "En attente"
+      : demand.tripType === "Aller simple"
+       ? "Non"
+       : "En attente"
+    : "Non"
+  ],
+  ["Passagers", demand.passengers || "En attente"],
+  ["Type", hasDemand && demand.tripType ? demand.tripType : "En attente"],
+  ["Options", demand.options.join(", ") || "Aucune"]
+ ];
+ const demoOrganization = "Alpha Conseil";
+ const demoEmail = "client@neotravel.fr";
 
-    return {
-      departure,
-      arrival,
-      departureDate,
-      returnDate,
-      passengers: clean(initialDemand.passengers),
-      tripType,
-      options,
-      intermediateStops,
-      callbackWanted: initialDemand.callback === "no" ? "Non" : "Oui"
-    };
-  }, [initialDemand]);
+ async function submitChatMessage() {
+  const message = chatInput.trim();
+  if (!message || isChatLoading) return;
 
-  // State declarations must come before useMemo that depend on them
-  const [routePreview, setRoutePreview] = useState<RoutePreview | null>(null);
-  const [routeStatus, setRouteStatus] = useState<"idle" | "loading" | "ready" | "fallback">("idle");
-  const [mapZoom, setMapZoom] = useState(1);
-  const [isMapExpanded, setIsMapExpanded] = useState(false);
-  const [isGeneratingQuote, setIsGeneratingQuote] = useState(false);
-  const [isRequestingHumanReview, setIsRequestingHumanReview] = useState(false);
-  const [humanReviewQueued, setHumanReviewQueued] = useState(false);
-  const [workflowError, setWorkflowError] = useState<string | null>(null);
-  const [userInput, setUserInput] = useState("");
-  const [isSending, setIsSending] = useState(false);
-  const [currentLeadId, setCurrentLeadId] = useState<string | null>(null);
-  const [qualifiedLeadId, setQualifiedLeadId] = useState<string | null>(null);
-  const [chatHumanReview, setChatHumanReview] = useState(false);
-  const [chatEmail, setChatEmail] = useState<string | null>(null);
-  const [chatClientType, setChatClientType] = useState<string | null>(null);
-  const [chatContactName, setChatContactName] = useState<string | null>(null);
-  const [chatOrganization, setChatOrganization] = useState<string | null>(null);
-  const [chatPhone, setChatPhone] = useState<string | null>(null);
-  const [selectedOptions, setSelectedOptions] = useState<string[]>(() => demand.options);
-  const [multiDestination, setMultiDestination] = useState(() => demand.intermediateStops.length > 0);
-  const [stops, setStops] = useState<string[]>(() => demand.intermediateStops);
-  const [guideDays, setGuideDays] = useState<number | null>(null);
-  const [driverNights, setDriverNights] = useState<number | null>(null);
-  const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
-  const [chatExtracted, setChatExtracted] = useState<ChatExtracted>({
-    clientType: null,
-    contactName: null,
-    organization: null,
-    departureCity: null,
-    arrivalCity: null,
-    departureDate: null,
-    returnDate: null,
-    passengerCount: null,
-    tripType: null,
-    phone: null,
-  });
+  setWorkflowError(null);
+  setIsChatLoading(true);
+  setChatTurns((current) => [...current, { role: "prospect", content: message }]);
 
-  // Hydrate a prior session on mount, then persist the meaningful slice on every change.
-  // hydratedRef prevents the persist effect from overwriting the cache with empty initial
-  // state before hydration runs (which would also avoid an SSR hydration mismatch).
-  const hydratedRef = useRef(false);
-  useEffect(() => {
-    const cached = readDemandSession();
-    if (cached) {
-      setChatMessages(cached.chatMessages);
-      setCurrentLeadId(cached.currentLeadId);
-      setQualifiedLeadId(cached.qualifiedLeadId);
-      setChatHumanReview(cached.chatHumanReview);
-      setChatEmail(cached.chatEmail);
-      setChatClientType(cached.chatClientType ?? cached.chatExtracted.clientType ?? null);
-      setChatContactName(cached.chatContactName ?? cached.chatExtracted.contactName ?? null);
-      setChatOrganization(cached.chatOrganization ?? cached.chatExtracted.organization ?? null);
-      setChatPhone(cached.chatPhone ?? cached.chatExtracted.phone ?? null);
-      setChatExtracted(cached.chatExtracted);
-      setSelectedOptions(normalizeOptionCodes(cached.selectedOptions ?? []));
-      setMultiDestination(Boolean(cached.multiDestination));
-      setStops(cached.stops ?? []);
-      setGuideDays(cached.guideDays ?? null);
-      setDriverNights(cached.driverNights ?? null);
-    }
-    hydratedRef.current = true;
-  }, []);
+  try {
+   const prospectMessages = chatTurns.filter((turn) => turn.role === "prospect").map((turn) => turn.content);
+   const conversationMessage = [...prospectMessages, message].join("\n");
+   const response = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: conversationMessage })
+   });
 
-  useEffect(() => {
-    if (!hydratedRef.current) return;
-    if (chatMessages.length === 0 && !currentLeadId) return; // nothing worth persisting yet
-    writeDemandSession({
-      chatMessages,
-      currentLeadId,
-      qualifiedLeadId,
-      chatHumanReview,
-      chatEmail,
-      chatClientType,
-      chatContactName,
-      chatOrganization,
-      chatPhone,
-      chatExtracted,
-      selectedOptions,
-      multiDestination,
-      stops,
-      guideDays,
-      driverNights,
-    });
-  }, [chatMessages, currentLeadId, qualifiedLeadId, chatHumanReview, chatEmail, chatClientType, chatContactName, chatOrganization, chatPhone, chatExtracted, selectedOptions, multiDestination, stops, guideDays, driverNights]);
+   if (!response.ok) throw new Error("CHAT_FAILED");
+   const payload = (await response.json()) as ChatApiResponse;
+   const nextDraft = payload.demand;
+   const mergedDraft = nextDraft ? mergeDemandDraft(chatDraft, nextDraft, message) : chatDraft;
+   if (mergedDraft) setChatDraft(mergedDraft);
 
-  // activeDemand: fusionne URL params + ce que le chat a extrait + éditions manuelles
-  const activeDemand = useMemo(() => ({
-    clientType: chatClientType || chatExtracted.clientType || null,
-    contactName: chatContactName || chatExtracted.contactName || null,
-    organization: chatOrganization || chatExtracted.organization || null,
-    departureCity: chatExtracted.departureCity || demand.departure || null,
-    arrivalCity: chatExtracted.arrivalCity || demand.arrival || null,
-    departureDate: chatExtracted.departureDate || initialDemand.departureDate?.trim() || null,
-    returnDate: chatExtracted.returnDate || initialDemand.returnDate?.trim() || null,
-    passengerCount:
-      chatExtracted.passengerCount ??
-      (demand.passengers && Number.isFinite(Number(demand.passengers))
-        ? Number(demand.passengers)
-        : null),
-    tripType: chatExtracted.tripType ?? (initialDemand.tripType === "one_way" ? "one_way" as const : initialDemand.tripType ? "round_trip" as const : null),
-    phone: chatPhone || chatExtracted.phone || null,
-    options: selectedOptions,
-  }), [chatClientType, chatContactName, chatOrganization, chatPhone, chatExtracted, demand, initialDemand, selectedOptions]);
+   const effectiveMissingFields = mergedDraft
+    ? validateDemandCompleteness(mergedDraft).missingFields.map(String)
+    : payload.missingFields ?? [];
+   const assistantContent = buildContextualAssistantMessage(payload, mergedDraft, effectiveMissingFields);
 
-  // Client-side validation mirrors the server (same shared validators) for instant
-  // feedback on manual edits. The quote button is gated on these.
-  const fieldWarnings = useMemo<FieldWarning[]>(() => {
-    const list: FieldWarning[] = [];
-    const { departureDate, returnDate, passengerCount } = activeDemand;
-    if (departureDate && !isValidDateString(departureDate)) {
-      list.push({ field: "departureDate", message: "Date de départ invalide.", blocking: true });
-    } else if (isPastDate(departureDate)) {
-      list.push({ field: "departureDate", message: "La date de départ est déjà passée.", blocking: true });
-    }
-    if (isReturnBeforeDeparture(departureDate, returnDate)) {
-      list.push({ field: "returnDate", message: "Le retour est avant le départ.", blocking: true });
-    }
-    if (isPaxBelowMin(passengerCount)) {
-      list.push({ field: "passengerCount", message: "Nombre de passagers invalide.", blocking: true });
-    } else if (isPaxOverMax(passengerCount)) {
-      list.push({
-        field: "passengerCount",
-        message: `Au-delà de ${PAX_MAX} passagers, un conseiller vous recontacte.`,
-        blocking: true,
-      });
-    }
-    return list;
-  }, [activeDemand]);
-  const hasBlockingWarning = fieldWarnings.some((w) => w.blocking);
-  const warningFor = (field: string) => fieldWarnings.find((w) => w.field === field);
-
-  const demandDraft = useMemo<DemandDraft>(
-    () => ({
-      rawMessage: undefined,
-      clientType: activeDemand.clientType,
-      contactName: activeDemand.contactName,
-      organization: activeDemand.organization,
-      email: chatEmail,
-      phone: activeDemand.phone,
-      departureCity: activeDemand.departureCity,
-      arrivalCity: activeDemand.arrivalCity,
-      departureDate: activeDemand.departureDate,
-      returnDate: activeDemand.returnDate,
-      passengerCount: activeDemand.passengerCount,
-      tripType: activeDemand.tripType,
-      options: activeDemand.options,
-    }),
-    [activeDemand, chatEmail]
-  );
-  const missingFields = useMemo(
-    () =>
-      validateDemandCompleteness(demandDraft).missingFields.map(
-        (field) => missingFieldLabels[field] ?? String(field)
-      ),
-    [demandDraft]
-  );
-  const demoBlockingMissingFields = missingFields.filter(
-    (field) => field !== missingFieldLabels.organization && field !== missingFieldLabels.email
-  );
-  const hasAnyDemand = Boolean(activeDemand.departureCity || activeDemand.arrivalCity || activeDemand.passengerCount || activeDemand.departureDate);
-  const requiresHumanReview = hasAnyDemand && demoBlockingMissingFields.length > 0;
-
-  // Quote readiness is decided form-side, from the side-panel fields — NOT from the AI's
-  // qualification status. These are exactly the 5 fields the server needs to price.
-  // returnDate and email are intentionally optional (server doesn't require them).
-  const criticalLabels: Record<string, string> = {
-    departureCity: "ville de départ",
-    arrivalCity: "ville d'arrivée",
-    departureDate: "date de départ",
-    passengerCount: "nombre de passagers",
-    tripType: "type de trajet (aller simple / aller-retour)",
-  };
-  const criticalMissing = (
-    ["departureCity", "arrivalCity", "departureDate", "passengerCount", "tripType"] as const
-  ).filter((key) => {
-    const value = activeDemand[key];
-    return value === null || value === undefined || value === "";
-  });
-  const missingReturnDate = activeDemand.tripType === "round_trip" && !activeDemand.returnDate;
-  const missingRequirementLabels = [
-    ...criticalMissing.map((key) => criticalLabels[key]),
-    ...(missingReturnDate ? ["date de retour"] : []),
-  ];
-  const formReady = missingRequirementLabels.length === 0 && !hasBlockingWarning;
-  const mapContainerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<LeafletMap | null>(null);
-  const routeLayersRef = useRef<LeafletLayer[]>([]);
-  const chatMessagesRef = useRef<HTMLDivElement | null>(null);
-  const mainStop = stops[0];
-
-  useEffect(() => {
-    const container = chatMessagesRef.current;
-    if (!container) return;
-
-    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
-  }, [chatMessages, isSending]);
-
-  const hasActiveSession = chatMessages.length > 0 || Boolean(currentLeadId);
-
-  function resetSession() {
-    clearDemandSession();
-    setChatMessages([]);
-    setCurrentLeadId(null);
-    setQualifiedLeadId(null);
-    setChatHumanReview(false);
-    setChatEmail(null);
-    setChatClientType(null);
-    setChatContactName(null);
-    setChatOrganization(null);
-    setChatPhone(null);
-    setSelectedOptions([]);
-    setMultiDestination(false);
-    setStops([]);
-    setGuideDays(null);
-    setDriverNights(null);
-    setChatExtracted({
-      clientType: null,
-      contactName: null,
-      organization: null,
-      departureCity: null,
-      arrivalCity: null,
-      departureDate: null,
-      returnDate: null,
-      passengerCount: null,
-      tripType: null,
-      phone: null,
-    });
-    setUserInput("");
-    setWorkflowError(null);
-    setHumanReviewQueued(false);
+   setChatTurns((current) => [...current, { role: "assistant", content: assistantContent }]);
+   setChatInput("");
+  } catch {
+   setWorkflowError("Le chat IA est indisponible pour le moment. Reessayez ou contactez un conseiller.");
+   setChatTurns((current) => [
+    ...current,
+    { role: "assistant", content: "Je n'ai pas pu analyser le message. Reessayez avec depart, arrivee, date et passagers." }
+   ]);
+  } finally {
+   setIsChatLoading(false);
   }
-
-  function toggleOption(code: string) {
-    setSelectedOptions((prev) => {
-      if (prev.includes(code)) {
-        if (code === "guide") setGuideDays(null);
-        if (code === "driver_overnight") setDriverNights(null);
-        return prev.filter((c) => c !== code);
-      }
-      return [...prev, code];
-    });
-  }
-
-  function updateTripType(value: string) {
-    if (value === "multi_stop") {
-      setMultiDestination(true);
-      setChatExtracted((prev) => ({ ...prev, tripType: prev.tripType ?? "one_way" }));
-      return;
-    }
-
-    setMultiDestination(false);
-    setStops([]);
-    setChatExtracted((prev) => ({
-      ...prev,
-      tripType: value ? (value as "one_way" | "round_trip") : null,
-    }));
-  }
-
-  async function sendMessage(e?: React.FormEvent) {
-    e?.preventDefault();
-    const text = userInput.trim();
-    if (!text || isSending) return;
-
-    const nextMessages = [...chatMessages, { role: "user" as const, content: text }];
-    setChatMessages(nextMessages);
-    setUserInput("");
-    setIsSending(true);
-    setWorkflowError(null);
-
-    try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: nextMessages.map((m) => ({ role: m.role, content: m.content })),
-          language,
-          ...(currentLeadId ? { leadId: currentLeadId } : {}),
-        }),
-      });
-      const data = (await res.json()) as {
-        status: string;
-        message: string;
-        leadId?: string;
-        quoteId?: string;
-        extractedFields?: {
-          clientType: string | null;
-          contactName: string | null;
-          organization: string | null;
-          departureCity: string | null;
-          arrivalCity: string | null;
-          departureDate: string | null;
-          returnDate: string | null;
-          passengerCount: number | null;
-          tripType: "one_way" | "round_trip" | null;
-          email: string | null;
-          phone: string | null;
-          options?: string[];
-          removedOptions?: string[];
-          multiDestination?: boolean;
-          stops?: string[];
-        };
-      };
-
-      if (data.leadId) setCurrentLeadId(data.leadId);
-      if (data.status === "QUALIFIED" && data.leadId) setQualifiedLeadId(data.leadId);
-      if (data.status === "HUMAN_REVIEW") setChatHumanReview(true);
-      const ef = data.extractedFields;
-      if (ef) {
-        if (ef.email) setChatEmail(ef.email);
-        if (ef.clientType) setChatClientType(ef.clientType);
-        if (ef.contactName) setChatContactName(ef.contactName);
-        if (ef.organization) setChatOrganization(ef.organization);
-        if (ef.phone) setChatPhone(ef.phone);
-        if (ef.options?.length) setSelectedOptions((prev) => normalizeOptionCodes([...prev, ...ef.options!]));
-        if (ef.removedOptions?.length) {
-          const removed = ef.removedOptions;
-          setSelectedOptions((prev) => prev.filter((code) => !removed.includes(code)));
-          if (removed.includes("guide")) setGuideDays(null);
-          if (removed.includes("driver_overnight")) setDriverNights(null);
-        }
-        if (ef.multiDestination) setMultiDestination(true);
-        if (ef.stops?.length) setStops(ef.stops);
-        setChatExtracted((prev) => ({
-          clientType: ef.clientType ?? prev.clientType,
-          contactName: ef.contactName ?? prev.contactName,
-          organization: ef.organization ?? prev.organization,
-          departureCity: ef.departureCity ?? prev.departureCity,
-          arrivalCity: ef.arrivalCity ?? prev.arrivalCity,
-          departureDate: ef.departureDate ?? prev.departureDate,
-          returnDate: ef.returnDate ?? prev.returnDate,
-          passengerCount: ef.passengerCount ?? prev.passengerCount,
-          tripType: ef.tripType ?? prev.tripType,
-          phone: ef.phone ?? prev.phone,
-        }));
-      }
-      setChatMessages((prev) => [...prev, { role: "assistant", content: data.message }]);
-      // The chat never auto-generates or navigates to a quote. Quote generation is an explicit
-      // user action via the "Recevoir mon devis" button (generateClientQuote).
-    } catch {
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: localizedSendError(language),
-        },
-      ]);
-    } finally {
-      setIsSending(false);
-    }
-  }
+ }
 
   async function generateClientQuote() {
-    setWorkflowError(null);
+  setWorkflowError(null);
 
-    if (hasBlockingWarning) {
-      setWorkflowError("Corrigez les informations signalées avant de demander un devis.");
-      return;
-    }
-
-    if (!formReady) {
-      const missing = missingRequirementLabels.join(", ");
-      setWorkflowError(`Complétez le trajet pour recevoir votre devis : ${missing}.`);
-      return;
-    }
-
-    // One path for both chat and manual side-panel entry: persist the current form state
-    // to a lead (the sync route CREATES one when no leadId is given), attach the email so
-    // a client exists for the devis, let the server validate, then quote. No need to talk
-    // to the AI first.
-    setIsGeneratingQuote(true);
-    try {
-      const syncResponse = await fetch("/api/leads/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...(currentLeadId ? { leadId: currentLeadId } : {}),
-          clientType: activeDemand.clientType,
-          contactName: activeDemand.contactName,
-          organization: activeDemand.organization,
-          departureCity: activeDemand.departureCity,
-          arrivalCity: activeDemand.arrivalCity,
-          departureDate: activeDemand.departureDate,
-          returnDate: activeDemand.tripType === "round_trip" ? activeDemand.returnDate : null,
-          passengerCount: activeDemand.passengerCount,
-          tripType: activeDemand.tripType,
-          hasIntermediateStop: multiDestination,
-          intermediateStops: stops,
-          options: selectedOptions,
-          guideDays: selectedOptions.includes("guide") ? guideDays : null,
-          driverNights: selectedOptions.includes("driver_overnight") ? driverNights : null,
-          email: normalizeEmailForApi(chatEmail),
-          phone: activeDemand.phone,
-        }),
-      });
-      const sync = (await syncResponse.json()) as {
-        status: string;
-        message: string;
-        leadId?: string;
-      };
-      if (sync.status !== "QUALIFIED" || !sync.leadId) {
-        setWorkflowError(sync.message || "Il manque encore quelques informations pour préparer le devis.");
-        return;
-      }
-      setCurrentLeadId(sync.leadId);
-
-      const quoteResponse = await fetch("/api/quotes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadId: sync.leadId }),
-      });
-      if (!quoteResponse.ok) throw new Error("QUOTE_GENERATION_FAILED");
-      const quote = (await quoteResponse.json()) as { id: string };
-      clearDemandSession();
-      router.push(`/connexion/inscription?quoteId=${encodeURIComponent(quote.id)}`);
-    } catch {
-      setWorkflowError("Nous n’avons pas pu préparer le devis pour l’instant. Vous pouvez réessayer ou nous contacter.");
-    } finally {
-      setIsGeneratingQuote(false);
-    }
+  if (!hasQuoteReadyDemand) {
+   setWorkflowError("Le chat doit d'abord qualifier le trajet avant de generer le devis.");
+   return;
   }
 
-  async function requestHumanReview() {
-    if (isRequestingHumanReview) return;
-    setWorkflowError(null);
-    setIsRequestingHumanReview(true);
-
-    try {
-      let leadId = currentLeadId;
-
-      if (!leadId) {
-        const leadResponse = await fetch("/api/leads", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            rawMessage: [
-              activeDemand.departureCity && activeDemand.arrivalCity
-                ? `Trajet ${activeDemand.departureCity} vers ${activeDemand.arrivalCity}`
-                : "Demande transmise à un conseiller depuis le formulaire",
-              activeDemand.departureDate ? `départ ${activeDemand.departureDate}` : null,
-              activeDemand.passengerCount ? `${activeDemand.passengerCount} passagers` : null,
-            ]
-              .filter(Boolean)
-              .join(" — "),
-            clientType: activeDemand.clientType,
-            contactName: activeDemand.contactName,
-            organization: activeDemand.organization,
-            email: normalizeEmailForApi(chatEmail),
-            phone: activeDemand.phone,
-            departureCity: activeDemand.departureCity,
-            arrivalCity: activeDemand.arrivalCity,
-            departureDate: activeDemand.departureDate,
-            returnDate: activeDemand.tripType === "round_trip" ? activeDemand.returnDate : null,
-            passengerCount: activeDemand.passengerCount,
-            tripType: activeDemand.tripType,
-            hasIntermediateStop: multiDestination,
-            intermediateStops: stops,
-            options: activeDemand.options,
-            qualify: false,
-          }),
-        });
-
-        if (!leadResponse.ok) throw new Error("LEAD_CREATION_FAILED");
-        const leadPayload = (await leadResponse.json()) as { leadId?: string };
-        if (!leadPayload.leadId) throw new Error("LEAD_CREATION_FAILED");
-        leadId = leadPayload.leadId;
-        setCurrentLeadId(leadId);
-      }
-
-      const reviewResponse = await fetch("/api/human-review", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          leadId,
-          reason: "PROSPECT_REQUESTED_HUMAN_REVIEW",
-        }),
-      });
-
-      if (!reviewResponse.ok) throw new Error("HUMAN_REVIEW_FAILED");
-
-      setChatHumanReview(true);
-      setHumanReviewQueued(true);
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "Votre demande est transmise à un conseiller. Elle apparaît maintenant dans le tableau de suivi commercial.",
-        },
-      ]);
-    } catch {
-      setWorkflowError("Nous n’avons pas pu transmettre la demande. Réessayez dans un instant.");
-    } finally {
-      setIsRequestingHumanReview(false);
-    }
+  if (!demoOrganization.trim() || !demoEmail.trim()) {
+   setWorkflowError("Renseignez l'organisation et l'email pour creer le compte client.");
+   return;
   }
 
-  const routeInput = useMemo(() => {
-    const departure = normalizeRouteLabel(activeDemand.departureCity);
-    const arrival = normalizeRouteLabel(activeDemand.arrivalCity);
-    const intermediateStops = stops
-      .map(normalizeRouteLabel)
-      .filter(isRouteLabelReady);
+  setIsGeneratingQuote(true);
+  try {
+   const leadResponse = await fetch("/api/leads", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+     rawMessage:
+      demandDraft.rawMessage ?? `Demande client ${demoOrganization} ${demoEmail} : ${demand.departure} vers ${demand.arrival}`,
+     organization: demoOrganization,
+     email: demoEmail,
+     departureCity: demandDraft.departureCity,
+     arrivalCity: demandDraft.arrivalCity,
+     departureDate: demandDraft.departureDate,
+     returnDate: demandDraft.tripType === "one_way" ? null : demandDraft.returnDate,
+     passengerCount: demandDraft.passengerCount,
+     tripType: demandDraft.tripType,
+     options: demandDraft.options,
+     qualify: true
+    })
+   });
 
-    return { departure, arrival, intermediateStops };
-  }, [activeDemand.departureCity, activeDemand.arrivalCity, stops]);
-  const debouncedRouteInput = useDebouncedValue(routeInput, ROUTE_PREVIEW_DEBOUNCE_MS);
-  const selectedOptionLabels = optionLabels(selectedOptions);
+   if (!leadResponse.ok) throw new Error("LEAD_CREATION_FAILED");
+   const leadPayload = (await leadResponse.json()) as {
+    leadId: string;
+    qualification?: { status: string; missingFields?: string[]; humanReviewReason?: string | null };
+   };
 
-  useEffect(() => {
-    if (!isRouteLabelReady(debouncedRouteInput.departure) || !isRouteLabelReady(debouncedRouteInput.arrival)) {
-      setRoutePreview(null);
-      setRouteStatus("idle");
-      return;
-    }
+   if (leadPayload.qualification?.status === "HUMAN_REVIEW") {
+    setWorkflowError(
+     clientHumanReviewNotice(leadPayload.qualification.humanReviewReason ?? null)
+    );
+    return;
+   }
 
-    const controller = new AbortController();
+   if (leadPayload.qualification?.status === "INCOMPLETE") {
+    setWorkflowError(
+     `Informations manquantes : ${(leadPayload.qualification.missingFields ?? []).join(", ")}.`
+    );
+    return;
+   }
 
-    async function loadRoutePreview() {
-      setRouteStatus("loading");
-      try {
-        const response = await fetch("/api/routes/preview", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            departure: debouncedRouteInput.departure,
-            arrival: debouncedRouteInput.arrival,
-            intermediateStops: debouncedRouteInput.intermediateStops,
-          }),
-          signal: controller.signal,
-        });
+   const quoteResponse = await fetch("/api/quotes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ leadId: leadPayload.leadId })
+   });
 
-        if (!response.ok) throw new Error("ROUTE_PREVIEW_FAILED");
-        const payload = (await response.json()) as RoutePreview;
-        setRoutePreview(payload);
-        setRouteStatus("ready");
-      } catch {
-        if (!controller.signal.aborted) {
-          setRoutePreview(null);
-          setRouteStatus("fallback");
-        }
-      }
-    }
+   if (!quoteResponse.ok) throw new Error("QUOTE_GENERATION_FAILED");
+   const quote = (await quoteResponse.json()) as { id: string };
+   router.push(`/devis/${quote.id}`);
+  } catch {
+   setWorkflowError("Generation du devis impossible. Reprise humaine possible via contact.");
+  } finally {
+   setIsGeneratingQuote(false);
+  }
+ }
 
-    loadRoutePreview();
+ useEffect(() => {
+  if (!hasDemand || !demand.departure || !demand.arrival) {
+   setRoutePreview(null);
+   setRouteStatus("idle");
+   return;
+  }
 
-    return () => controller.abort();
-  }, [debouncedRouteInput]);
+  const controller = new AbortController();
 
-  useEffect(() => {
-    if (!routePreview?.geometry.length || !mapContainerRef.current) {
-      routeLayersRef.current.forEach(removeLeafletLayer);
-      routeLayersRef.current = [];
-      return;
-    }
-    let cancelled = false;
-
-    loadLeaflet()
-      .then((leaflet) => {
-        if (cancelled || !mapContainerRef.current || !mapContainerRef.current.isConnected) return;
-        const coordinates = routePreview.geometry.map(([longitude, latitude]) => [latitude, longitude] as [number, number]);
-        const start = coordinates[0];
-        const end = coordinates[coordinates.length - 1];
-
-        if (!mapRef.current) {
-          mapRef.current = leaflet.map(mapContainerRef.current, {
-            attributionControl: true,
-            scrollWheelZoom: false,
-            zoomControl: false
-          });
-          leaflet
-            .tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-              attribution: "© OpenStreetMap"
-            })
-            .addTo(mapRef.current);
-        }
-
-        routeLayersRef.current.forEach(removeLeafletLayer);
-        const routeLine = leaflet.polyline(coordinates, {
-            color: "#d69b2d",
-            opacity: 0.96,
-            weight: 6
-          });
-        routeLine.addTo(mapRef.current);
-        const startMarker = leaflet
-          .circleMarker(start, {
-            color: "#ffffff",
-            fillColor: "#123885",
-            fillOpacity: 1,
-            radius: 7,
-            weight: 4
-          })
-          .addTo(mapRef.current);
-        const endMarker = leaflet
-          .circleMarker(end, {
-            color: "#ffffff",
-            fillColor: "#d51b29",
-            fillOpacity: 1,
-            radius: 7,
-            weight: 4
-          })
-          .addTo(mapRef.current);
-
-        routeLayersRef.current = [routeLine, startMarker, endMarker];
-        mapRef.current.fitBounds(routeLine.getBounds(), { padding: [22, 22], maxZoom: 13 });
-        mapRef.current.setZoom(Math.min(13, Math.max(5, mapRef.current.getZoom() + mapZoom - 1)));
-        window.setTimeout(() => {
-          try {
-            mapRef.current?.invalidateSize();
-          } catch {
-            return;
-          }
-        }, 60);
-      })
-      .catch(() => setRouteStatus("fallback"));
-
-    return () => {
-      cancelled = true;
-    };
-  }, [routePreview]);
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      try {
-        mapRef.current?.invalidateSize();
-      } catch {
-        return;
-      }
-    }, 80);
-
-    return () => window.clearTimeout(timeout);
-  }, [isMapExpanded]);
-
-  useEffect(() => {
-    return () => {
-      routeLayersRef.current.forEach(removeLeafletLayer);
-      routeLayersRef.current = [];
-      removeLeafletMap(mapRef.current);
-      mapRef.current = null;
-    };
-  }, []);
-
-  function changeMapZoom(direction: 1 | -1) {
-    setMapZoom((current) => {
-      const next = Math.min(3, Math.max(1, current + direction));
-      try {
-        const map = mapRef.current;
-        if (map) map.setZoom(Math.min(13, Math.max(5, map.getZoom() + direction)));
-      } catch {
-        return next;
-      }
-      return next;
+  async function loadRoutePreview() {
+   setRouteStatus("loading");
+   try {
+    const response = await fetch("/api/routes/preview", {
+     method: "POST",
+     headers: { "Content-Type": "application/json" },
+     body: JSON.stringify({
+      departure: demand.departure,
+      arrival: demand.arrival,
+      intermediateStops: demand.intermediateStops
+     }),
+     signal: controller.signal
     });
+
+    if (!response.ok) throw new Error("ROUTE_PREVIEW_FAILED");
+    const payload = (await response.json()) as RoutePreview;
+    setRoutePreview(payload);
+    setRouteStatus(payload.status === "fallback" ? "fallback" : "ready");
+   } catch {
+    if (!controller.signal.aborted) setRouteStatus("fallback");
+   }
   }
 
-  return (
-    <main className={styles.page}>
-      <PublicPageHeader />
+  loadRoutePreview();
 
-      <section className={styles.hero}>
-        <div>
-          <h1>Préparer votre trajet</h1>
-          <p>
-            Décrivez votre trajet, vos dates et vos options : NeoTravel rassemble les informations utiles pour préparer
-            votre devis.
-          </p>
+  return () => controller.abort();
+ }, [demand, hasDemand]);
+
+ useEffect(() => {
+  if (!routePreview?.geometry.length || !mapContainerRef.current) return;
+  let cancelled = false;
+
+  loadLeaflet()
+   .then((leaflet) => {
+    if (cancelled || !mapContainerRef.current) return;
+    const coordinates = routePreview.geometry.map(([longitude, latitude]) => [latitude, longitude] as [number, number]);
+    const start = coordinates[0];
+    const end = coordinates[coordinates.length - 1];
+
+    if (!mapRef.current) {
+     mapRef.current = leaflet.map(mapContainerRef.current, {
+      attributionControl: true,
+      scrollWheelZoom: false,
+      zoomControl: false
+     });
+     leaflet
+      .tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+       attribution: "┬® OpenStreetMap"
+      })
+      .addTo(mapRef.current);
+    }
+
+    routeLayersRef.current.forEach((layer) => layer.remove());
+    const routeLine = leaflet.polyline(coordinates, {
+      color: "#d69b2d",
+      opacity: 0.96,
+      weight: 6
+     });
+    routeLine.addTo(mapRef.current);
+    const startMarker = leaflet
+     .circleMarker(start, {
+      color: "#ffffff",
+      fillColor: "#123885",
+      fillOpacity: 1,
+      radius: 7,
+      weight: 4
+     })
+     .addTo(mapRef.current);
+    const endMarker = leaflet
+     .circleMarker(end, {
+      color: "#ffffff",
+      fillColor: "#d51b29",
+      fillOpacity: 1,
+      radius: 7,
+      weight: 4
+     })
+     .addTo(mapRef.current);
+
+    routeLayersRef.current = [routeLine, startMarker, endMarker];
+    mapRef.current.fitBounds(routeLine.getBounds(), { padding: [22, 22], maxZoom: 13 });
+    mapRef.current.setZoom(Math.min(13, Math.max(5, mapRef.current.getZoom() + mapZoom - 1)));
+    window.setTimeout(() => mapRef.current?.invalidateSize(), 60);
+   })
+   .catch(() => setRouteStatus("fallback"));
+
+  return () => {
+   cancelled = true;
+  };
+ }, [isMapExpanded, mapZoom, routePreview]);
+
+ useEffect(() => {
+  return () => {
+   mapRef.current?.remove();
+   mapRef.current = null;
+  };
+ }, []);
+
+ return (
+  <main className={styles.page}>
+   <header className={styles.topbar}>
+    <Link className={styles.logo} href="/" aria-label="NeoTravel accueil">
+     <Image className={styles.logoImage} src="/logo-neotravel.svg" alt="" width={250} height={72} priority />
+    </Link>
+
+    <div className={styles.headerActions}>
+     <nav className={styles.nav} aria-label="Navigation principale">
+      <Link href="/#estimation">Estimation</Link>
+      <Link href="/#projets">Vos projets</Link>
+      <Link href="/partenaires">Partenaires</Link>
+      <Link href="/#engagements">Engagements</Link>
+     </nav>
+     <LanguageSelector />
+     <AccessibilityWidget />
+    </div>
+
+   </header>
+
+   <section className={styles.hero}>
+    <div>
+     <h1 data-i18n-key="Qualification conversationnelle">Qualification conversationnelle</h1>
+     <p>
+      Decrivez votre trajet, vos dates et vos options : NeoTravel vous accompagne jusqu&apos;a une demande claire et
+      exploitable.
+     </p>
+    </div>
+    <Link className={styles.heroCallButton} href="/contact">
+     Nous contacter
+    </Link>
+   </section>
+
+   <section className={styles.progressCard} aria-label="Progression de la demande prospect">
+    <strong data-i18n-key="Progression de la demande prospect">Progression de la demande prospect</strong>
+    <ol className={styles.progress}>
+     {steps.map((step, index) => (
+      <li key={step} className={progressClassName(progressStates[index] ?? "next")}>
+       <span>{index + 1}</span>
+       <em data-i18n-key={step}>{step}</em>
+      </li>
+     ))}
+    </ol>
+   </section>
+
+   <div className={styles.layout}>
+    <section className={styles.chatCard} aria-labelledby="conversation-title">
+     <h2 id="conversation-title" className={styles.srOnly}>
+      Conversation
+     </h2>
+     <div className={styles.chatMessages}>
+      {chatTurns.length ? (
+       <>
+        {chatTurns.map((turn, index) => (
+         <div
+          key={`${turn.role}-${index}`}
+          className={`${styles.message} ${turn.role === "prospect" ? styles.prospect : styles.assistant}`}
+         >
+          <strong>{turn.role === "prospect" ? "Vous" : "NeoTravel IA"}</strong>
+          <p>{turn.content}</p>
+         </div>
+        ))}
+       </>
+      ) : hasDemand ? (
+       <>
+        <div className={`${styles.message} ${styles.prospect}`}>
+         <strong>Vous</strong>
+         <p>
+          Bonjour, nous devons transporter {demand.passengers} personnes de {demand.departure} a{" "}
+          {demand.arrival} le {demand.departureDate.toLowerCase()}
+          {demand.tripType === "Aller-retour" ? `, retour le ${demand.returnDate.toLowerCase()}` : ""}.
+         </p>
         </div>
-        <Link className={styles.heroCallButton} href="/client/contact">
-          Nous contacter
-        </Link>
-      </section>
-
-      <section className={styles.progressCard} aria-label="Progression de votre demande">
-        <strong>Progression de votre demande</strong>
-        <ol className={styles.progress}>
-          {steps.map((step, index) => {
-            const trajetDone = formReady;
-            const verificationDone = trajetDone && !hasBlockingWarning && Boolean(qualifiedLeadId);
-            const stepDone = [trajetDone, verificationDone, false];
-            const firstIncomplete = stepDone.findIndex((d) => !d);
-            const cls = stepDone[index]
-              ? styles.doneStep
-              : index === firstIncomplete
-                ? styles.currentStep
-                : styles.nextStep;
-            return (
-              <li key={step} className={cls}>
-                <span>{index + 1}</span>
-                {step}
-              </li>
-            );
-          })}
-        </ol>
-      </section>
-
-      <div className={styles.layout}>
-        <section className={styles.chatCard} aria-labelledby="conversation-title">
-          <div className={styles.chatCardHeader}>
-            <h2 id="conversation-title">Conversation</h2>
-            {hasActiveSession ? (
-              <button type="button" className={styles.resetButton} onClick={resetSession}>
-                Nouvelle demande
-              </button>
-            ) : null}
-          </div>
-          <div ref={chatMessagesRef} className={styles.chatMessages} data-no-translate translate="no">
-            {hasInitialDemand ? (
-              <>
-                <div className={`${styles.message} ${styles.prospect}`}>
-                  <strong>Vous</strong>
-                  <p>
-                    Bonjour, nous devons transporter {demand.passengers} personnes de {demand.departure} à{" "}
-                    {demand.arrival} le {demand.departureDate.toLowerCase()}
-                    {demand.tripType === "Aller-retour" ? `, retour le ${demand.returnDate.toLowerCase()}` : ""}.
-                  </p>
-                </div>
-                <div className={`${styles.message} ${styles.assistant}`}>
-                  <strong>NeoTravel</strong>
-                  <p>
-                    J’ai noté {demand.departure} - {demand.arrival}, {demand.passengers} passagers,{" "}
-                    {demand.tripType.toLowerCase()}. Souhaitez-vous confirmer les horaires et l&apos;organisation ?
-                  </p>
-                </div>
-                <div className={`${styles.message} ${styles.prospect}`}>
-                  <strong>Vous</strong>
-                  <p>
-                    {mainStop ? `Une étape à ${mainStop}. ` : ""}
-                    Options demandées : {selectedOptionLabels.join(", ") || "aucune option particulière"}.
-                  </p>
-                </div>
-              </>
-            ) : (
-              <div className={`${styles.message} ${styles.assistant}`}>
-                <strong>NeoTravel</strong>
-                <p>Bonjour, comment puis-je vous aider à organiser votre trajet de groupe ?</p>
-              </div>
-            )}
-            <div className={`${styles.message} ${styles.assistant}`}>
-              <strong>NeoTravel</strong>
-              <p>
-                {hasInitialDemand && missingFields.length
-                  ? requiresHumanReview
-                    ? `Il manque encore : ${demoBlockingMissingFields.join(", ")}. Un conseiller pourra vérifier votre demande.`
-                    : "Les informations de trajet sont suffisantes. Ajoutez le type de client, le nom du contact, le téléphone et l'email avant l'envoi."
-                  : hasInitialDemand
-                    ? "Merci, les informations principales sont complètes pour préparer le devis. Indiquez aussi le type de client, le nom du contact et le téléphone."
-                    : "Indiquez simplement votre départ, votre arrivée, la date, le nombre de passagers, puis le type de client, le nom du contact et le téléphone."}
-              </p>
-            </div>
-            {chatMessages.map((msg, i) => (
-              <div key={i} className={`${styles.message} ${msg.role === "user" ? styles.prospect : styles.assistant}`}>
-                <strong>{msg.role === "user" ? "Vous" : "NeoTravel"}</strong>
-                <p>{msg.content}</p>
-              </div>
-            ))}
-            {isSending && (
-              <div className={styles.thinkingBubble} aria-label="Réponse en cours">
-                <span />
-                <span />
-                <span />
-              </div>
-            )}
-          </div>
-
-          <form className={styles.composer} onSubmit={sendMessage}>
-            <label className={styles.srOnly} htmlFor="demand-message">
-              Préciser heure, organisation, commentaire
-            </label>
-            <textarea
-              id="demand-message"
-              name="message"
-              placeholder="Préciser heure, organisation, commentaire..."
-              value={userInput}
-              onChange={(e) => setUserInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  void sendMessage();
-                }
-              }}
-              disabled={isSending}
-            />
-          </form>
-          <div className={styles.chatActions}>
-            <button
-              className={styles.sendButton}
-              type="button"
-              disabled={isSending || !userInput.trim()}
-              onClick={() => void sendMessage()}
-            >
-              {isSending ? "Envoi en cours…" : "Envoyer mon message"}
-            </button>
-            {chatHumanReview ? (
-              <button
-                className={styles.humanReviewButton}
-                type="button"
-                disabled={isRequestingHumanReview || humanReviewQueued}
-                onClick={() => void requestHumanReview()}
-              >
-                {humanReviewQueued
-                  ? "Demande transmise"
-                  : isRequestingHumanReview
-                    ? "Transmission en cours…"
-                    : "Transmettre à un conseiller"}
-              </button>
-            ) : formReady ? (
-              <button
-                className={styles.primaryButton}
-                type="button"
-                disabled={isGeneratingQuote}
-                onClick={() => void generateClientQuote()}
-              >
-                {isGeneratingQuote ? "Création du devis…" : "Recevoir mon devis"}
-              </button>
-            ) : null}
-          </div>
-          {hasBlockingWarning ? (
-            <p className={styles.workflowError}>{fieldWarnings.find((w) => w.blocking)?.message}</p>
-          ) : !formReady && hasAnyDemand ? (
-            <p className={styles.workflowHint}>
-              Encore besoin de : {missingRequirementLabels.join(", ")}.
-            </p>
-          ) : formReady ? (
-            <p className={styles.workflowReady}>Trajet complet - creez votre compte pour acceder au devis.</p>
-          ) : null}
-          {workflowError ? <p className={styles.workflowError}>{workflowError}</p> : null}
-          {humanReviewQueued ? (
-            <p className={styles.workflowReady}>Un commercial peut reprendre cette demande dans le dashboard.</p>
-          ) : null}
-        </section>
-
-        <div className={styles.sideStack}>
-          <aside className={styles.sidePanel} id="infos" aria-labelledby="trip-panel-title">
-            <div className={styles.routeHeader}>
-              <div>
-                <p>Votre trajet</p>
-                <h2 id="trip-panel-title">
-                  {activeDemand.departureCity && activeDemand.arrivalCity
-                    ? `${activeDemand.departureCity} vers ${activeDemand.arrivalCity}`
-                    : "Trajet en attente"}
-                </h2>
-              </div>
-              <span>{routeStatus === "loading" ? "Calcul..." : routePreview ? `${routePreview.distanceKm} km` : "À confirmer"}</span>
-            </div>
-
-            <div
-              className={isMapExpanded ? `${styles.mapBox} ${styles.mapBoxExpanded}` : styles.mapBox}
-              aria-label="Carte du trajet"
-            >
-              <div className={styles.leafletMap} ref={mapContainerRef} />
-              {activeDemand.departureCity && activeDemand.arrivalCity ? (
-                <>
-                  <div className={styles.mapControls} aria-label="Contrôle carte">
-                    <button type="button" onClick={() => changeMapZoom(1)}>
-                      +
-                    </button>
-                    <button type="button" onClick={() => changeMapZoom(-1)}>
-                      -
-                    </button>
-                    <button type="button" onClick={() => setIsMapExpanded((current) => !current)}>
-                      {isMapExpanded ? "Réduire" : "Agrandir"}
-                    </button>
-                  </div>
-                  {routeStatus === "fallback" ? <span className={styles.mapLine} /> : null}
-                </>
-              ) : (
-                <div className={styles.routeEmptyOverlay}>
-                  Le trajet s&apos;affichera ici dès les premières informations.
-                </div>
-              )}
-            </div>
-
-            <dl className={styles.routeFacts}>
-              <div>
-                <dt>Départ</dt>
-                <dd>
-                  {activeDemand.departureCity || "En attente"}
-                  {activeDemand.departureDate ? ` - ${formatDate(activeDemand.departureDate)}` : ""}
-                </dd>
-              </div>
-              {mainStop ? (
-                <div>
-                  <dt>Étape</dt>
-                  <dd>Pause intermédiaire à {mainStop}</dd>
-                </div>
-              ) : null}
-              <div>
-                <dt>Arrivée</dt>
-                <dd>
-                  {activeDemand.arrivalCity || "En attente"}
-                  {activeDemand.tripType === "round_trip" && demand.returnDate
-                    ? ` - retour le ${demand.returnDate}`
-                    : ""}
-                </dd>
-              </div>
-              <div>
-                <dt>Durée</dt>
-                <dd>{formatDuration(routePreview?.durationMinutes)}</dd>
-              </div>
-            </dl>
-
-            <div className={styles.manualForm}>
-              <div className={styles.manualFields}>
-                <label>
-                  <span>Départ</span>
-                  <input
-                    type="text"
-                    placeholder="ex: Paris"
-                    value={activeDemand.departureCity ?? ""}
-                    onChange={(e) =>
-                      setChatExtracted((p) => ({ ...p, departureCity: e.target.value.trim() ? e.target.value : null }))
-                    }
-                  />
-                </label>
-                {multiDestination ? (
-                  <label>
-                    <span>Ville inter.</span>
-                    <input
-                      type="text"
-                      placeholder="ex: Lyon, Dijon"
-                      value={stops.join(", ")}
-                      onChange={(e) => setStops(splitValues(e.target.value))}
-                    />
-                  </label>
-                ) : null}
-                <label>
-                  <span>Arrivée</span>
-                  <input
-                    type="text"
-                    placeholder="ex: Lyon"
-                    value={activeDemand.arrivalCity ?? ""}
-                    onChange={(e) =>
-                      setChatExtracted((p) => ({ ...p, arrivalCity: e.target.value.trim() ? e.target.value : null }))
-                    }
-                  />
-                </label>
-                <label className={warningFor("departureDate") ? styles.fieldInvalid : undefined}>
-                  <span>Date de départ</span>
-                  <input
-                    type="date"
-                    value={activeDemand.departureDate ?? ""}
-                    onChange={(e) =>
-                      setChatExtracted((p) => ({ ...p, departureDate: e.target.value || null }))
-                    }
-                  />
-                  {warningFor("departureDate") ? (
-                    <small className={styles.fieldWarning}>{warningFor("departureDate")!.message}</small>
-                  ) : null}
-                </label>
-                <label>
-                  <span>Type</span>
-                  <select
-                    value={multiDestination ? "multi_stop" : activeDemand.tripType ?? ""}
-                    onChange={(e) => updateTripType(e.target.value)}
-                  >
-                    <option value="">--</option>
-                    <option value="one_way">Aller simple</option>
-                    <option value="round_trip">Aller-retour</option>
-                    <option value="multi_stop">Multi-destination / avec escale</option>
-                  </select>
-                </label>
-                {activeDemand.tripType === "round_trip" ? (
-                  <label className={warningFor("returnDate") ? styles.fieldInvalid : undefined}>
-                    <span>Date de retour facultative</span>
-                    <input
-                      type="date"
-                      value={activeDemand.returnDate ?? ""}
-                      onChange={(e) =>
-                        setChatExtracted((p) => ({ ...p, returnDate: e.target.value || null }))
-                      }
-                    />
-                    {warningFor("returnDate") ? (
-                      <small className={styles.fieldWarning}>{warningFor("returnDate")!.message}</small>
-                    ) : null}
-                  </label>
-                ) : null}
-                <label className={warningFor("passengerCount") ? styles.fieldInvalid : undefined}>
-                  <span>Passagers</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={200}
-                    placeholder="ex: 45"
-                    value={activeDemand.passengerCount ?? ""}
-                    onChange={(e) => {
-                      const raw = e.target.value;
-                      setChatExtracted((p) => ({ ...p, passengerCount: raw === "" ? null : Number(raw) }));
-                    }}
-                  />
-                  {warningFor("passengerCount") ? (
-                    <small className={styles.fieldWarning}>{warningFor("passengerCount")!.message}</small>
-                  ) : null}
-                </label>
-                <div className={styles.optionsField}>
-                  <span className={styles.optionsLabel}>Options</span>
-                  <div className={styles.optionTags}>
-                    {AVAILABLE_OPTIONS.map((option) => {
-                      const active = selectedOptions.includes(option.code);
-                      return (
-                        <button
-                          type="button"
-                          key={option.code}
-                          className={active ? `${styles.optionTag} ${styles.optionTagOn}` : styles.optionTag}
-                          aria-pressed={active}
-                          onClick={() => toggleOption(option.code)}
-                        >
-                          {option.label}
-                          <small>{option.hint}</small>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {selectedOptions.includes("guide") ? (
-                    <label className={styles.optionQtyRow}>
-                      <span>Jours de guide</span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={60}
-                        placeholder="ex: 2"
-                        value={guideDays ?? ""}
-                        onChange={(e) => setGuideDays(e.target.value === "" ? null : Number(e.target.value))}
-                      />
-                      <small>
-                        {guideDays && guideDays > 0
-                          ? `≈ ${guideDays * GUIDE_DAY_RATE_EUR} € HT`
-                          : "à confirmer"}
-                      </small>
-                    </label>
-                  ) : null}
-                  {selectedOptions.includes("driver_overnight") ? (
-                    <label className={styles.optionQtyRow}>
-                      <span>Nuits chauffeur</span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={60}
-                        placeholder="ex: 1"
-                        value={driverNights ?? ""}
-                        onChange={(e) => setDriverNights(e.target.value === "" ? null : Number(e.target.value))}
-                      />
-                      <small>
-                        {driverNights && driverNights > 0
-                          ? `≈ ${driverNights * DRIVER_NIGHT_RATE_EUR} € HT`
-                          : "à confirmer"}
-                      </small>
-                    </label>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          </aside>
-
-          <details className={`${styles.sidePanel} ${styles.collapsiblePanel}`}>
-            <summary className={styles.collapsibleSummary}>
-              <span id="contact-panel-title">Vos coordonnées</span>
-              <small>
-                {chatEmail || activeDemand.phone || activeDemand.contactName
-                  ? "Coordonnées renseignées — modifier"
-                  : "À compléter avant l'envoi"}
-              </small>
-            </summary>
-
-            <div className={styles.manualForm}>
-              <div className={styles.manualFields}>
-                <label>
-                  <span>Type de client</span>
-                  <select
-                    value={activeDemand.clientType ?? ""}
-                    onChange={(e) => setChatClientType(e.target.value || null)}
-                  >
-                    <option value="">--</option>
-                    <option value="Particulier">Particulier</option>
-                    <option value="Entreprise">Entreprise</option>
-                    <option value="Association">Association</option>
-                    <option value="Agence">Agence</option>
-                    <option value="École">École</option>
-                    <option value="Collectivité">Collectivité</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Organisation</span>
-                  <input
-                    type="text"
-                    placeholder="ex: Alpha Conseil"
-                    value={activeDemand.organization ?? ""}
-                    onChange={(e) => setChatOrganization(e.target.value.trim() ? e.target.value : null)}
-                  />
-                </label>
-                <label>
-                  <span>Nom du contact</span>
-                  <input
-                    type="text"
-                    placeholder="ex: Marie Dupont"
-                    value={activeDemand.contactName ?? ""}
-                    onChange={(e) => setChatContactName(e.target.value.trim() ? e.target.value : null)}
-                  />
-                </label>
-                <label>
-                  <span>Téléphone</span>
-                  <input
-                    type="tel"
-                    placeholder="ex: 06 12 34 56 78"
-                    value={activeDemand.phone ?? ""}
-                    onChange={(e) => setChatPhone(e.target.value.trim() ? e.target.value : null)}
-                  />
-                </label>
-                <label className={qualifiedLeadId && !chatEmail && !hasInitialDemand ? styles.fieldInvalid : undefined}>
-                  <span>Email de contact {qualifiedLeadId && !hasInitialDemand ? <strong aria-hidden="true"> *</strong> : null}</span>
-                  <input
-                    type="email"
-                    placeholder="votre@email.fr"
-                    value={chatEmail ?? ""}
-                    onChange={(e) => setChatEmail(e.target.value.trim() || null)}
-                  />
-                  {qualifiedLeadId && !chatEmail && !hasInitialDemand ? (
-                    <small className={styles.fieldWarning}>Requis pour recevoir le devis.</small>
-                  ) : null}
-                </label>
-              </div>
-            </div>
-          </details>
+        <div className={`${styles.message} ${styles.assistant}`}>
+         <strong data-i18n-key="NeoTravel IA">NeoTravel IA</strong>
+         <p>
+          Parfait. Je detecte {demand.departure} - {demand.arrival}, {demand.passengers} passagers,{" "}
+          {demand.tripType.toLowerCase()}. Souhaitez-vous confirmer les horaires et l&apos;organisation ?
+         </p>
         </div>
+        <div className={`${styles.message} ${styles.prospect}`}>
+         <strong>Vous</strong>
+         <p>
+          {mainStop ? `Une etape a ${mainStop}. ` : ""}
+          Options demandees : {demand.options.join(", ") || "aucune option particuliere"}.
+         </p>
+        </div>
+       </>
+      ) : (
+       <div className={`${styles.message} ${styles.assistant}`}>
+        <strong data-i18n-key="NeoTravel IA">NeoTravel IA</strong>
+        <p>Bonjour, comment puis-je vous aider a organiser votre trajet de groupe ?</p>
+       </div>
+      )}
+      {chatTurns.length === 0 ? (
+       <div className={`${styles.message} ${styles.assistant}`}>
+        <strong data-i18n-key="NeoTravel IA">NeoTravel IA</strong>
+        <p>
+         {hasDemand && missingFields.length
+          ? requiresHumanReview
+           ? `Merci. Il manque encore : ${demoBlockingMissingFields.join(", ")}. Le dossier passe en reprise humaine.`
+           : `Merci. Il manque encore : ${demoBlockingMissingFields.join(", ")}.`
+          : hasDemand
+           ? "Merci, les informations principales sont completes pour preparer le devis."
+           : "Indiquez simplement votre depart, votre arrivee, la date et le nombre de passagers."}
+        </p>
+       </div>
+      ) : null}
+     </div>
+
+     <form
+      className={styles.composer}
+      onSubmit={(event) => {
+       event.preventDefault();
+       if (hasQuoteReadyDemand) {
+        void generateClientQuote();
+       } else {
+        void submitChatMessage();
+       }
+      }}
+     >
+      <label className={styles.srOnly} htmlFor="demand-message">
+       Preciser heure, organisation, commentaire
+      </label>
+      <textarea
+       id="demand-message"
+       name="message"
+       placeholder="Preciser heure, organisation, commentaire..."
+       value={chatInput}
+       onChange={(event) => setChatInput(event.target.value)}
+       onKeyDown={(event) => {
+        if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+         event.preventDefault();
+         void submitChatMessage();
+        }
+       }}
+      />
+     </form>
+     <div className={styles.chatActions}>
+      {requiresHumanReview ? (
+       <Link className={styles.humanReviewButton} href="/contact">
+        Transmettre a un conseiller
+       </Link>
+      ) : (
+       <button
+        className={styles.primaryButton}
+        type="button"
+        disabled={isGeneratingQuote || isChatLoading || (!hasQuoteReadyDemand && !chatInput.trim())}
+        onClick={hasQuoteReadyDemand ? generateClientQuote : submitChatMessage}
+       >
+        {isChatLoading
+         ? "Analyse en cours..."
+         : isGeneratingQuote
+         ? "Creation du devis..."
+         : hasQuoteReadyDemand
+          ? "Recevoir mon devis"
+          : hasConversationStarted
+           ? "Completer avec le chat"
+           : "Demarrer avec le chat"}
+       </button>
+      )}
+     </div>
+     {workflowError ? <p className={styles.workflowError}>{workflowError}</p> : null}
+    </section>
+
+    <div className={styles.sideStack}>
+     <aside className={styles.sidePanel} id="infos">
+      <div className={styles.sidePanelHeader}>
+       <h2>Trajet detaille et options</h2>
+       <span className={requiresHumanReview ? styles.reviewStatus : styles.readyStatus}>
+        {requiresHumanReview ? "Reprise humaine" : hasQuoteReadyDemand ? "Automatique possible" : "En attente"}
+       </span>
       </div>
-    </main>
-  );
+
+      <ul className={styles.detectedList}>
+       {detected.map(([label, value]) => (
+        <li key={label}>
+         <span data-i18n-key={label}>{label}</span>
+         <strong data-i18n-key={translatableDetectedValues.has(value) ? value : undefined}>{value}</strong>
+        </li>
+       ))}
+      </ul>
+
+     </aside>
+
+     <aside className={styles.routePreview} aria-labelledby="route-preview-title">
+      <div className={styles.routeHeader}>
+       <div>
+        <p data-i18n-key="Apercu trajet">Apercu trajet</p>
+        <h2 id="route-preview-title">
+         {hasDemand && demand.departure && demand.arrival
+          ? `${demand.departure} vers ${demand.arrival}`
+          : <span data-i18n-key="Trajet en attente">Trajet en attente</span>}
+        </h2>
+       </div>
+       <span>
+        {routePreview?.distanceKm ? (
+         `${routePreview.distanceKm} km`
+        ) : routeStatus === "loading" ? (
+         <span data-i18n-key="Calcul...">Calcul...</span>
+        ) : (
+         <span data-i18n-key="A confirmer">A confirmer</span>
+        )}
+       </span>
+      </div>
+
+      {hasDemand && demand.departure && demand.arrival ? (
+       <div className={isMapExpanded ? `${styles.mapBox} ${styles.mapBoxExpanded}` : styles.mapBox} aria-label="Carte du trajet calcule">
+        <div className={styles.mapControls} aria-label="Controle carte">
+         <button type="button" onClick={() => setMapZoom((current) => Math.min(3, current + 1))}>
+          +
+         </button>
+         <button type="button" onClick={() => setMapZoom((current) => Math.max(1, current - 1))}>
+          -
+         </button>
+         <button type="button" onClick={() => setIsMapExpanded((current) => !current)}>
+          {isMapExpanded ? "Reduire" : "Agrandir"}
+         </button>
+        </div>
+        <div className={styles.leafletMap} ref={mapContainerRef} />
+        {routeStatus === "fallback" ? <span className={styles.mapLine} /> : null}
+       </div>
+      ) : (
+       <div
+        className={styles.routeEmptyState}
+        data-i18n-key="Le trajet s'affichera ici apres les premieres informations donnees au chat."
+       >
+        Le trajet s&apos;affichera ici apres les premieres informations donnees au chat.
+       </div>
+      )}
+
+      <dl className={styles.routeFacts}>
+       <div>
+        <dt data-i18n-key="Depart">Depart</dt>
+        <dd>
+         {demand.departure || <span data-i18n-key="En attente">En attente</span>}
+         {demand.departureDate ? ` - ${demand.departureDate}` : ""}
+        </dd>
+       </div>
+       {mainStop ? (
+        <div>
+         <dt data-i18n-key="Etape">Etape</dt>
+         <dd>Pause intermediaire a {mainStop}</dd>
+        </div>
+       ) : null}
+       <div>
+        <dt data-i18n-key="Arrivee">Arrivee</dt>
+        <dd>
+         {demand.arrival || <span data-i18n-key="En attente">En attente</span>}
+         {hasDemand && demand.tripType === "Aller-retour" && demand.returnDate
+          ? ` - retour le ${demand.returnDate}`
+          : ""}
+        </dd>
+       </div>
+       <div>
+        <dt data-i18n-key="Duree">Duree</dt>
+        <dd>
+         {routePreview?.durationMinutes ? (
+          formatDuration(routePreview.durationMinutes)
+         ) : (
+          <span data-i18n-key="Duree a confirmer">Duree a confirmer</span>
+         )}
+        </dd>
+       </div>
+      </dl>
+     </aside>
+    </div>
+   </div>
+  </main>
+ );
 }

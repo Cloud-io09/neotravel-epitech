@@ -1,3 +1,3 @@
 export function DashboardHeader() {
-  return <header>Dashboard NeoTravel</header>;
+ return <header>Dashboard NeoTravel</header>;
 }

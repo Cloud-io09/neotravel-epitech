@@ -1,3 +1,3 @@
 export function QuoteSummary() {
-  return <section>Resume devis</section>;
+ return <section>Resume devis</section>;
 }
