@@ -1097,7 +1097,7 @@ export function DemandConversation({ initialDemand = {} }: { initialDemand?: Ini
   }
 
   return (
-    <main className={styles.page}>
+    <main className={styles.page} data-no-translate>
       <PublicPageHeader />
 
       <section className={styles.hero}>
