@@ -210,6 +210,12 @@ export async function QuoteClientView({ quoteId, viewer = "client" }: { quoteId:
                 <span>Aucune option ajoutée</span>
               )}
             </div>
+            {routeStops.length > 0 ? (
+              <p style={{ margin: "0.75rem 0 0", fontSize: "0.8rem", lineHeight: 1.4, color: "#5c6b82" }}>
+                Trajet avec arrêt(s) intermédiaire(s) : le montant est estimé sur l’itinéraire
+                direct et sera ajusté par votre conseiller après vérification du parcours.
+              </p>
+            ) : null}
           </section>
 
           <section className={styles.breakdown} aria-labelledby="price-breakdown">
