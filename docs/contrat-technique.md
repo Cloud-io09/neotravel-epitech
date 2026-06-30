@@ -101,27 +101,28 @@ Index minimum : `leads(status)`, `leads(lead_score DESC)`, `quotes(lead_id)`,
 ## 4. Statuts du pipeline
 
 ```typescript
-export const LEAD_STATUSES = [
-  "NEW",               // Lead capté, non qualifié
-  "INCOMPLETE",        // Champ critique manquant — devis bloqué
-  "QUALIFIED",         // Demande complète, prête pour le devis
-  "HUMAN_REVIEW",      // Cas sensible — escalade humaine, devis bloqué
-  "QUOTE_READY",       // Devis calculé, pas encore envoyé
-  "QUOTE_SENT",        // Devis transmis — compteur relances démarre
-  "FOLLOWUP_SCHEDULED",// Relance programmée
-  "WON",               // Accepté (terminal)
-  "LOST",              // Refus ou silence après relances (terminal)
-  "CLOSED",            // Clôturé sans issue commerciale (terminal)
-] as const;
-
-export type LeadStatus = typeof LEAD_STATUSES[number];
+export type LeadStatus =
+  | "NEW"                // Lead capté, non qualifié
+  | "INCOMPLETE"         // Champ critique manquant — devis bloqué
+  | "QUALIFIED"          // Demande complète, prête pour le devis
+  | "HIGH_VALUE"         // Demande à forte valeur (suivi prioritaire)
+  | "HUMAN_REVIEW"       // Cas sensible — escalade humaine, devis bloqué
+  | "QUOTE_READY"        // Devis calculé, pas encore envoyé
+  | "QUOTE_SENT"         // Devis transmis — compteur relances démarre
+  | "FOLLOWUP_SCHEDULED" // Relance programmée
+  | "FOLLOWUP_1"         // 1re relance envoyée (J+1)
+  | "FOLLOWUP_2"         // 2e relance envoyée (J+3)
+  | "FOLLOWUP_3"         // 3e relance envoyée (J+7)
+  | "WON"                // Accepté (terminal)
+  | "LOST"               // Refus ou silence après relances (terminal)
+  | "CLOSED";            // Clôturé sans issue commerciale (terminal)
 ```
 
-Règle : `CLOSED` après 2 relances sans réponse. Toute transition importante écrit dans `audit_logs`.
-Ne pas créer `HIGH_VALUE`, `FOLLOWUP_1` ou `FOLLOWUP_2` comme statuts. Si besoin,
-utiliser plus tard des champs séparés comme `priority` ou `followup_count`.
+Relances **J+1 / J+3 / J+7** (`FOLLOWUP_1/2/3`) ; `CLOSED` après 3 relances sans réponse.
+Toute transition importante écrit dans `audit_logs`.
 
-Source unique : `src/lib/domain/status.ts`. Personne ne redéfinit ces statuts ailleurs.
+Source unique : `src/shared/types/lead.ts` (`LeadStatus`) et `src/shared/types/followup.ts`
+(`FollowupStatus`). Personne ne redéfinit ces statuts ailleurs.
 
 ---
 
@@ -261,20 +262,30 @@ Comportement attendu : refus contrôlé + escalade `HUMAN_REVIEW` si la demande 
 
 ## 9. Variables d'environnement (`.env.example`)
 
+Référence complète : `.env.example` à la racine. Principales variables :
+
 ```
-AI_PROVIDER=
-AI_MODEL_ID=
+# Supabase (anon = public/sûr côté RLS ; service role = secret serveur)
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+
+# IA — Vercel AI Gateway prioritaire, sinon OpenRouter
+AI_GATEWAY_API_KEY=
+AI_GATEWAY_MODEL_ID=openai/gpt-5-mini
 AI_API_KEY=
-SUPABASE_URL=
-SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_KEY=
-RESEND_API_KEY=
-ORS_API_KEY=
-DEMO_MODE=true
+AI_MODEL_ID=openai/gpt-oss-120b:free
+
+# App / distance / emails / n8n
 NEXT_PUBLIC_APP_URL=
+ORS_API_KEY=
+RESEND_API_KEY=
 N8N_CUSTOMER_EMAIL_WEBHOOK=
 N8N_WEBHOOK_SECRET=
 ```
+
+Le mode démo (seed `route_pricing` sans dépendance réseau) est piloté par la couche données
+(`src/shared/lib/data/`), pas par une variable unique.
 
 `DEMO_MODE=true` force le seed `route_pricing` — zéro dépendance réseau le jour J.
 
